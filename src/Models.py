@@ -3,14 +3,29 @@ from peewee import *
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 from playhouse.sqliteq import SqliteQueueDatabase
 from datetime import datetime
+import json
 
 __database__ = "{}/{}".format(config.DATABASE_PATH,config.DB_FILE)
 db = SqliteQueueDatabase(__database__, pragmas={"foreign_keys": 1, "journal_mode": "WAL"})
 
+class TimeData(Field):
+    field_type = 'json'
+    
+    def db_value(self, value):
+        return value
+    
+    def python_value(self, value):
+        value=json.loads(value)
+        for val in value:
+            value[val]['time-start']=datetime.strptime(value[val]['time-start'], '%H:%M:%S').time()
+            value[val]['time-end']=datetime.strptime(value[val]['time-end'], '%H:%M:%S').time()
+        return value
+    
 class Catalog_List(Model):
     id = IntegerField(primary_key=True)
     name = TextField()
     random = BooleanField(null=True, default="0")
+    path_personality_opening = TextField(null=True)
     created_at = DateTimeField(default=datetime.now)
 
     class Meta:
@@ -43,8 +58,7 @@ class Catalog_Files(Model):
     sequence_id = ForeignKeyField(
         'self', field="id", backref="sequence", null=True)
     path = TextField()
-    time_after_opening = TimeField()
-    time_before_completion = TimeField()
+    cutoffs= TimeData(null=True,default="[]")
     created_at = DateTimeField(default=datetime.now)
 
     class Meta:
@@ -67,12 +81,3 @@ class Playlist_Files(Model):
     class Meta:
         database = db
         model_metadata_class = ThreadSafeDatabaseMetadata
-        
-        
-def create_database():
-    # Create Database
-    db.create_tables([Catalog_List,Catalog_Day_Week,Catalog_Files,Playlist_Files])
-    db.stop()
-    
-if __name__ =="__main__":
-    create_database()
