@@ -19,6 +19,8 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     # Ajustar para poder cortar os videos na parte que quer
 
     def cutout(video, start, end):
+        if(end >= video.duration):
+            end=video.duration
         return concatenate_videoclips([video.subclip(0, start), video.subclip(end, video.duration)], method='compose')
     cutoffs = value['cutoffs']
     if 'opening' in cutoffs.keys():
@@ -43,7 +45,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     if valid_start_date == False and 'completion' in cutoffs.keys():
         # Remover Finalização caso tenha
         (start, end) = get_seconds_start_end(cutoffs['completion'])
-        if end > clip.duration:
+        if start > clip.duration:
             (open_start, open_end) = get_seconds_start_end(cutoffs['opening'])
             start = start-open_end
             end = end-open_end
@@ -79,8 +81,8 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     else:
         video.close()
 
-    # Playlist_Files.insert({"file_id": value['id'], "file": base_file, "duration": str(timedelta(
-    #     seconds=clip.duration)), "time_start": origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
+    Playlist_Files.insert({"file_id": value['id'], "file": base_file, "duration": str(timedelta(
+        seconds=clip.duration)), "time_start": origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
 
     if valid_start_date == True:
         time_start = False
@@ -114,9 +116,7 @@ def main():
     end_time = date_end.strftime("%H:{}:{}").format(59, 59)
 
     catalog_now = Catalog_Day_Week.select().where(
-        Catalog_Day_Week.day_week_start == day_week_start)
-    # .where(Catalog_Day_Week.time_start >= start_time).where(
-    #     Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
+        Catalog_Day_Week.day_week_start == day_week_start).where(Catalog_Day_Week.time_start >= start_time).where(Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
 
     for value in catalog_now:
         files = Catalog_Files.select().where(Catalog_Files.watched == 0).where(
