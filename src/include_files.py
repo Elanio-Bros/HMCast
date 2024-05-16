@@ -18,29 +18,36 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     print("Import File:", base_file)
     # Ajustar para poder cortar os videos na parte que quer
 
+    def cutout(video, start, end):
+        return concatenate_videoclips([video.subclip(0, start), video.subclip(end, video.duration)], method='compose')
     cutoffs = value['cutoffs']
     if 'opening' in cutoffs.keys():
         if personality_opening != None or id > 0:
             # Remover Abertura caso tenha
             (start, end) = get_seconds_start_end(cutoffs['opening'])
-            clip = video.cutout(start, end)
-        if personality_opening != None and id == 0:
-            print("Personal_opening")
+            clip = cutout(video, start, end)
+        elif personality_opening != None and id == 0:
             clip1 = clip.subclip(0, start)
             opening = VideoFileClip(personality_opening)
             clip2 = clip.subclip(end-(end-start), clip.duration)
             clip = concatenate_videoclips(
                 [clip1, opening, clip2], method='compose')
+        else:
+            clip = video
 
     origial_time_start = time_start
     time_start = (time_start + timedelta(seconds=clip.duration))
     valid_start_date = time_start.weekday(
     ) == day_week_end and time_start.time() >= time_end
 
-    if valid_start_date == True and 'completion' in cutoffs.keys():
-        (start, end) = get_seconds_start_end(cutoffs['completion'])
+    if valid_start_date == False and 'completion' in cutoffs.keys():
         # Remover Finalização caso tenha
-        clip = clip.cutout(start, end)
+        (start, end) = get_seconds_start_end(cutoffs['completion'])
+        if end > clip.duration:
+            (open_start, open_end) = get_seconds_start_end(cutoffs['opening'])
+            start = start-open_end
+            end = end-open_end
+        clip = cutout(clip, start, end)
 
     if not os.path.exists("{}/{}/".format(config.TEMP_PATH, base_file)):
         def monitor(ffmpeg, duration, time_, time_left, process):
@@ -53,8 +60,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
             sys.stdout.flush()
 
         file = "{}/temp{}.mp4".format(config.TEMP_PATH, id)
-        clip.write_videofile(
-            file, threads=4)
+        clip.write_videofile(file, threads=4)
         video.close()
 
         video = ffmpeg_streaming.input(file)
@@ -73,8 +79,8 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     else:
         video.close()
 
-    Playlist_Files.insert({"file_id": value['id'], "file": base_file, "duration": str(timedelta(
-        seconds=clip.duration)), "time_start": origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
+    # Playlist_Files.insert({"file_id": value['id'], "file": base_file, "duration": str(timedelta(
+    #     seconds=clip.duration)), "time_start": origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
 
     if valid_start_date == True:
         time_start = False
@@ -82,8 +88,8 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
         file = Catalog_Files.select().where(Catalog_Files.watched == 0).where(
             Catalog_Files.id == value['sequence_id']).dicts()
         if (len(file) == 1):
-            code_videos(id+1, file[0], time_start, time_end,
-                        day_week_start, day_week_end, personality_opening)
+            return code_videos(id+1, file[0], time_start, time_end,
+                               day_week_start, day_week_end, personality_opening)
 
     return time_start
 
@@ -91,11 +97,9 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
 def get_seconds_start_end(value):
     start = value['time-start']
     end = value['time-end']
-    start = start.hour*3600+start.minute*60+start.second
-    end = end.hour*3600+end.minute*60+end.second
-
+    start = timedelta(hours=start.hour,minutes=start.minute,seconds=start.second,microseconds=start.microsecond).total_seconds()
+    end = timedelta(hours=end.hour,minutes=end.minute,seconds=end.second,microseconds=end.microsecond).total_seconds()
     return start, end
-
 
 def main():
     # +timedelta(hours=7)
@@ -109,8 +113,10 @@ def main():
     day_week_end = date_end.weekday()
     end_time = date_end.strftime("%H:{}:{}").format(59, 59)
 
-    catalog_now = Catalog_Day_Week.select().where(Catalog_Day_Week.day_week_start == day_week_start).where(Catalog_Day_Week.time_start >= start_time).where(
-        Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
+    catalog_now = Catalog_Day_Week.select().where(
+        Catalog_Day_Week.day_week_start == day_week_start)
+    # .where(Catalog_Day_Week.time_start >= start_time).where(
+    #     Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
 
     for value in catalog_now:
         files = Catalog_Files.select().where(Catalog_Files.watched == 0).where(

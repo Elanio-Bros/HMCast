@@ -17,8 +17,8 @@ class TimeData(Field):
     def python_value(self, value):
         value=json.loads(value)
         for val in value:
-            value[val]['time-start']=datetime.strptime(value[val]['time-start'], '%H:%M:%S').time()
-            value[val]['time-end']=datetime.strptime(value[val]['time-end'], '%H:%M:%S').time()
+            value[val]['time-start']=datetime.strptime(value[val]['time-start'], '%H:%M:%S.%f').time()
+            value[val]['time-end']=datetime.strptime(value[val]['time-end'], '%H:%M:%S.%f').time()
         return value
     
 class Catalog_List(Model):
