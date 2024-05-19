@@ -15,8 +15,7 @@ def stream():
     print("Stream")
     while True:
         load_stream.main()
-        time.sleep(0.5)
 
-thread.Thread(target=files).start()
 thread.Thread(target=stream).start()
+thread.Thread(target=files).start()
 # input("Erro")

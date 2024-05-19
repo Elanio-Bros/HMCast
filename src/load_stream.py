@@ -1,10 +1,9 @@
 import os
-import config
+from . import config
 import shutil
-from stream_media import Stream_Media
-from Models import Playlist_Files, Catalog_Files
+from .stream_media import Stream_Media
+from .Models import Playlist_Files, Catalog_Files
 from datetime import datetime, timedelta
-import time
 
 
 def main():
@@ -14,13 +13,12 @@ def main():
     # Tempo de agora
     date = datetime.now()
     day_week = date.weekday()
-    # time_start = date.strftime("%H:%M:%S")
+    time_start = date.strftime("%H:%M:%S")
 
     # list reproduction
-    playlist = Playlist_Files.select().where(Playlist_Files.day_week == day_week).dicts()
-    # .where(Playlist_Files.time_start >= time_start).order_by(Playlist_Files.time_start.asc()).dicts()
+    playlist = Playlist_Files.select().where(Playlist_Files.day_week == day_week).dicts().where(Playlist_Files.time_start >= time_start).order_by(Playlist_Files.time_start.asc()).dicts()
     for midia in playlist:
-        # if (date.strftime("%H:%M:%S") == midia['time_start'].strftime("%H:%M:%S")):
+        if (datetime.now().strftime("%H:%M:%S") == midia['time_start'].strftime("%H:%M:%S")):
             dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
             if os.path.isdir(dir) and os.path.exists(dir):
                 print("Execute File:{}".format(midia['file']))

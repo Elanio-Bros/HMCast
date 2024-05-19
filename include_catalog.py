@@ -35,6 +35,5 @@ def set_files(id_list):
         if len(files_exist)==0:
             Catalog_Files.create(catalog_id=id_list,watched=0,path=file,cutoffs='{"opening":{"time-start":"00:00:00","time-end":"00:00:00"}}')
 if __name__ == "__main__":
-    id_list=1
-    # id_list=set_list()
+    id_list=set_list()
     set_files(id_list)

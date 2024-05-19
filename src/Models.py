@@ -1,4 +1,4 @@
-import config
+from . import config
 from peewee import *
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 from playhouse.sqliteq import SqliteQueueDatabase

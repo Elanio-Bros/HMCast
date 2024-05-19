@@ -1,10 +1,10 @@
-import config
+from . import config
 import os
 from moviepy.editor import *
 import sys
 from datetime import datetime, timedelta
 import time
-from Models import Catalog_Day_Week, Catalog_Files, Playlist_Files
+from .Models import Catalog_Day_Week, Catalog_Files, Playlist_Files
 from peewee import fn
 import math
 from vidgear.gears import StreamGear
@@ -52,20 +52,12 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
             end = end-open_end
         clip = cutout(clip, start, end)
 
-    if not os.path.exists("{}/{}/".format(config.TEMP_PATH, base_file)):
-        def monitor(ffmpeg, duration, time_, time_left, process):
-            per = round(time_ / duration * 100)
-            sys.stdout.write(
-                "\rTranscoding...(%s%%) %s left [%s%s]" %
-                (per, timedelta(seconds=int(time_left)),
-                 '#' * per, '-' * (100 - per))
-            )
-            sys.stdout.flush()
         start_second = 0
         final_second = 60
         time_start_part = origial_time_start
         for part in range(0, math.ceil(clip.duration/60)):
-            file = "{}/{}_{}_part_{}.mp4".format(config.TEMP_PATH, base_file, id, part)
+            file = "{}/{}_{}_part_{}.mp4".format(
+                config.TEMP_PATH, base_file, id, part)
             if (final_second >= clip.duration):
                 final_second = clip.duration
             clip_part = clip.subclip(start_second, final_second)
@@ -86,15 +78,19 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
                 "-hls_time": 5,
                 "-clear_prev_assets": True
             }
-            out = "{}/{}_{}_part_{}".format(config.TEMP_PATH,os.path.basename(base_file), id, part)
+            out = "{}/{}_{}_part_{}".format(config.TEMP_PATH,
+                                            os.path.basename(base_file), id, part)
             if not os.path.exists(out):
                 os.mkdir(out)
-            streamer = StreamGear(output="{}/hls.m3u8".format(out), format="hls", **stream_params)
+            streamer = StreamGear(
+                output="{}/hls.m3u8".format(out), format="hls", **stream_params)
             streamer.transcode_source()
             streamer.terminate()
 
-            Playlist_Files.insert({"file_id": value['id'], "file": os.path.basename(out), "duration": str(timedelta(seconds=clip_part.duration)), "time_start": time_start_part.time(), "catalog_id": value['catalog_id'], "day_week": time_start_part.weekday()}).execute()
-            time_start_part = (time_start_part +timedelta(seconds=clip_part.duration))
+            Playlist_Files.insert({"file_id": value['id'], "file": os.path.basename(out), "duration": str(timedelta(
+                seconds=clip_part.duration)), "time_start": time_start_part.time(), "catalog_id": value['catalog_id'], "day_week": time_start_part.weekday()}).execute()
+            time_start_part = (time_start_part +
+                               timedelta(seconds=clip_part.duration))
             os.remove(file)
             start_second += 60
             final_second += 60
@@ -148,12 +144,15 @@ def main():
                 Catalog_Files.catalog_id == value.catalog_id).execute()
         files = enumerate(Catalog_Files.select().where(Catalog_Files.watched == 0).where(
             Catalog_Files.catalog_id == value.catalog_id).order_by(Catalog_Files.id.asc() if value.catalog_id.random == False else fn.Random()).dicts())
+
         time_start = datetime.combine(date_start, value.time_start)
+
         file_has_list = Playlist_Files.select().where((Playlist_Files.catalog_id == value.catalog_id) & (
             (Playlist_Files.time_start.between(value.time_start, value.time_end)) & (Playlist_Files.day_week.between(value.day_week_start, value.day_week_end)))).dicts()
         if (len(file_has_list) == 0):
             for id, file in files:
-                time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,value.day_week_end, value.catalog_id.path_personality_opening)
+                time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,
+                                         value.day_week_end, value.catalog_id.path_personality_opening)
                 if time_start == False:
                     break
 
