@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 import time
 from Models import Catalog_Day_Week, Catalog_Files, Playlist_Files
 from peewee import fn
+import math
+from vidgear.gears import StreamGear
 
 
 def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, personality_opening=None):
@@ -19,9 +21,10 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     # Ajustar para poder cortar os videos na parte que quer
 
     def cutout(video, start, end):
-        if(end >= video.duration):
-            end=video.duration
+        if (end >= video.duration):
+            end = video.duration
         return concatenate_videoclips([video.subclip(0, start), video.subclip(end, video.duration)], method='compose')
+
     cutoffs = value['cutoffs']
     if 'opening' in cutoffs.keys():
         if personality_opening != None or id > 0:
@@ -60,29 +63,47 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
                  '#' * per, '-' * (100 - per))
             )
             sys.stdout.flush()
+        start_second = 0
+        final_second = 60
+        time_start_part = origial_time_start
+        for part in range(0, math.ceil(clip.duration/60)):
+            file = "{}/{}_{}_part_{}.mp4".format(config.TEMP_PATH, base_file, id, part)
+            if (final_second >= clip.duration):
+                final_second = clip.duration
+            clip_part = clip.subclip(start_second, final_second)
+            clip_part.write_videofile(file, threads=4)
+            stream_params = {
+                "-video_source": file,
+                "-streams": [
+                    # Stream1: 1920x1080
+                    {"-resolution": "1920x1080", "-video_bitrate": "2000k"},
+                    # Stream2: 1280x720
+                    {"-resolution": "1280x720",  "-video_bitrate": "1500k"},
+                    # Stream3: 640x360
+                    {"-resolution": "640x360", "-video_bitrate": "1000k"},
+                    # Stream3: 320x240
+                    {"-resolution": "320x240", "-video_bitrate": "500k"},
 
-        file = "{}/temp{}.mp4".format(config.TEMP_PATH, id)
-        clip.write_videofile(file, threads=4)
+                ],
+                "-hls_time": 5,
+                "-clear_prev_assets": True
+            }
+            out = "{}/{}_{}_part_{}".format(config.TEMP_PATH,os.path.basename(base_file), id, part)
+            if not os.path.exists(out):
+                os.mkdir(out)
+            streamer = StreamGear(output="{}/hls.m3u8".format(out), format="hls", **stream_params)
+            streamer.transcode_source()
+            streamer.terminate()
+
+            Playlist_Files.insert({"file_id": value['id'], "file": os.path.basename(out), "duration": str(timedelta(seconds=clip_part.duration)), "time_start": time_start_part.time(), "catalog_id": value['catalog_id'], "day_week": time_start_part.weekday()}).execute()
+            time_start_part = (time_start_part +timedelta(seconds=clip_part.duration))
+            os.remove(file)
+            start_second += 60
+            final_second += 60
+
         video.close()
-
-        video = ffmpeg_streaming.input(file)
-        _480p = Representation(Size(854, 480), Bitrate(750 * 1024, 192 * 1024))
-        _720p = Representation(
-            Size(1280, 720), Bitrate(2048 * 1024, 320 * 1024))
-        _1080p = Representation(
-            Size(1920, 1080), Bitrate(4096 * 1024, 320 * 1024))
-
-        hls = video.hls(Formats.h264(), hls_time=5)
-        hls.representations(_480p, _720p, _1080p)
-        hls.flags('independent_segments')
-        hls.output("{}/{}/hls.m3u8".format(config.TEMP_PATH,
-                   base_file), monitor=monitor)
-        os.remove(file)
     else:
         video.close()
-
-    Playlist_Files.insert({"file_id": value['id'], "file": base_file, "duration": str(timedelta(
-        seconds=clip.duration)), "time_start": origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
 
     if valid_start_date == True:
         time_start = False
@@ -99,9 +120,12 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
 def get_seconds_start_end(value):
     start = value['time-start']
     end = value['time-end']
-    start = timedelta(hours=start.hour,minutes=start.minute,seconds=start.second,microseconds=start.microsecond).total_seconds()
-    end = timedelta(hours=end.hour,minutes=end.minute,seconds=end.second,microseconds=end.microsecond).total_seconds()
+    start = timedelta(hours=start.hour, minutes=start.minute,
+                      seconds=start.second, microseconds=start.microsecond).total_seconds()
+    end = timedelta(hours=end.hour, minutes=end.minute,
+                    seconds=end.second, microseconds=end.microsecond).total_seconds()
     return start, end
+
 
 def main():
     # +timedelta(hours=7)
@@ -131,8 +155,7 @@ def main():
             (Playlist_Files.time_start.between(value.time_start, value.time_end)) & (Playlist_Files.day_week.between(value.day_week_start, value.day_week_end)))).dicts()
         if (len(file_has_list) == 0):
             for id, file in files:
-                time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,
-                                         value.day_week_end, value.catalog_id.path_personality_opening)
+                time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,value.day_week_end, value.catalog_id.path_personality_opening)
                 if time_start == False:
                     break
 
