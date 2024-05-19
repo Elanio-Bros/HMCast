@@ -1,7 +1,5 @@
 import config
 import os
-import ffmpeg_streaming
-from ffmpeg_streaming import Formats, Bitrate, Representation, Size
 from moviepy.editor import *
 import sys
 from datetime import datetime, timedelta
