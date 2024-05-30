@@ -35,13 +35,13 @@ class Stream_Media(Thread):
         temp_playlist = m3u8.load("{}/hls.m3u8".format(self.dir))
         playlist.version = self.version
         for list in temp_playlist.playlists:
-            list.stream_info.bandwidth=None
+            list.stream_info.bandwidth = None
             playlist.add_playlist(list)
         playlist.dump(__playlist__)
 
         if os.path.exists(__stream__) and os.path.exists(__temp__):
             original = m3u8.load(__stream__)
-            
+
             # Remove Arquivos Inuteis
             self.__removing_unused_files(original)
 
@@ -52,8 +52,10 @@ class Stream_Media(Thread):
             media = m3u8.load(__temp__)
 
             for id, segment in enumerate(media.segments):
-                id_seg = 0 if len(original.segments.by_key(None)) == 0 else int((original.segments[-1].uri).replace('.ts', '').replace('chunk-stream{}-'.format(self.resolution), ''))+1
-                name_file = "chunk-stream{}-{:04d}.ts".format(self.resolution, id_seg)
+                id_seg = 0 if len(original.segments.by_key(None)) == 0 else int(
+                    (original.segments[-1].uri).replace('.ts', '').replace('chunk-stream{}-'.format(self.resolution), ''))+1
+                name_file = "chunk-stream{}-{:04d}.ts".format(
+                    self.resolution, id_seg)
                 original_file = "{}/{}".format(self.dir, segment.uri)
                 if os.path.exists(original_file):
                     shutil.copy(original_file, './file/{}'.format(name_file))
@@ -64,22 +66,25 @@ class Stream_Media(Thread):
                         # time remove other file
                         original.segments.pop(0)
                         # get new uri segment
-                        original.media_sequence = int(original.media_sequence)+1
+                        original.media_sequence = int(
+                            original.media_sequence)+1
                     else:
                         # original.discontinuity_sequence = '0'
                         original.media_sequence = '0'
                         original.target_duration = int(segment.duration)
                         time.sleep(int(segment.duration))
 
-                    original.add_segment(Segment(name_file, duration=segment.duration, discontinuity=self.path != self.dir))
+                    original.add_segment(Segment(
+                        name_file, duration=segment.duration, discontinuity=self.path != self.dir))
 
                     self.path = self.dir
-                    original.target_duration = int(segment.duration) if int(segment.duration) > int(original.target_duration) else int(original.target_duration)
+                    original.target_duration = int(segment.duration) if int(segment.duration) > int(
+                        original.target_duration) else int(original.target_duration)
                     original.allow_cache = 'NO'
                     original.dump(__stream__)
-                    if self.uri != None and os.path.exists('{}/{}'.format(self.default_path, self.uri)):
-                        time.sleep(self.duration)
-                        os.remove('{}/{}'.format(self.default_path, self.uri))
+                if self.uri != None and os.path.exists('{}/{}'.format(self.default_path, self.uri)):
+                    time.sleep(self.duration)
+                    os.remove('{}/{}'.format(self.default_path, self.uri))
 
     def __removing_unused_files(self, original):
         segments = [segment.uri for segment in original.segments]

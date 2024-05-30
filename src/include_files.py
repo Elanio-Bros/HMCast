@@ -37,7 +37,6 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
                 [clip1, opening, clip2], method='compose')
         else:
             clip = video
-
     origial_time_start = time_start
     time_start = (time_start + timedelta(seconds=clip.duration))
     valid_start_date = time_start.weekday(
@@ -52,52 +51,58 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
             end = end-open_end
         clip = cutout(clip, start, end)
 
-        start_second = 0
-        final_second = 60
-        time_start_part = origial_time_start
-        for part in range(0, math.ceil(clip.duration/60)):
-            file = "{}/{}_{}_part_{}.mp4".format(
-                config.TEMP_PATH, base_file, id, part)
-            if (final_second >= clip.duration):
-                final_second = clip.duration
-            clip_part = clip.subclip(start_second, final_second)
-            clip_part.write_videofile(file, threads=4)
-            stream_params = {
-                "-video_source": file,
-                "-streams": [
-                    # Stream1: 1920x1080
-                    {"-resolution": "1920x1080", "-video_bitrate": "2000k"},
-                    # Stream2: 1280x720
-                    {"-resolution": "1280x720",  "-video_bitrate": "1500k"},
-                    # Stream3: 640x360
-                    {"-resolution": "640x360", "-video_bitrate": "1000k"},
-                    # Stream3: 320x240
-                    {"-resolution": "320x240", "-video_bitrate": "500k"},
+    time_cut = 60
+    start_second = 0
+    final_second = time_cut
 
-                ],
-                "-hls_time": 5,
-                "-clear_prev_assets": True
-            }
-            out = "{}/{}_{}_part_{}".format(config.TEMP_PATH,
-                                            os.path.basename(base_file), id, part)
-            if not os.path.exists(out):
-                os.mkdir(out)
-            streamer = StreamGear(
-                output="{}/hls.m3u8".format(out), format="hls", **stream_params)
-            streamer.transcode_source()
-            streamer.terminate()
+    time_start_part = origial_time_start
 
-            Playlist_Files.insert({"file_id": value['id'], "file": os.path.basename(out), "duration": str(timedelta(
-                seconds=clip_part.duration)), "time_start": time_start_part.time(), "catalog_id": value['catalog_id'], "day_week": time_start_part.weekday()}).execute()
-            time_start_part = (time_start_part +
-                               timedelta(seconds=clip_part.duration))
-            os.remove(file)
-            start_second += 60
-            final_second += 60
+    for part in range(0, math.ceil(clip.duration / time_cut)):
+        file = "{}/{}_{}_part_{}.mp4".format(
+            config.TEMP_PATH, base_file, id, part)
+        if (final_second >= clip.duration):
+            final_second = clip.duration
+        clip_part = clip.subclip(start_second, final_second)
+        clip_part.write_videofile(file, threads=4)
+        stream_params = {
+            "-video_source": file,
+            "-streams": [
+                # Stream1: 1920x1080
+                {"-resolution": "1920x1080", "-video_bitrate": "2000k"},
+                # Stream2: 1280x720
+                {"-resolution": "1280x720",  "-video_bitrate": "1500k"},
+                # Stream3: 640x360
+                {"-resolution": "640x360", "-video_bitrate": "1000k"},
+                # Stream3: 320x240
+                {"-resolution": "320x240", "-video_bitrate": "500k"},
 
-        video.close()
-    else:
-        video.close()
+            ],
+            "-hls_time": 5,
+            "-clear_prev_assets": True
+        }
+        out = "{}/{}_{}_part_{}".format(config.TEMP_PATH,
+                                        os.path.basename(base_file), id, part)
+        if not os.path.exists(out):
+            os.mkdir(out)
+        streamer = StreamGear(
+            output="{}/hls.m3u8".format(out), format="hls", **stream_params)
+        streamer.transcode_source()
+        streamer.terminate()
+
+        date = get_date_time()['date']
+
+        if date.time() > time_start_part.time():
+            time_start_part = datetime.now()+timedelta(minutes=1)
+
+        Playlist_Files.insert({"file_id": value['id'], "file": os.path.basename(out), "duration": str(timedelta(
+            seconds=clip_part.duration)), "time_start": time_start_part.time(), "catalog_id": value['catalog_id'], "day_week": time_start_part.weekday()}).execute()
+        time_start_part = (time_start_part +
+                           timedelta(seconds=clip_part.duration))
+        os.remove(file)
+        start_second += time_cut
+        final_second += time_cut
+
+    video.close()
 
     if valid_start_date == True:
         time_start = False
@@ -121,35 +126,45 @@ def get_seconds_start_end(value):
     return start, end
 
 
-def main():
-    # +timedelta(hours=7)
+def get_date_time():
+    # +timedelta(hours=1)
     date = datetime.now()
     date_start = date
+    date_end = date_start+timedelta(hours=1)
+
+    return {"date": date, "date_start": date_start, "date_end": date_end}
+
+
+def main():
+    date = get_date_time()
+
+    date_start = date["date_start"]
     day_week_start = date_start.weekday()
     start_time = date_start.strftime("%H:{}:{}").format("00", "00")
 
-    # pegando de 2 para frente
-    date_end = date_start+timedelta(hours=1)
+    date_end = date["date_end"]
     day_week_end = date_end.weekday()
     end_time = date_end.strftime("%H:{}:{}").format(59, 59)
 
     catalog_now = Catalog_Day_Week.select().where(
         Catalog_Day_Week.day_week_start == day_week_start).where(Catalog_Day_Week.time_start >= start_time).where(Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
-
     for value in catalog_now:
         files = Catalog_Files.select().where(Catalog_Files.watched == 0).where(
             Catalog_Files.catalog_id == value.catalog_id).order_by(Catalog_Files.id.asc()).dicts()
+
         if len(files) == 0:
             Catalog_Files.update({Catalog_Files.watched: 0}).where(
                 Catalog_Files.catalog_id == value.catalog_id).execute()
-        files = enumerate(Catalog_Files.select().where(Catalog_Files.watched == 0).where(
-            Catalog_Files.catalog_id == value.catalog_id).order_by(Catalog_Files.id.asc() if value.catalog_id.random == False else fn.Random()).dicts())
 
-        time_start = datetime.combine(date_start, value.time_start)
+        files = enumerate(Catalog_Files.select().where(Catalog_Files.watched == 0).where(
+                Catalog_Files.catalog_id == value.catalog_id).order_by(Catalog_Files.id.asc() if value.catalog_id.random == False else fn.Random()).dicts())
 
         file_has_list = Playlist_Files.select().where((Playlist_Files.catalog_id == value.catalog_id) & (
             (Playlist_Files.time_start.between(value.time_start, value.time_end)) & (Playlist_Files.day_week.between(value.day_week_start, value.day_week_end)))).dicts()
+
         if (len(file_has_list) == 0):
+
+            time_start = datetime.combine(date_start, value.time_start)
             for id, file in files:
                 time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,
                                          value.day_week_end, value.catalog_id.path_personality_opening)

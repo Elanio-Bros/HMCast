@@ -24,9 +24,10 @@ def set_files(id_list):
         files=[]
         for list in list_path:
             list=path+list
+            mime=mimetypes.guess_type(list)
             if os.path.isdir(list):
                 files=files+search_files(list)
-            elif os.path.isfile(list) and mimetypes.guess_type(list)[0].startswith('video'):
+            elif os.path.isfile(list) and mime[0]!=None and mime[0].startswith('video'):
                 files.append(list)
         return files
     files=search_files(path_principal)
@@ -37,3 +38,4 @@ def set_files(id_list):
 if __name__ == "__main__":
     id_list=set_list()
     set_files(id_list)
+    input("Ok")
