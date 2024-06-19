@@ -45,8 +45,7 @@ def render_video(id, value):
 
 
 def main():
-    playlist = enumerate(Playlist_Files.select().where(Playlist_Files.render == 0).dicts(
-    ).order_by(Playlist_Files.time_start.asc()).dicts())
+    playlist = enumerate(Playlist_Files.select().where(Playlist_Files.render == 0).dicts().order_by(Playlist_Files.time_start.asc()).dicts())
     pool = ThreadPool(processes=2)
     for id, file in playlist:
         pool.apply_async(render_video,[file['id'], file])
