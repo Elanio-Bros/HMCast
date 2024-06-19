@@ -7,14 +7,13 @@ from m3u8 import Segment
 
 
 class Stream_Media(Thread):
-    def __init__(self, resolution, default_path, dir, uri, path, files_list=5):
+    def __init__(self, resolution, default_path, dir, files_list=5):
         Thread.__init__(self)
         self.resolution = resolution
         self.default_path = default_path
         self.dir = dir
-        self.uri = uri
-        self.path = path
         self.version = '3'
+        self.uri=None
         self.duration = 0
         self.files_list = files_list
 
@@ -43,6 +42,7 @@ class Stream_Media(Thread):
             original = m3u8.load(__stream__)
 
             # Remove Arquivos Inuteis
+            # Thread
             self.__removing_unused_files(original)
 
             original.version = self.version
@@ -50,8 +50,8 @@ class Stream_Media(Thread):
             original.dump(__stream__)
 
             media = m3u8.load(__temp__)
-
-            for id, segment in enumerate(media.segments):
+            segments = media.segments
+            for id, segment in enumerate(segments):
                 id_seg = 0 if len(original.segments.by_key(None)) == 0 else int(
                     (original.segments[-1].uri).replace('.ts', '').replace('chunk-stream{}-'.format(self.resolution), ''))+1
                 name_file = "chunk-stream{}-{:04d}.ts".format(
@@ -74,10 +74,8 @@ class Stream_Media(Thread):
                         original.target_duration = int(segment.duration)
                         time.sleep(int(segment.duration))
 
-                    original.add_segment(Segment(
-                        name_file, duration=segment.duration, discontinuity=self.path != self.dir))
+                    original.add_segment(Segment(name_file, duration=segment.duration, discontinuity= (id==0) ))
 
-                    self.path = self.dir
                     original.target_duration = int(segment.duration) if int(segment.duration) > int(
                         original.target_duration) else int(original.target_duration)
                     original.allow_cache = 'NO'
