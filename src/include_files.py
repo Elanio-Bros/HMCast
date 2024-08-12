@@ -54,7 +54,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
 
     date = get_date_time()['date']
 
-    if date.time() > origial_time_start .time():
+    if date.time() > origial_time_start.time():
         origial_time_start = datetime.now()+timedelta(minutes=1)
 
     Playlist_Files.insert({"file_id": value['id'], "file": file, "render": False, "duration": str(timedelta(seconds=clip.duration)), "time_start":  origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()

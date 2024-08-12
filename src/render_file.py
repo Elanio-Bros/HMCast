@@ -38,9 +38,10 @@ def render_video(id, value):
     streamer.terminate()
 
     if datetime.now().time() > time_start:
+        # time start do clip atual + a duração do clip anterior + 1
         time_start = datetime.now()+timedelta(minutes=1)
 
-    Playlist_Files.update({"file": os.path.basename(out), "render": True, 'time_start': time_start}).where(Playlist_Files.id == id).execute()
+    Playlist_Files.update({"file": os.path.basename(out), "render": True, 'time_start': time_start.time()}).where(Playlist_Files.id == id).execute()
     os.remove(file)
 
 

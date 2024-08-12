@@ -21,8 +21,7 @@ def render():
     print("Render")
     while True:
         render_files.main()
-        time.sleep(10)
 
+thread.Thread(target=stream).start()
 thread.Thread(target=files).start()
 thread.Thread(target=render).start()
-thread.Thread(target=stream).start()
