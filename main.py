@@ -5,23 +5,25 @@ import src.load_stream as load_stream
 import src.render_file as render_files
 
 
-def files():
-    print("Files")
-    while True:
-        include_files.main()
-        time.sleep(10)
+# def files():
+#     print("Files")
+#     while True:
+#         include_files.main()
+#         time.sleep(10)
 
 
-def stream():
-    print("Stream")
-    while True:
-        load_stream.main()
+# def stream():
+#     print("Stream")
+#     while True:
+        # load_stream.main()
     
-def render():
-    print("Render")
-    while True:
-        render_files.main()
+# def render():
+#     print("Render")
+#     while True:
+        # render_files.main()
 
-thread.Thread(target=stream).start()
-thread.Thread(target=files).start()
-thread.Thread(target=render).start()
+# thread.Thread(target=stream).start()
+# thread.Thread(target=files).start()
+# thread.Thread(target=render).start()
+
+render_files.main()
