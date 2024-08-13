@@ -13,6 +13,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
 
     video = VideoFileClip(value['path'])
     print("Import File:", base_file)
+    
     # Ajustar para poder cortar os videos na parte que quer
 
     def cutout(video, start, end):
@@ -125,6 +126,3 @@ def main():
                 time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,value.day_week_end, value.catalog_id.path_personality_opening)
                 if time_start == False:
                     break
-
-if __name__ == "__main__":
-    main()
