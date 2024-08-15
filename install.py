@@ -7,9 +7,6 @@ from src.Models import create_table
 if not os.path.exists('{}/'.format(config.TEMP_PATH)):
     os.mkdir('{}/'.format(config.TEMP_PATH))
 
-if not os.path.exists('{}/'.format(config.RENDER_PATH)):
-    os.mkdir('{}/'.format(config.RENDER_PATH))
-
 if not os.path.exists('{}/'.format(config.DEFAULT_PATH)):
     os.mkdir('{}/'.format(config.DEFAULT_PATH))
 else:

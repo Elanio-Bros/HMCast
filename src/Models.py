@@ -79,7 +79,6 @@ class Catalog_Files(Model):
 class Playlist_Files(Model):
     id = IntegerField(primary_key=True)
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
-    render = BooleanField(default=False)
     file_id = ForeignKeyField(Catalog_Files, field="id", backref="file")
     file = TextField()
     day_week = IntegerField(

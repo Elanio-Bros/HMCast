@@ -13,6 +13,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
 
     video = VideoFileClip(value['path'])
     print("Import File:", base_file)
+    
     # Ajustar para poder cortar os videos na parte que quer
 
     def cutout(video, start, end):
@@ -48,16 +49,17 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
             end = end-open_end
         clip = cutout(clip, start, end)
 
-    file = "{}/{}_{}.mp4".format(config.TEMP_PATH, base_file, id)
+    file = "{}_{}.mp4".format(base_file, id)
     
-    clip.write_videofile(file)
+    clip.write_videofile("{}/{}".format(config.TEMP_PATH,file))
 
     date = get_date_time()['date']
 
+    # Erro set time de forma errada
     if date.time() > origial_time_start.time():
         origial_time_start = datetime.now()+timedelta(minutes=1)
 
-    Playlist_Files.insert({"file_id": value['id'], "file": file, "render": False, "duration": str(timedelta(seconds=clip.duration)), "time_start":  origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
+    Playlist_Files.insert({"file_id": value['id'], "file": file, "duration": str(timedelta(seconds=clip.duration)), "time_start":  origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
     
     video.close()
     
@@ -101,9 +103,8 @@ def main():
     date_end = date["date_end"]
     day_week_end = date_end.weekday()
     end_time = date_end.strftime("%H:{}:{}").format(59, 59)
-
-    catalog_now = Catalog_Day_Week.select().where(
-        Catalog_Day_Week.day_week_start == day_week_start).where(Catalog_Day_Week.time_start >= start_time).where(Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
+    
+    catalog_now = Catalog_Day_Week.select().where(Catalog_Day_Week.day_week_start == day_week_start).where(Catalog_Day_Week.time_start >= start_time).where(Catalog_Day_Week.day_week_end == day_week_end).where(Catalog_Day_Week.time_end <= end_time).order_by(Catalog_Day_Week.time_start.asc())
     for value in catalog_now:
 
         files = Catalog_Files.select().where(Catalog_Files.watched == 0).where(
@@ -125,6 +126,3 @@ def main():
                 time_start = code_videos(id, file, time_start, value.time_end, value.day_week_start,value.day_week_end, value.catalog_id.path_personality_opening)
                 if time_start == False:
                     break
-
-if __name__ == "__main__":
-    main()
