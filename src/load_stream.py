@@ -13,24 +13,23 @@ def main():
     catalog_id = None
 
     # Tempo de agora
-    # date = datetime.now()
-    # day_week = date.weekday()
-    # time_start = date.strftime("%H:%M:%S")
+    date = datetime.now()
+    day_week = date.weekday()
+    time_start = date.strftime("%H:%M:%S")
 
-    # playlist = Playlist_Files.select().where(Playlist_Files.day_week == day_week).where(
-    #     Playlist_Files.time_start >= time_start).order_by(Playlist_Files.time_start.asc()).dicts()
+    playlist = Playlist_Files.select().where(Playlist_Files.day_week == day_week).where(
+        Playlist_Files.time_start >= time_start).order_by(Playlist_Files.time_start.asc()).dicts()
 
-    playlist = [{'file': 't1.mp4'}, {'file': 't2.mp4'}]
-    while True:
-        for midia in playlist:
-            # if (midia['catalog_id'] == catalog_id or datetime.now().strftime("%H:%M") == midia['time_start'].strftime("%H:%M")):
+    for midia in playlist:
+        if (midia['catalog_id'] == catalog_id or datetime.now().strftime("%H:%M") == midia['time_start'].strftime("%H:%M")):
             dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
             if os.path.exists(dir):
                 stream_params = {
                     "-video_source": dir,
                     "-streams": [
                         # Stream1: 1920x1080
-                        {"-resolution": "1920x1080", "-video_bitrate": "2000k"},
+                        {"-resolution": "1920x1080",
+                            "-video_bitrate": "2000k"},
                         # # Stream2: 1280x720
                         # {"-resolution": "1280x720",  "-video_bitrate": "1500k"},
                         # # Stream3: 640x360
@@ -51,21 +50,22 @@ def main():
                 streamer.transcode_source()
                 streamer.terminate()
 
-            # # Removendo para limpeza
-            thread.Thread(target=__stream_unused_files).start()
-            # Playlist_Files.delete_by_id(midia['id'])
-            # Catalog_Files.update({"watched": 1}).where(
-            #     Catalog_Files.id == midia['file_id']).execute()
-            # shutil.rmtree(dir+"/")
-            # catalog_id = midia['catalog_id']
+            # Removendo para limpeza
+                thread.Thread(target=__stream_unused_files).start()
+                Playlist_Files.delete_by_id(midia['id'])
+                Catalog_Files.update({"watched": 1}).where(
+                    Catalog_Files.id == midia['file_id']).execute()
+                os.remove(dir)
+                catalog_id = midia['catalog_id']
 
 
 def __stream_unused_files():
     pool = ThreadPool(processes=2)
     for resolution in range(0, 2):
-         pool.apply_async(__removing_files,[resolution])
+        pool.apply_async(__removing_files, [resolution])
     pool.close()
     pool.join()
+
 
 def __removing_files(resolution):
     file_playlist = "{}/stream_{}.m3u8".format(config.DEFAULT_PATH, resolution)
