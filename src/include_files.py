@@ -56,7 +56,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     date = get_date_time()['date']
 
     # Erro set time de forma errada
-    if date.time() > origial_time_start.time():
+    if date.time() >= origial_time_start.time():
         origial_time_start = datetime.now()+timedelta(minutes=1)
 
     Playlist_Files.insert({"file_id": value['id'], "file": file, "duration": str(timedelta(seconds=clip.duration)), "time_start":  origial_time_start.time(), "catalog_id": value['catalog_id'], "day_week": time_start.weekday()}).execute()
@@ -66,8 +66,7 @@ def code_videos(id, value, time_start, time_end, day_week_start, day_week_end, p
     if valid_start_date == True:
         time_start = False
     elif valid_start_date == False and value['sequence_id'] != None:
-        file = Catalog_Files.select().where(Catalog_Files.watched == 0).where(
-            Catalog_Files.id == value['sequence_id']).dicts()
+        file = Catalog_Files.select().where(Catalog_Files.watched == 0).where(Catalog_Files.id == value['sequence_id']).dicts()
         if (len(file) == 1):
             return code_videos(id+1, file[0], time_start, time_end, day_week_start, day_week_end, personality_opening)
 
