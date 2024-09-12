@@ -13,14 +13,16 @@ def main():
     catalog_id = None
 
     # Tempo de agora
+    # Pegar os do dia de hoje
     date = datetime.now()
-    day_week = date.weekday()
-    time_start = date.strftime("%H:%M:%S")
-
-    playlist = Playlist_Files.select().where(Playlist_Files.day_week == day_week).where(
-        Playlist_Files.time_start >= time_start).order_by(Playlist_Files.time_start.asc()).dicts()
+    # day_week = date.weekday()
+    # time_start = date.strftime("%H:%M:%S")
+    
+    # Refactoring for reload playlist
+    playlist = Playlist_Files.select().where(Playlist_Files.date_start == date).order_by(Playlist_Files.time_start.asc()).dicts()
 
     for midia in playlist:
+        # Trhead Pool
         if (midia['catalog_id'] == catalog_id or datetime.now().strftime("%H:%M") == midia['time_start'].strftime("%H:%M")):
             dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
             if os.path.exists(dir):

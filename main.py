@@ -3,16 +3,18 @@ import time
 import src.include_files as include_files
 import src.load_stream as load_stream
 
-def files():
-    print("Files")
-    while True:
-        include_files.main()
-        time.sleep(10)
+# def files():
+#     print("Files")
+#     while True:
+#         include_files.main()
+#         time.sleep(10)
 
-def stream():
-    print("Stream")
-    while True:
-        load_stream.main()
+# def stream():
+#     print("Stream")
+#     while True:
+#         load_stream.main()
 
-thread.Thread(target=stream).start()
-thread.Thread(target=files).start()
+# thread.Thread(target=stream).start()
+# thread.Thread(target=files).start()
+
+include_files.main()
