@@ -22,7 +22,7 @@ def main():
     playlist = Playlist_Files.select().where(Playlist_Files.date_start == date).order_by(Playlist_Files.time_start.asc()).dicts()
 
     for midia in playlist:
-        # Trhead Pool
+        # Thread
         if (midia['catalog_id'] == catalog_id or datetime.now().strftime("%H:%M") == midia['time_start'].strftime("%H:%M")):
             dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
             if os.path.exists(dir):
