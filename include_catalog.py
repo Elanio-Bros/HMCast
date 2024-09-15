@@ -34,7 +34,7 @@ def set_files(id_list):
     for file in files:
         files_exist=Catalog_Files.select().where(Catalog_Files.path==file).dicts()
         if len(files_exist)==0:
-            Catalog_Files.create(catalog_id=id_list,watched=0,path=file,cutoffs='{"opening":{"time-start":"00:00:00","time-end":"00:00:00"}}')
+            Catalog_Files.create(catalog_id=id_list,watched=0,path=file,cutoffs='{"opening":{"time-start":"00:00:00","time-end":"00:00:00"},"completion":{"time-start":"00:00:00","time-end":"00:00:00"}}')
 if __name__ == "__main__":
     id_list=set_list()
     set_files(id_list)
