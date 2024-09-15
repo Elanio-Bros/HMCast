@@ -38,13 +38,15 @@ def include_files_catalog(programer: Catalog_List, duration: float, datetime: da
     files = get_files_catalog(programer.id, programer.random)
     duration_programmer = duration
     for key, file in enumerate(files):
-        video_duration = render_video(file['id'], datetime, duration_programmer == duration, key+1 == len(files))
-        duration_programmer = duration_programmer-video_duration        
+        video = VideoFileClip(file['path'])
+        video_duration=video.duration
+        video.close()
+        video_duration_render = render_video(file['id'], datetime, duration_programmer == duration, (key+1 == len(files) or (duration_programmer-video_duration)<=0))
+        duration_programmer = duration_programmer-video_duration_render        
         if duration_programmer <= 0:
-            video_duration = render_video(file['id'], datetime, duration_programmer == duration, True)
             break
         else:
-            datetime = datetime+timedelta(seconds=video_duration)
+            datetime = datetime+timedelta(seconds=video_duration_render)
 
 
 def render_video(file_id: int, date_program: datetime, is_start_file: bool = False, is_end_file: bool = False, sequence_count: int = None, duration: float = 0):

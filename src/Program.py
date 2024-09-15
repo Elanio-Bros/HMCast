@@ -56,7 +56,7 @@ def get_program(date: date | list = None, time_start: time | list = None, day_we
 
 def get_files_catalog(catalog_id: int, random: bool):
 
-    files = Catalog_Files.select(Catalog_Files.id).where(
+    files = Catalog_Files.select(Catalog_Files.id,Catalog_Files.path).where(
         Catalog_Files.watched == 0).where(Catalog_Files.catalog_id == catalog_id).order_by(Catalog_Files.id.asc() if random == False else fn.Random())
 
     if len(files) == 0:
