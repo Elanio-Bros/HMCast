@@ -45,7 +45,6 @@ def include_files_catalog(programer: Catalog_List, duration: float, datetime: da
             break
         else:
             datetime = datetime+timedelta(seconds=video_duration)
-            
 
 
 def render_video(file_id: int, date_program: datetime, is_start_file: bool = False, is_end_file: bool = False, sequence_count: int = None, duration: float = 0):
