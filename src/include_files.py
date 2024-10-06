@@ -4,7 +4,7 @@ import os
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from datetime import datetime, timedelta
 from .Models import Catalog_Schedule, Catalog_List, Playlist_Files
-from .Program import get_files_catalog, get_file,get_program
+from .Program import get_files_catalog, get_file, get_program
 from .Edit_Video import cutout, include_video_personality
 from multiprocessing.pool import ThreadPool
 
@@ -28,7 +28,7 @@ def include_schedule_playlist(programer: Catalog_Schedule):
     datetime_program = datetime.combine(date, programer.time)
 
     duration = programer.duration.total_seconds()
-    print("Include Files Programer:",datetime_program)
+    print("Include Files Programer:", datetime_program)
     include_files_catalog(programer.catalog_id, duration, datetime_program)
 
 
@@ -62,6 +62,8 @@ def render_video(file_id: int, date_program: datetime, is_start_file: bool = Fal
         cutoffs = file.cutoffs
         video = VideoFileClip(file.path)
 
+        # Se ele não tiver os cutoffs só copiar o video para pasta direto
+
         if 'opening' in cutoffs.keys():
             (start, end) = get_seconds_start_end(cutoffs['opening'])
             if is_start_file == False:
@@ -83,7 +85,8 @@ def render_video(file_id: int, date_program: datetime, is_start_file: bool = Fal
 
         video_duration = video.duration
 
-        video.write_videofile("{}/{}".format(config.TEMP_PATH, base_file), threads=4)
+        video.write_videofile(
+            "{}/{}".format(config.TEMP_PATH, base_file), threads=4)
         video.close()
 
         # Insert In Playlist
@@ -143,20 +146,17 @@ def files_hour():
     print("Files")
     try:
         pool = ThreadPool(processes=1)
-        hour = None
+        minute_end = None
+        minutes=10
         while True:
-            date = datetime.now()
-            if date.hour != hour:
-                if hour == None:
-                    # Primeira execução Pegar tempo de daqui a 10 minutos
-                    date = date+timedelta(minutes=10)
-                programers = get_program(date, [date.strftime("%H:%M:%S"), date.strftime("%H:59:59")])
+            date = datetime.now()+timedelta(minutes=minutes)
+            if date.strftime("%M:%S") == minute_end or minute_end == None:
+                start = date.strftime('%H:%M:%S')
+                end = date+timedelta(minutes=minutes)
+                programers = get_program(date,[start,end.strftime('%H:%M:%S')])
                 for programer in programers:
                     pool.apply_async(include_schedule_playlist, [programer])
-                if len(programers)>=1:
-                    hour = date.hour
-                else:
-                    hour=None
+                minute_end = end.strftime("%M:%S")
     except Exception as inst:
         pool.close()
         pool.join()
