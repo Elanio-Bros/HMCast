@@ -10,11 +10,15 @@ def get_program(date: date | list = None, time_start: time | list = None, day_we
     if date != None:
         if type(date) != list or (type(date) == list and len(date) == 1):
             date = date[0] if type(date) == list else date
-            date = datetime.strptime(date, "%d-%m-%Y").date()
+            if type(date) == datetime:
+                date = date.date()
+            elif type(date) == str:
+                date = datetime.strptime(date, "%Y-%m-%d").date()
+
             programer = programer.where((Catalog_Schedule.date == date) | (
                 Catalog_Schedule.recurrent == date.weekday()))
         elif type(date) == list:
-            date = [datetime.strptime(date, "%d-%m-%Y").date()
+            date = [datetime.strptime(date, "%Y-%m-%d").date()
                     for date in date]
             if len(date) == 2:
                 week = [date.weekday() for date in date]
@@ -51,12 +55,12 @@ def get_program(date: date | list = None, time_start: time | list = None, day_we
                 programer = programer.where(
                     Catalog_Schedule.time << time_start)
 
-    return programer.order_by(Catalog_Schedule.time.asc(),Catalog_Schedule.recurrent.asc(),Catalog_Schedule.date.asc())
+    return programer.order_by(Catalog_Schedule.time.asc(), Catalog_Schedule.recurrent.asc(), Catalog_Schedule.date.asc())
 
 
 def get_files_catalog(catalog_id: int, random: bool):
 
-    files = Catalog_Files.select(Catalog_Files.id,Catalog_Files.path).where(
+    files = Catalog_Files.select(Catalog_Files.id, Catalog_Files.path).where(
         Catalog_Files.watched == 0).where(Catalog_Files.catalog_id == catalog_id).order_by(Catalog_Files.id.asc() if random == False else fn.Random())
 
     if len(files) == 0:
