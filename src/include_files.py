@@ -55,7 +55,7 @@ def render_video(file_id: int, date_program: datetime, is_start_file: bool = Fal
     if file != None and os.path.exists(file.path):
         base_file = os.path.basename(file.path)
         print("Import File:", base_file)
-        
+
         # Delete Old File Has Existe
         try:
             delete_file_playlist(file.id, date_program)
@@ -162,8 +162,7 @@ def files_minute():
         minute_end = None
         minutes = 10
         while True:
-            date = datetime(2024, 10, 6, 7, 10, 0)+timedelta(minutes=minutes)
-            # 20 a 30
+            date = datetime.now()+timedelta(minutes=minutes)
             if date.strftime("%M:%S") == minute_end or minute_end == None:
                 start = date.strftime('%H:%M:%S')
                 end = date+timedelta(minutes=minutes)
