@@ -1,5 +1,5 @@
 from moviepy.editor import VideoFileClip, concatenate_videoclips
-
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 
 def cutout(video, start, end):
     if (end >= video.duration):
