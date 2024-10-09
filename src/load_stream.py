@@ -1,7 +1,5 @@
 import os
 from . import config
-import shutil
-import time
 import threading as thread
 from .Models import Playlist_Files, Catalog_Files
 from datetime import datetime, timedelta
@@ -83,10 +81,10 @@ def run_playlist():
 
                     }
 
-                streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
+                    streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
                                       format="hls", custom_ffmpeg=config.IMAGEIO_FFMPEG_EXE, **stream_params)
-                streamer.transcode_source()
-                streamer.terminate()
-
+                    streamer.transcode_source()
+                    streamer.terminate()
+                
                 # Removendo para limpeza
                 thread.Thread(target=__stream_unused_files,args=[midia, dir]).start()
