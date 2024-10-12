@@ -2,12 +2,14 @@ from . import config
 from peewee import *
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 from playhouse.sqliteq import SqliteQueueDatabase
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 import json
 
 __database__ = "{}/{}".format(config.DATABASE_PATH, config.DB_FILE)
 db = SqliteQueueDatabase(__database__, use_gevent=False, queue_max_size=64, pragmas={
                          "foreign_keys": 1, "journal_mode": "WAL"})
+
 
 class TimeData(Field):
     field_type = 'json'
@@ -19,22 +21,51 @@ class TimeData(Field):
         value = json.loads(value)
 
         def format(value):
-            if '.' in value:
-                return '%H:%M:%S.%f'
-            else:
-                return '%H:%M:%S'
-        for val in value:
-            value[val]['time-start'] = datetime.strptime(
-                value[val]['time-start'], format(value[val]['time-start'])).time()
-            value[val]['time-end'] = datetime.strptime(
-                value[val]['time-end'], format(value[val]['time-end'])).time()
+            if value != None:
+                if '.' in value:
+                    return '%H:%M:%S.%f'
+                else:
+                    return '%H:%M:%S'
+        def is_zero (times):
+            not_zero=True
+            for name in times:
+                time=times[name]
+                second=timedelta(hours=time.hour,minutes=time.minute,seconds=time.second,microseconds=time.microsecond).total_seconds()
+                if second > 0.0:
+                    not_zero=False
+            return not_zero
+
+        if value !=None:
+            for val in value:
+                value[val]['time-start'] = datetime.strptime(value[val]['time-start'], format(value[val]['time-start'])).time()
+                value[val]['time-end'] = datetime.strptime(value[val]['time-end'], format(value[val]['time-end'])).time()
+                if is_zero(value[val])==True:
+                    value[val]=None
+
+            # Se todos os valores for 0 então retornar None se não retornar os que não são None
+            if all(value[name] is None for name in value):
+                return None
+            else:           
+                return value
+
+
+class TimeDelta(Field):
+    field_type = 'time'
+
+    def db_value(self, value):
+        return value
+
+    def python_value(self, value):
+        value = datetime.strptime(value, "%H:%M:%S").time()
+        value = timedelta(hours=value.hour,
+                          minutes=value.minute, seconds=value.second)
         return value
 
 
 class Catalog_List(Model):
     id = IntegerField(primary_key=True)
     name = TextField()
-    random = BooleanField(null=True, default="0")
+    random = BooleanField(null=False, default="0")
     path_personality_opening = TextField(null=True)
     created_at = DateTimeField(default=datetime.now)
 
@@ -43,18 +74,17 @@ class Catalog_List(Model):
         model_metadata_class = ThreadSafeDatabaseMetadata
 
 
-class Catalog_Day_Week(Model):
+class Catalog_Schedule(Model):
     id = IntegerField(primary_key=True)
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
     # 0 Monday and 6 Sunday
-    day_week_start = IntegerField(
-        constraints=[Check('day_week_start <= 6'), Check('day_week_start >= 0')])
-    time_start = TimeField(constraints=[Check(
-        'time_start <= "23:59:59"'), Check('time_start >= "00:00:00"')])
-    day_week_end = IntegerField(
-        constraints=[Check('day_week_end <= 6'), Check('day_week_end >= 0')])
-    time_end = TimeField(constraints=[Check('time_end <= "23:59:59"'), Check(
-        'time_end >= "00:00:00"')])
+    recurrent = IntegerField(null=True, constraints=[Check(
+        'recurrent <= 6 OR recurrent IS NULL'), Check('recurrent >= 0 OR recurrent IS NULL')])
+    date = DateField(null=True, constraints=[Check(
+        "CASE WHEN recurrent IS NULL THEN date IS NOT NULL END")])
+    time = TimeField(
+        constraints=[Check('time <= "23:59:59"'), Check('time >= "00:00:00"')])
+    duration = TimeDelta()
 
     class Meta:
         database = db
@@ -81,10 +111,7 @@ class Playlist_Files(Model):
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
     file_id = ForeignKeyField(Catalog_Files, field="id", backref="file")
     file = TextField()
-    day_week = IntegerField(
-        constraints=[Check('day_week <= 6'), Check('day_week >= 0')])
-    time_start = TimeField(constraints=[Check(
-        'time_start <= "23:59:59"'), Check('time_start >= "00:00:00"')])
+    date_start = DateTimeField()
     duration = TimeField()
     created_at = DateTimeField(default=datetime.now)
 
@@ -96,5 +123,6 @@ class Playlist_Files(Model):
 def create_table():
     print("Create Tables")
     # Create Table
-    db.create_tables([Catalog_List, Catalog_Day_Week,Catalog_Files, Playlist_Files])
+    db.create_tables([Catalog_List, Catalog_Schedule,
+                     Catalog_Files, Playlist_Files])
     db.stop()
