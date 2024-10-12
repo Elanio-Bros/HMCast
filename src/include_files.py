@@ -160,7 +160,7 @@ def files_minute():
     try:
         pool = multiprocessing.Pool(processes=2)
         minute_end = None
-        minutes = 10
+        minutes = 5
         while True:
             date = datetime.now()+timedelta(minutes=minutes)
             if date.strftime("%M:%S") == minute_end or minute_end == None:
