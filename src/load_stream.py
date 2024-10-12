@@ -9,7 +9,6 @@ from multiprocessing.pool import ThreadPool
 
 playlist = []
 
-
 def main():
     print("Stream")
     thread.Thread(target=get_playlist).start()
