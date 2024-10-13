@@ -3,7 +3,6 @@ from peewee import *
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 from playhouse.sqliteq import SqliteQueueDatabase
 from datetime import datetime, timedelta
-import time
 import json
 
 __database__ = "{}/{}".format(config.DATABASE_PATH, config.DB_FILE)

@@ -2,12 +2,13 @@ import os
 from . import config
 import threading as thread
 from .Models import Playlist_Files, Catalog_Files
-from datetime import datetime, timedelta
+from datetime import datetime
 from vidgear.gears import StreamGear
 import m3u8
 from multiprocessing.pool import ThreadPool
 
 playlist = []
+
 
 def main():
     print("Stream")
@@ -16,11 +17,11 @@ def main():
 
 
 def __stream_unused_files(midia, dir, count_resolution):
-    
-    Playlist_Files.delete_by_id(midia['id'])
-    Catalog_Files.update({"watched": 1}).where(
-        Catalog_Files.id == midia['file_id']).execute()
-    os.remove(dir)
+
+    # Playlist_Files.delete_by_id(midia['id'])
+    # Catalog_Files.update({"watched": 1}).where(
+    #     Catalog_Files.id == midia['file_id']).execute()
+    # os.remove(dir)
 
     pool = ThreadPool(processes=2)
     for resolution in range(0, count_resolution+1):
@@ -55,12 +56,11 @@ def get_playlist():
 def run_playlist():
     global playlist
     play = []
-
     while True:
-        playlist = [{'file': 't1.mp4'}, {'file': 't2.mp4'}]
         play = play+playlist
         for midia in play:
             if len(playlist) >= 1:
+                print("Process Midia:", midia['file'])
                 dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
                 if os.path.exists(dir):
                     stream_params = {
@@ -83,11 +83,12 @@ def run_playlist():
                         "-hls_flags": "delete_segments+append_list+omit_endlist",
 
                     }
-                    
+
                     streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
                                           format="hls", custom_ffmpeg=config.IMAGEIO_FFMPEG_EXE, **stream_params)
                     streamer.transcode_source()
                     streamer.terminate()
 
                 # Removendo para limpeza
-                thread.Thread(target=__stream_unused_files,args=[midia, dir,len(stream_params['-streams'])]).start()
+                thread.Thread(target=__stream_unused_files, args=[
+                              midia, dir, len(stream_params['-streams'])]).start()
