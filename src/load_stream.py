@@ -18,10 +18,10 @@ def main():
 
 def __stream_unused_files(midia, dir, count_resolution):
 
-    # Playlist_Files.delete_by_id(midia['id'])
-    # Catalog_Files.update({"watched": 1}).where(
-    #     Catalog_Files.id == midia['file_id']).execute()
-    # os.remove(dir)
+    Playlist_Files.delete_by_id(midia['id'])
+    Catalog_Files.update({"watched": 1}).where(
+        Catalog_Files.id == midia['file_id']).execute()
+    os.remove(dir)
 
     pool = ThreadPool(processes=2)
     for resolution in range(0, count_resolution+1):
