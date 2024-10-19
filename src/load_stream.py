@@ -19,9 +19,10 @@ def main():
 def __stream_unused_files(midia, dir, count_resolution):
 
     Playlist_Files.delete_by_id(midia['id'])
-    Catalog_Files.update({"watched": 1}).where(
-        Catalog_Files.id == midia['file_id']).execute()
-    os.remove(dir)
+    Catalog_Files.update({"watched": 1}).where(Catalog_Files.id == midia['file_id']).execute()
+    
+    if os.path.exists(dir):
+        os.remove(dir)
 
     pool = ThreadPool(processes=2)
     for resolution in range(0, count_resolution+1):
@@ -47,7 +48,7 @@ def get_playlist():
     while True:
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if date != date_now:
-            playlist_files = Playlist_Files.select().where(Playlist_Files.date_start == date).order_by(
+            playlist_files = Playlist_Files.select().where(Playlist_Files.date_start ** "{}{}".format(date, "%")).order_by(
                 Playlist_Files.date_start.asc()).order_by(Playlist_Files.catalog_id.asc()).dicts()
             playlist = playlist + [*playlist_files]
             date_now = date
@@ -60,35 +61,38 @@ def run_playlist():
         play = play+playlist
         for midia in play:
             if len(playlist) >= 1:
-                print("Process Midia:", midia['file'])
                 dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
                 if os.path.exists(dir):
-                    stream_params = {
-                        "-video_source": dir,
-                        "-streams": [
-                            # Stream1: 1920x1080
-                            {"-resolution": "1920x1080",
-                             "-video_bitrate": "2000k"},
-                            # # Stream2: 1280x720
-                            {"-resolution": "1280x720",  "-video_bitrate": "1500k"},
-                            # # Stream3: 640x360
-                            # {"-resolution": "640x360", "-video_bitrate": "1000k"},
-                            # # Stream3: 320x240
-                            # {"-resolution": "320x240", "-video_bitrate": "500k"},
+                    print("Process Midia:", midia['file'])
+                    try:
+                        stream_params = {
+                            "-video_source": dir,
+                            "-streams": [
+                                # Stream1: 1920x1080
+                                {"-resolution": "1920x1080",
+                                 "-video_bitrate": "2000k"},
+                                # # Stream2: 1280x720
+                                {"-resolution": "1280x720",
+                                    "-video_bitrate": "1500k"},
+                                # # Stream3: 640x360
+                                # {"-resolution": "640x360", "-video_bitrate": "1000k"},
+                                # # Stream3: 320x240
+                                # {"-resolution": "320x240", "-video_bitrate": "500k"},
 
-                        ],
-                        "-livestream": True,
-                        "-hls_time": 5,
-                        "-hls_list_size": 10,
-                        "-hls_flags": "delete_segments+append_list+omit_endlist",
+                            ],
+                            "-livestream": True,
+                            "-hls_time": 5,
+                            "-hls_list_size": 10,
+                            "-hls_flags": "delete_segments+append_list+omit_endlist",
+                        }
 
-                    }
+                        streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
+                                              format="hls", custom_ffmpeg=config.IMAGEIO_FFMPEG_EXE, **stream_params)
+                        streamer.transcode_source()
+                        streamer.terminate()
+                    except Exception as e:
+                        print("Erro:", e)
+                        print("Midia:", midia['file'])
 
-                    streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
-                                          format="hls", custom_ffmpeg=config.IMAGEIO_FFMPEG_EXE, **stream_params)
-                    streamer.transcode_source()
-                    streamer.terminate()
-
-                # Removendo para limpeza
-                thread.Thread(target=__stream_unused_files, args=[
-                              midia, dir, len(stream_params['-streams'])]).start()
+                    # Removendo para limpeza
+                    thread.Thread(target=__stream_unused_files, args=[midia, dir, len(stream_params['-streams'])]).start()
