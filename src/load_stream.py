@@ -3,7 +3,7 @@ from . import config
 import threading as thread
 from .Models import Playlist_Files, Catalog_Files
 from datetime import datetime
-from vidgear.gears import StreamGear
+import ffmpeg
 import m3u8
 from multiprocessing.pool import ThreadPool
 
@@ -12,15 +12,59 @@ playlist = []
 
 def main():
     print("Stream")
-    thread.Thread(target=get_playlist).start()
+    # thread.Thread(target=get_playlist).start()
     thread.Thread(target=run_playlist).start()
+
+
+def __ffmpge_io(video):
+    ffmpeg.input(video).output("{}/stream.m3u8".format(config.DEFAULT_PATH), format='hls', **
+                               {
+        # filter:v:0 scale=w=480:h=360  -maxrate:v:0 600k -b:a:0 500k
+        # "map": ["0:v:0", "0:a:0", "0:v:0", "0:a:0", "0:v:0", "0:a:0"],
+        # "var_stream_map": "v:0,a:0,name:720p",
+        # .filter("filter:v:0 scale=w=1280:h=720")
+        "threads": "4",
+        "c:v": "libx264",
+        "hls_flags": "delete_segments+append_list+omit_endlist",
+        "hls_list_size": 10,
+        "hls_time": 5,
+        "hls_segment_filename": "{}/{}".format(config.DEFAULT_PATH, "stream_%d.ts"),
+        # "master_pl_name": "{}/stream.m3u8".format(config.DEFAULT_PATH)
+    }).run(cmd=config.IMAGEIO_FFMPEG_EXE),
+
+    # stream_params = {
+    #     "-video_source": dir,
+    #     "-streams": [
+    #         # Stream1: 1920x1080
+    #         {"-resolution": "1920x1080",
+    #          "-video_bitrate": "2000k"},
+    #         # # Stream2: 1280x720
+    #         {"-resolution": "1280x720",
+    #          "-video_bitrate": "1500k"},
+    #         # # Stream3: 640x360
+    #         # {"-resolution": "640x360", "-video_bitrate": "1000k"},
+    #         # # Stream3: 320x240
+    #         # {"-resolution": "320x240", "-video_bitrate": "500k"},
+
+    #     ],
+    #     "-livestream": True,
+    #     "-hls_time": 5,
+    #     "-hls_list_size": 10,
+    #     "-hls_flags": "delete_segments+append_list+omit_endlist",
+    # }
+
+    # streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
+    #                       format="hls", custom_ffmpeg=config.IMAGEIO_FFMPEG_EXE, **stream_params)
+    # streamer.transcode_source()
+    # streamer.terminate()
 
 
 def __stream_unused_files(midia, dir, count_resolution):
 
     Playlist_Files.delete_by_id(midia['id'])
-    Catalog_Files.update({"watched": 1}).where(Catalog_Files.id == midia['file_id']).execute()
-    
+    Catalog_Files.update({"watched": 1}).where(
+        Catalog_Files.id == midia['file_id']).execute()
+
     if os.path.exists(dir):
         os.remove(dir)
 
@@ -57,42 +101,21 @@ def get_playlist():
 def run_playlist():
     global playlist
     play = []
-    while True:
-        play = play+playlist
-        for midia in play:
-            if len(playlist) >= 1:
-                dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
-                if os.path.exists(dir):
-                    print("Process Midia:", midia['file'])
-                    try:
-                        stream_params = {
-                            "-video_source": dir,
-                            "-streams": [
-                                # Stream1: 1920x1080
-                                {"-resolution": "1920x1080",
-                                 "-video_bitrate": "2000k"},
-                                # # Stream2: 1280x720
-                                {"-resolution": "1280x720",
-                                    "-video_bitrate": "1500k"},
-                                # # Stream3: 640x360
-                                # {"-resolution": "640x360", "-video_bitrate": "1000k"},
-                                # # Stream3: 320x240
-                                # {"-resolution": "320x240", "-video_bitrate": "500k"},
+    file = '{}/{}'.format(config.TEMP_PATH, 't1.mp4')
+    __ffmpge_io(file)
+    # while True:
+    # play = play+playlist
+    # for midia in play:
+    #     if len(playlist) >= 1:
+    #         dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
+    #         if os.path.exists(dir):
+    #             print("Process Midia:", midia['file'])
+    #             # try:
 
-                            ],
-                            "-livestream": True,
-                            "-hls_time": 5,
-                            "-hls_list_size": 10,
-                            "-hls_flags": "delete_segments+append_list+omit_endlist",
-                        }
+    # except Exception as e:
+    #     print("Erro:", e)
+    #     print("Midia:", midia['file'])
 
-                        streamer = StreamGear(output="{}/hls.m3u8".format(config.DEFAULT_PATH),
-                                              format="hls", custom_ffmpeg=config.IMAGEIO_FFMPEG_EXE, **stream_params)
-                        streamer.transcode_source()
-                        streamer.terminate()
-                    except Exception as e:
-                        print("Erro:", e)
-                        print("Midia:", midia['file'])
-
-                    # Removendo para limpeza
-                    thread.Thread(target=__stream_unused_files, args=[midia, dir, len(stream_params['-streams'])]).start()
+    # # Removendo para limpeza
+    # thread.Thread(target=__stream_unused_files, args=[
+    #               midia, dir, len(stream_params['-streams'])]).start()
