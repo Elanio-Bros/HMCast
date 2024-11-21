@@ -2,12 +2,14 @@ from . import config
 import re
 import os
 import shutil
+import time
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from datetime import datetime, timedelta
 from .Models import Catalog_Schedule, Catalog_List, Playlist_Files
 from .Program import get_files_catalog, get_file, get_program
 from .Edit_Video import cutout, include_video_personality
 import multiprocessing
+
 
 
 def include_schedule_playlist(programer: Catalog_Schedule):
@@ -163,14 +165,13 @@ def files_minute():
         minutes = 1
         while True:
             date = datetime.now()+timedelta(minutes=minutes)
-            if date.strftime("%M:%S") == minute_end or minute_end == None:
+            if int(date.timestamp()) == minute_end or minute_end == None:
                 start = date.strftime('%H:%M:%S')
                 end = date+timedelta(minutes=minutes)
-                programers = get_program(
-                    date, [start, end.strftime('%H:%M:%S')])
+                programers = get_program(date, [start, end.strftime('%H:%M:%S')])
                 for programer in programers:
                     pool.apply_async(include_schedule_playlist, [programer])
-                minute_end = end.strftime("%M:%S")
+                minute_end = int(end.timestamp())
 
     except Exception as inst:
         pool.join()
