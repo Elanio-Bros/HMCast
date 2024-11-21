@@ -17,23 +17,34 @@ def main():
 
 
 def __ffmpge_io(video):
-    ffmpeg.input(video).output("{}/stream.m3u8".format(config.DEFAULT_PATH), format='hls', **
-                               {
+    ffmpeg.input(video, **{
+        "readrate": 1,
+        "hide_banner":"",
+    }
+    ).output("{}/stream.m3u8".format(config.DEFAULT_PATH), format='hls', **
+             {
         "threads": 1,
-        "c:v": "libx264",
-        "crf": 21,
-
-        "c:a": "aac",
-        "b:a": "128k",
-        "ac": 2,
-        "fflags":"nobuffer+flush_packets",
-        "segment_list_type": "hls",
+        "vcodec": "libx264",
+        "crf": 20,
+        'preset': 'veryfast',
+        "acodec": "aac",
+        "movflags": "+faststart",
+        'tune': 'zerolatency',
+        'bf': 1,
+        'sc_threshold': 0,
+        'keyint_min': 50,
+        'g': 50,
         "segment_list_flags": "+live",
+        "hls_segment_type": "mpegts",
         "hls_flags": "delete_segments+append_list+omit_endlist+split_by_time",
-        "hls_delete_threshold": 14,
-        "hls_list_size": 15,
+        "hls_delete_threshold": 9,
+        "hls_list_size": 10,
         "hls_time": 5,
+        "remove_at_exit": 0,
+        "allowed_extensions": "ALL",
+        "hls_allow_cache": 0,
         "hls_segment_filename": "{}/{}".format(config.DEFAULT_PATH, "stream_%d.ts"),
+        'master_pl_name': 'hls.m3u8',
     }).run(cmd=config.IMAGEIO_FFMPEG_EXE),
 
 
