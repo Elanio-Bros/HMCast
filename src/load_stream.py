@@ -11,16 +11,14 @@ playlist = []
 
 
 def main():
-    print("Stream")
+    print("Start Load Stream...")
     thread.Thread(target=get_playlist).start()
     thread.Thread(target=run_playlist).start()
 
 
 def __ffmpge_io(video):
     ffmpeg.input(video, **{
-        "readrate": 1,
-        "hide_banner":"",
-    }
+        "readrate": 1}
     ).output("{}/stream.m3u8".format(config.DEFAULT_PATH), format='hls', **
              {
         "threads": 1,
@@ -45,17 +43,16 @@ def __ffmpge_io(video):
         "hls_allow_cache": 0,
         "hls_segment_filename": "{}/{}".format(config.DEFAULT_PATH, "stream_%d.ts"),
         'master_pl_name': 'hls.m3u8',
-    }).run(cmd=config.IMAGEIO_FFMPEG_EXE),
+    }).global_args("-hide_banner").run(cmd=config.IMAGEIO_FFMPEG_EXE),
 
 
 def __stream_unused_files(midia, dir):
 
-    # Playlist_Files.delete_by_id(midia['id'])
-    # Catalog_Files.update({"watched": 1}).where(
-    #     Catalog_Files.id == midia['file_id']).execute()
+    Playlist_Files.delete_by_id(midia['id'])
+    Catalog_Files.update({"watched": 1}).where(Catalog_Files.id == midia['file_id']).execute()
 
-    # if os.path.exists(dir):
-    #     os.remove(dir)
+    if os.path.exists(dir):
+        os.remove(dir)
 
     file_playlist = "{}/stream.m3u8".format(config.DEFAULT_PATH)
     if (os.path.exists(file_playlist)):
@@ -71,9 +68,7 @@ def get_playlist():
     global playlist
     date_now = None
     while True:
-        # .now()
-        date = datetime(2024, 11, 20, 10, 15, 00,
-                        00).strftime('%Y-%m-%d %H:%M:%S')
+        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if date != date_now:
             playlist_files = Playlist_Files.select().where(Playlist_Files.date_start ** "{}{}".format(date, "%")).order_by(
                 Playlist_Files.date_start.asc()).order_by(Playlist_Files.catalog_id.asc()).dicts()

@@ -9,7 +9,7 @@ from .Models import Catalog_Schedule, Catalog_List, Playlist_Files
 from .Program import get_files_catalog, get_file, get_program
 from .Edit_Video import cutout, include_video_personality
 import multiprocessing
-
+import schedule
 
 
 def include_schedule_playlist(programer: Catalog_Schedule):
@@ -36,15 +36,16 @@ def include_schedule_playlist(programer: Catalog_Schedule):
 
 
 def include_files_catalog(programer: Catalog_List, duration: float, datetime: datetime):
-
+    
     files = get_files_catalog(programer.id, programer.random)
     duration_programmer = duration
     for key, file in enumerate(files):
         video = VideoFileClip(file['path'])
         video_duration = video.duration
+        print(video_duration)
+        time.sleep(10)
         video.close()
-        video_duration_render = render_video(file['id'], datetime, duration_programmer == duration, (
-            key+1 == len(files) or (duration_programmer-video_duration) <= 0))
+        video_duration_render = render_video(file['id'], datetime, duration_programmer == duration, (key+1 == len(files) or (duration_programmer-video_duration) <= 0))
         duration_programmer = duration_programmer-video_duration_render
         if duration_programmer <= 0:
             break
@@ -52,7 +53,7 @@ def include_files_catalog(programer: Catalog_List, duration: float, datetime: da
             datetime = datetime+timedelta(seconds=video_duration_render)
 
 
-def render_video(file_id: int, date_program: datetime, is_start_file: bool = False, is_end_file: bool = False, sequence_count: int = None, duration: float = 0):
+def render_video(file_id: int, date_program: datetime, is_start_file: bool = False, is_end_file: bool = False, duration: float = 0):
     file = get_file(file_id)
     if file != None and os.path.exists(file.path):
         base_file = os.path.basename(file.path)
@@ -96,15 +97,13 @@ def render_video(file_id: int, date_program: datetime, is_start_file: bool = Fal
             video.close()
 
             # Insert In Playlist
-            Playlist_Files.insert({'catalog_id': file.catalog_id, 'file_id': file.id, 'file': base_file, "date_start": date_program, "duration": str(timedelta(seconds=video_duration))}).execute()
+            Playlist_Files.insert({'catalog_id': file.catalog_id, 'file_id': file.id, 'file': base_file,
+                                  "date_start": date_program, "duration": str(timedelta(seconds=video_duration))}).execute()
 
+    # Refatorar esse final
             if file.sequence_id != None and is_end_file == False:
-                if sequence_count != None:
-                    sequence_count = sequence_count-1
                 date_program = date_program+timedelta(seconds=video_duration)
-
-                if sequence_count == None or sequence_count > 0:
-                    return render_video(file.sequence_id, date_program, sequence_count=sequence_count, duration=video_duration)
+                return render_video(file.sequence_id, date_program, duration=video_duration)
             return video.duration+duration
         except Exception as e:
             print(e)
@@ -161,20 +160,24 @@ def files_minute():
     print("Files")
     try:
         pool = multiprocessing.Pool(processes=2)
-        minute_end = None
         minutes = 1
-        while True:
-            date = datetime.now()+timedelta(minutes=minutes)
-            if int(date.timestamp()) == minute_end or minute_end == None:
-                start = date.strftime('%H:%M:%S')
-                end = date+timedelta(minutes=minutes)
-                programers = get_program(date, [start, end.strftime('%H:%M:%S')])
-                for programer in programers:
-                    pool.apply_async(include_schedule_playlist, [programer])
-                minute_end = int(end.timestamp())
+        date = datetime(2025,2,9,6,59,00)+timedelta(minutes=minutes)
+        start = date.strftime('%H:%M:%S')
+        end = date+timedelta(minutes=minutes)
+        programers = get_program(date, [start, end.strftime('%H:%M:%S')])
+        for programer in programers:
+            pool.apply_async(include_schedule_playlist, [programer])
 
     except Exception as inst:
         pool.join()
         pool.close()
         print(type(inst))
         print(inst)
+
+
+def cron():
+    print("Start Cron...")
+    schedule.every(1).minutes.do(files_minute)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
