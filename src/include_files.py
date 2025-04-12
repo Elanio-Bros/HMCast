@@ -16,10 +16,10 @@ def include_schedule_playlist(programer: Catalog_Schedule):
 
     if programer.recurrent != None:
         date = datetime.now().date()
-        if programer.recurrent > date.isoweekday():
-            days = programer.recurrent-date.isoweekday()
-        elif programer.recurrent < date.isoweekday():
-            days = (7-date.isoweekday())+programer.recurrent
+        if programer.recurrent[0] > date.isoweekday():
+            days = programer.recurrent[0]-date.isoweekday()
+        elif programer.recurrent[0] < date.isoweekday():
+            days = (7-date.isoweekday())+programer.recurrent[0]
         else:
             days = 0
         date = date+timedelta(days=days)
@@ -159,7 +159,7 @@ def files_minute():
     try:
         pool = multiprocessing.Pool(processes=2)
         minutes = 1
-        date = datetime()+timedelta(minutes=minutes)
+        date = datetime.now()+timedelta(minutes=minutes)
         # time(2025,2,9,6,59,00)
         start = date.strftime('%H:%M:%S')
         end = date+timedelta(minutes=minutes)
@@ -176,7 +176,10 @@ def files_minute():
 
 def cron():
     print("Start Cron...")
-    schedule.every(1).minutes.do(files_minute)
+    schedule.every(1).seconds.do(files_minute)
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except:
+            break

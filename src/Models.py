@@ -2,8 +2,6 @@ from . import config
 from peewee import *
 from datetime import datetime, timedelta
 import json
-from enum import Enum
-import logging
 
 db = MySQLDatabase(config.DATABASE, user=config.DATABASE_USER,
                    password=config.DATABASE_PASS, host=config.DATABASE_HOST, port=config.DATABASE_PORT, field_types={'enum': 'enum'})
@@ -53,20 +51,20 @@ class TimeData(Field):
 
 class EnumField(Field):
     field_type = 'enum'
-
-    def __init__(self,choices,**kwargs):
-        self.choices = choices
+    def __init__(self, choices, **kwargs):
         enum_values = ', '.join(f'"{val}"' for val in choices)
         self.field_type = f'ENUM({enum_values})'
-        super().__init__(**kwargs)
+        super().__init__(choices=choices,**kwargs)
         
     def db_value(self, value):
-        if value not in self.choices:
-            raise ValueError(f"Valor '{value}' inválido para ENUM. Esperado: {self.choices}")
+        if(type(value) != int):
+            if value not in self.choices:
+                raise ValueError(f"Value '{value}' invalid for ENUM: {self.choices}")
+
         return value
     
     def python_value(self, value):
-        return value
+        return (self.choices.index(value)+1,value)
 
 
 class TimeDelta(Field):

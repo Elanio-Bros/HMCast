@@ -49,7 +49,8 @@ def __ffmpge_io(video):
 def __stream_unused_files(play_file, dir):
 
     Playlist_Files.delete_by_id(play_file['id'])
-    Catalog_Files.update({"watched": 1}).where(Catalog_Files.id == play_file['file_id']).execute()
+    Catalog_Files.update({"watched": 1}).where(
+        Catalog_Files.id == play_file['file_id']).execute()
 
     if os.path.exists(dir):
         os.remove(dir)
@@ -67,6 +68,7 @@ def __stream_unused_files(play_file, dir):
 def get_playlist():
     global playlist
     date_now = None
+    # Chance for cron
     while True:
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if date != date_now:
