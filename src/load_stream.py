@@ -46,10 +46,10 @@ def __ffmpge_io(video):
     }).global_args("-hide_banner").run(cmd=config.IMAGEIO_FFMPEG_EXE),
 
 
-def __stream_unused_files(midia, dir):
+def __stream_unused_files(play_file, dir):
 
-    Playlist_Files.delete_by_id(midia['id'])
-    Catalog_Files.update({"watched": 1}).where(Catalog_Files.id == midia['file_id']).execute()
+    Playlist_Files.delete_by_id(play_file['id'])
+    Catalog_Files.update({"watched": 1}).where(Catalog_Files.id == play_file['file_id']).execute()
 
     if os.path.exists(dir):
         os.remove(dir)
@@ -81,16 +81,16 @@ def run_playlist():
     play = []
     while True:
         play = play+playlist
-        for midia in play:
+        for play_file in play:
             if len(playlist) >= 1:
                 try:
-                    dir = '{}/{}'.format(config.TEMP_PATH, midia['file'])
+                    dir = '{}/{}'.format(config.TEMP_PATH, play_file['file'])
                     if os.path.exists(dir):
                         print("Process Midia:", dir)
                         __ffmpge_io(dir)
                 except Exception as e:
                     print("Erro:", e)
-                    print("Midia:", midia['file'])
+                    print("Midia:", play_file['file'])
                 # Removendo para limpeza
                 thread.Thread(target=__stream_unused_files,
-                              args=[midia, dir]).start()
+                              args=[play_file, dir]).start()

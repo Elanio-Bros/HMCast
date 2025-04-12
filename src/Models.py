@@ -2,10 +2,11 @@ from . import config
 from peewee import *
 from datetime import datetime, timedelta
 import json
+from enum import Enum
+import logging
 
-__database__ = "{}/{}".format(config.DATABASE_PATH, config.DB_FILE)
-db = MySQLDatabase('video_tv', user='user_video_tv',
-                   password='123456789', host='192.168.2.250', port=3306)
+db = MySQLDatabase(config.DATABASE, user=config.DATABASE_USER,
+                   password=config.DATABASE_PASS, host=config.DATABASE_HOST, port=config.DATABASE_PORT, field_types={'enum': 'enum'})
 
 
 class TimeData(Field):
@@ -50,6 +51,24 @@ class TimeData(Field):
                 return value
 
 
+class EnumField(Field):
+    field_type = 'enum'
+
+    def __init__(self,choices,**kwargs):
+        self.choices = choices
+        enum_values = ', '.join(f'"{val}"' for val in choices)
+        self.field_type = f'ENUM({enum_values})'
+        super().__init__(**kwargs)
+        
+    def db_value(self, value):
+        if value not in self.choices:
+            raise ValueError(f"Valor '{value}' inválido para ENUM. Esperado: {self.choices}")
+        return value
+    
+    def python_value(self, value):
+        return value
+
+
 class TimeDelta(Field):
     field_type = 'time'
 
@@ -61,7 +80,7 @@ class TimeDelta(Field):
 
 
 class Catalog_List(Model):
-    id = IntegerField(primary_key=True)
+    id = AutoField()
     name = TextField()
     random = BooleanField(null=False, default="0")
     path_personality_opening = TextField(null=True)
@@ -72,14 +91,14 @@ class Catalog_List(Model):
 
 
 class Catalog_Schedule(Model):
-    id = IntegerField(primary_key=True)
+    id = AutoField()
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
-    # 0 Monday and 6 Sunday
-    recurrent = IntegerField(null=True, constraints=[Check(
-        'recurrent <= 6 OR recurrent IS NULL'), Check('recurrent >= 0 OR recurrent IS NULL')])
+    # 1 Monday and 7 Sunday
+    recurrent = EnumField(choices=['monday','tuesday','wednesday','thursday','friday','saturday','sunday'])
+    # IntegerField(null=True, constraints=[Check(
+    # 'recurrent <= 6 OR recurrent IS NULL'), Check('recurrent >= 0 OR recurrent IS NULL')])
     date = DateField(null=True)
-    time = TimeField(
-        constraints=[Check('time <= "23:59:59"'), Check('time >= "00:00:00"')])
+    time = TimeField(constraints=[Check('time <= "23:59:59"'), Check('time >= "00:00:00"')])
     duration = TimeDelta()
 
     class Meta:
@@ -90,7 +109,7 @@ class Catalog_Schedule(Model):
 
 
 class Catalog_Files(Model):
-    id = IntegerField(primary_key=True)
+    id = AutoField()
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
     watched = BooleanField(default=False)
     sequence_id = ForeignKeyField(
@@ -104,7 +123,7 @@ class Catalog_Files(Model):
 
 
 class Playlist_Files(Model):
-    id = IntegerField(primary_key=True)
+    id = AutoField()
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
     file_id = ForeignKeyField(Catalog_Files, field="id", backref="file")
     file = TextField()
@@ -119,5 +138,5 @@ class Playlist_Files(Model):
 def create_table():
     print("Create Tables")
     # Create Table
-    db.create_tables([Catalog_List, Catalog_Schedule,
-                     Catalog_Files, Playlist_Files])
+    # logging.basicConfig(level=logging.DEBUG)
+    db.create_tables([Catalog_List, Catalog_Files,Catalog_Schedule, Playlist_Files])

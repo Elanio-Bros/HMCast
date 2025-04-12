@@ -16,18 +16,17 @@ def get_program(date: date | list = None, time_start: time | list = None, day_we
                 date = datetime.strptime(date, "%Y-%m-%d").date()
 
             programer = programer.where((Catalog_Schedule.date == date) | (
-                Catalog_Schedule.recurrent == date.weekday()))
+                Catalog_Schedule.recurrent == date.isoweekday()))
         elif type(date) == list:
             date = [datetime.strptime(date, "%Y-%m-%d").date()
                     for date in date]
             if len(date) == 2:
-                week = [date.weekday() for date in date]
+                week = [date.isoweekday() for date in date]
                 week.sort()
                 programer = programer.where((Catalog_Schedule.date.between(date[0],  date[1])) | (
                     Catalog_Schedule.recurrent.between(week[0], week[1])))
             elif len(date) > 2:
-                raise Warning(
-                    "argument date exceeded the limit of 2 arguments in the list")
+                raise Warning("argument date exceeded the limit of 2 arguments in the list")
 
     if day_week != None:
         if (type(day_week) == int or (type(day_week) == list and len(day_week) == 1)):

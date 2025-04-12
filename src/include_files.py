@@ -15,11 +15,11 @@ import schedule
 def include_schedule_playlist(programer: Catalog_Schedule):
 
     if programer.recurrent != None:
-        date = datetime.now().date()+timedelta(days=-4)
-        if programer.recurrent > date.weekday():
-            days = programer.recurrent-date.weekday()
-        elif programer.recurrent < date.weekday():
-            days = (7-date.weekday())+programer.recurrent
+        date = datetime.now().date()
+        if programer.recurrent > date.isoweekday():
+            days = programer.recurrent-date.isoweekday()
+        elif programer.recurrent < date.isoweekday():
+            days = (7-date.isoweekday())+programer.recurrent
         else:
             days = 0
         date = date+timedelta(days=days)
@@ -42,8 +42,6 @@ def include_files_catalog(programer: Catalog_List, duration: float, datetime: da
     for key, file in enumerate(files):
         video = VideoFileClip(file['path'])
         video_duration = video.duration
-        print(video_duration)
-        time.sleep(10)
         video.close()
         video_duration_render = render_video(file['id'], datetime, duration_programmer == duration, (key+1 == len(files) or (duration_programmer-video_duration) <= 0))
         duration_programmer = duration_programmer-video_duration_render
@@ -161,7 +159,8 @@ def files_minute():
     try:
         pool = multiprocessing.Pool(processes=2)
         minutes = 1
-        date = datetime(2025,2,9,6,59,00)+timedelta(minutes=minutes)
+        date = datetime()+timedelta(minutes=minutes)
+        # time(2025,2,9,6,59,00)
         start = date.strftime('%H:%M:%S')
         end = date+timedelta(minutes=minutes)
         programers = get_program(date, [start, end.strftime('%H:%M:%S')])
@@ -169,8 +168,8 @@ def files_minute():
             pool.apply_async(include_schedule_playlist, [programer])
 
     except Exception as inst:
-        pool.join()
         pool.close()
+        pool.join()
         print(type(inst))
         print(inst)
 
