@@ -2,14 +2,12 @@ from . import config
 import re
 import os
 import shutil
-import time
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from datetime import datetime, timedelta
 from .Models import Catalog_Schedule, Catalog_List, Playlist_Files
 from .Program import get_files_catalog, get_file, get_program
 from .Edit_Video import cutout, include_video_personality
 import multiprocessing
-import schedule
 
 
 def include_schedule_playlist(programer: Catalog_Schedule):
@@ -167,19 +165,8 @@ def files_minute():
         for programer in programers:
             pool.apply_async(include_schedule_playlist, [programer])
 
-    except Exception as inst:
+    except Exception as e:
         pool.close()
         pool.join()
-        print(type(inst))
-        print(inst)
-
-
-def cron():
-    print("Start Cron...")
-    schedule.every(1).seconds.do(files_minute)
-    while True:
-        try:
-            schedule.run_pending()
-            time.sleep(1)
-        except:
-            break
+        print(type(e))
+        print(e)

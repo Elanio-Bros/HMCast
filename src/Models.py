@@ -48,7 +48,6 @@ class TimeData(Field):
             else:
                 return value
 
-
 class EnumField(Field):
     field_type = 'enum'
     def __init__(self, choices, **kwargs):
@@ -66,7 +65,6 @@ class EnumField(Field):
     def python_value(self, value):
         return (self.choices.index(value)+1,value)
 
-
 class TimeDelta(Field):
     field_type = 'time'
 
@@ -75,7 +73,6 @@ class TimeDelta(Field):
 
     def python_value(self, value):
         return value
-
 
 class Catalog_List(Model):
     id = AutoField()
@@ -86,7 +83,6 @@ class Catalog_List(Model):
 
     class Meta:
         database = db
-
 
 class Catalog_Schedule(Model):
     id = AutoField()
@@ -105,7 +101,6 @@ class Catalog_Schedule(Model):
         constraints = [
             Check("CASE WHEN recurrent IS NULL THEN date IS NOT NULL END = 1")]
 
-
 class Catalog_Files(Model):
     id = AutoField()
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
@@ -118,7 +113,6 @@ class Catalog_Files(Model):
 
     class Meta:
         database = db
-
 
 class Playlist_Files(Model):
     id = AutoField()
@@ -135,6 +129,5 @@ class Playlist_Files(Model):
 
 def create_table():
     print("Create Tables")
-    # Create Table
     # logging.basicConfig(level=logging.DEBUG)
     db.create_tables([Catalog_List, Catalog_Files,Catalog_Schedule, Playlist_Files])

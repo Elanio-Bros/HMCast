@@ -5,16 +5,9 @@ from .Models import Playlist_Files, Catalog_Files
 from datetime import datetime
 import ffmpeg
 import m3u8
-from multiprocessing.pool import ThreadPool
+import multiprocessing
 
 playlist = []
-
-
-def main():
-    print("Start Load Stream...")
-    thread.Thread(target=get_playlist).start()
-    thread.Thread(target=run_playlist).start()
-
 
 def __ffmpge_io(video):
     ffmpeg.input(video, **{
@@ -67,20 +60,18 @@ def __stream_unused_files(play_file, dir):
 
 def get_playlist():
     global playlist
-    date_now = None
-    # Chance for cron
-    while True:
-        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        if date != date_now:
-            playlist_files = Playlist_Files.select().where(Playlist_Files.date_start ** "{}{}".format(date, "%")).order_by(
-                Playlist_Files.date_start.asc()).order_by(Playlist_Files.catalog_id.asc()).dicts()
-            playlist = playlist + [*playlist_files]
-            date_now = date
-
+    # print("Get Playlist",playlist)
+    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    playlist_files = Playlist_Files.select().where(Playlist_Files.date_start ** "{}{}".format(date, "%")).order_by(
+            Playlist_Files.date_start.asc()).order_by(Playlist_Files.catalog_id.asc()).dicts()
+    playlist = playlist + [*playlist_files]
+    playlist=[dict(t) for t in {tuple(d.items()) for d in playlist}]
 
 def run_playlist():
     global playlist
     play = []
+    pool = multiprocessing.Pool(processes=2)
+    print("Start Load Stream...")
     while True:
         play = play+playlist
         for play_file in play:
@@ -90,9 +81,10 @@ def run_playlist():
                     if os.path.exists(dir):
                         print("Process Midia:", dir)
                         __ffmpge_io(dir)
+                        pool.apply_async(__stream_unused_files,[play_file, dir])
                 except Exception as e:
                     print("Erro:", e)
                     print("Midia:", play_file['file'])
                 # Removendo para limpeza
-                thread.Thread(target=__stream_unused_files,
-                              args=[play_file, dir]).start()
+                # thread.Thread(target=__stream_unused_files,
+                #               args=[play_file, dir]).start()
