@@ -153,7 +153,7 @@ def delete_file_playlist(file_id: int = None, date_programer: datetime = None):
 
 
 def files_minute():
-    print("Files")
+    # print("Files")
     try:
         pool = multiprocessing.Pool(processes=2)
         minutes = 1

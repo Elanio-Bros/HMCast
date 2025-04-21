@@ -5,11 +5,14 @@ from src.load_stream import get_playlist
 import time
 import schedule
 
+def run_threaded(job_func):
+    job_thread = thread.Thread(target=job_func)
+    job_thread.start()
 
 def cron():
     print("Start Cron...")
-    schedule.every(1).minutes.do(files_minute)
-    schedule.every(1).seconds.do(get_playlist)
+    schedule.every(1).minutes.do(run_threaded,files_minute)
+    schedule.every(1).seconds.do(run_threaded,get_playlist)
     while True:
         try:
             schedule.run_pending()
@@ -18,5 +21,5 @@ def cron():
             break
 
 
-thread.Thread(target=cron).start()
-thread.Thread(target=load_stream.run_playlist).start()
+run_threaded(cron)
+run_threaded(load_stream.run_playlist)
