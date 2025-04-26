@@ -118,9 +118,10 @@ class Playlist_Files(Model):
     id = AutoField()
     catalog_id = ForeignKeyField(Catalog_List, field="id", backref="catalog")
     file_id = ForeignKeyField(Catalog_Files, field="id", backref="file")
+    type_video = EnumField(choices=['start','end'], null=True)
     file = TextField()
     date_start = DateTimeField()
-    duration = TimeField()
+    estimated_duration = TimeField()
     created_at = DateTimeField(default=datetime.now)
 
     class Meta:

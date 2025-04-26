@@ -61,33 +61,38 @@ def render_video(file_id: int, date_program: datetime, is_start_file: bool = Fal
             base_file = base_file_temp(base_file)
             cutoffs = file.cutoffs
             video = VideoFileClip(file.path)
+            
+            file_copy = "{}/{}".format(config.TEMP_PATH, base_file)
+            shutil.copyfile(file.path, file_copy)
+            print("File Copy:", file_copy)
+            
             # Se ele não tiver os cutoffs ou se o cutoffs for igual a zero nós dois só copiar o video para pasta direto
-            if cutoffs == None:
-                file_copy = "{}/{}".format(config.TEMP_PATH, base_file)
-                shutil.copyfile(file.path, file_copy)
-                print("File Copy:", file_copy)
-            else:
-                if 'opening' in cutoffs.keys():
-                    (start, end) = get_seconds_start_end(cutoffs['opening'])
-                    if is_start_file == False:
-                        # Remover Abertura caso tenha
-                        video = cutout(video, start, end)
-                    elif file.catalog_id.path_personality_opening != None and is_start_file == True:
-                        video = include_video_personality(
-                            video, file.catalog_id.path_personality_opening, start, end)
+            
+            # Sera movido direto para o ffmpge essa função
+            # if cutoffs == None:
+                
+            # else:
+            #     if 'opening' in cutoffs.keys():
+            #         (start, end) = get_seconds_start_end(cutoffs['opening'])
+            #         if is_start_file == False:
+            #             # Remover Abertura caso tenha
+            #             video = cutout(video, start, end)
+            #         elif file.catalog_id.path_personality_opening != None and is_start_file == True:
+            #             video = include_video_personality(
+            #                 video, file.catalog_id.path_personality_opening, start, end)
 
-                if 'completion' in cutoffs.keys() and is_end_file == False:
-                    # Remover Finalização caso tenha
-                    (start, end) = get_seconds_start_end(cutoffs['completion'])
-                    if start > video.duration and 'opening' in cutoffs.keys():
-                        (open_start, open_end) = get_seconds_start_end(
-                            cutoffs['opening'])
-                        start = start-open_end
-                        end = end-open_end
-                    video = cutout(video, start, end)
+            #     if 'completion' in cutoffs.keys() and is_end_file == False:
+            #         # Remover Finalização caso tenha
+            #         (start, end) = get_seconds_start_end(cutoffs['completion'])
+            #         if start > video.duration and 'opening' in cutoffs.keys():
+            #             (open_start, open_end) = get_seconds_start_end(
+            #                 cutoffs['opening'])
+            #             start = start-open_end
+            #             end = end-open_end
+            #         video = cutout(video, start, end)
 
-                base_file = os.path.splitext(base_file)[0]+".mp4"
-                video.write_videofile("{}/{}".format(config.TEMP_PATH, base_file), threads=4)
+            #     base_file = os.path.splitext(base_file)[0]+".mp4"
+                # video.write_videofile("{}/{}".format(config.TEMP_PATH, base_file), threads=4)
 
             video_duration = video.duration
             video.close()
