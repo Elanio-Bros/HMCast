@@ -11,23 +11,35 @@ playlist = []
 
 
 def __ffmpge_io(video, play_file):
-    
+
     input_video = ffmpeg.input(video, **{
         "readrate": 1}
     )
-    
-    #Get Original Framrate
-    probe = ffmpeg.probe(video,cmd=config.FFPROBE_PATH)
+
+    # Get Original Framrate
+    probe = ffmpeg.probe(video, cmd=config.FFPROBE_PATH)
     framerate = probe['streams'][0]['r_frame_rate']
     framerate = eval(framerate)
+    parts = []
+
+    open = ffmpeg.input("D:/Projetos/Video_TV/temp/opening.mp4", **{
+        "readrate": 1}
+    )
+
+    parts.append(open.video)
+    parts.append(open.audio)
 
     # Trim video from selected area
-    trimmed_audio = input_video.filter_('atrim', start='00:00:09', end='00:01:07').filter_('asetpts', 'PTS-STARTPTS')
-    input_video = input_video.trim(start='00:00:09', end='00:01:07').setpts('PTS-STARTPTS').concat(trimmed_audio, a=1)
-    
+    for start, end in [("00:00:00", "00:00:01.000"), ("00:00:09.000", "00:01:00")]:
+        parts.append(input_video.video.trim(
+            start=start, end=end).setpts('PTS-STARTPTS'))
+        parts.append(input_video.audio.filter_(
+            'atrim', start=start, end=end).filter_('asetpts', 'PTS-STARTPTS'))
+
+    joined = ffmpeg.concat(*parts, v=1, a=1)
     # Set Stream
-    input_video.output("{}/stream.m3u8".format(config.DEFAULT_PATH), format='hls', **
-                                                  {
+    ffmpeg.output(joined, "{}/stream.m3u8".format(config.DEFAULT_PATH), format='hls', **
+                  {
         "threads": 2,
         "crf": 20,
         'preset': 'veryfast',
