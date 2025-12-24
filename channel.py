@@ -12,7 +12,6 @@ class ChannelRuntime:
         self.channel = channel
         self.db = SessionLocal()
 
-    # -------- schedule --------
     def get_active_schedule(self):
         now = datetime.now().astimezone()
         now_time = now.time()
@@ -22,9 +21,11 @@ class ChannelRuntime:
         schedules = (
             self.db.query(ChannelSchedule)
             .filter(ChannelSchedule.channel_id == self.channel.id)
+            .order_by(ChannelSchedule.id)
             .all()
         )
 
+        active_schedules = []
         for sch in schedules:
             if not (sch.start_time <= now_time <= sch.end_time):
                 continue
@@ -32,10 +33,11 @@ class ChannelRuntime:
                 continue
             if sch.month_days and month_day not in sch.month_days:
                 continue
-            return sch
-        return None
+            active_schedules.append(sch)
 
-    # -------- playlist --------
+        return active_schedules[0] if active_schedules else None
+
+
     def resolve_playlist_episodes(self, playlist: Playlist):
         items = (
             self.db.query(PlaylistItem, Episode)
@@ -43,7 +45,6 @@ class ChannelRuntime:
             .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
-
         episodes = [ep for _, ep in items]
 
         if playlist.shuffle:
