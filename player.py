@@ -5,12 +5,11 @@ class Player:
     def __init__(self):
         self.media = MediaUtils()
 
-    def generate_live_hls(self, input_file: str, output_dir: str, start_time: float = 0):
+    def generate_live_hls(self, input_file: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)
-        
+
         args = [
             "-y",
-            "-ss", str(start_time),
             "-i", input_file,
 
             "-filter_complex",
@@ -24,7 +23,7 @@ class Player:
             "-map", "[v1080out]", "-map", "0:a",
             "-map", "[v720out]",  "-map", "0:a",
             "-map", "[v480out]",  "-map", "0:a",
-            
+
             "-c:v", "libx264",
             "-preset", "veryfast",
             "-profile:v", "main",
@@ -40,10 +39,9 @@ class Player:
 
             "-f", "hls",
             "-hls_time", "4",
-            "-hls_flags", "delete_segments+independent_segments+append_list",
             "-hls_playlist_type", "event",
-            "-hls_segment_filename",
-            os.path.join(output_dir, "v%v_seg_%03d.ts"),
+            "-hls_flags", "append_list+delete_segments+independent_segments",
+            "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%03d.ts"),
 
             "-master_pl_name", "master.m3u8",
 
