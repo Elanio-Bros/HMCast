@@ -1,15 +1,19 @@
 import time
 from datetime import datetime
 import os
-import subprocess
+import shutil
 from database import SessionLocal
 from models import Playlist, PlaylistItem, Episode, ChannelSchedule
+from timeline import build_segments, resolve_offset, effective_duration
+from player import Player
 
 class ChannelRuntime:
     def __init__(self, channel):
         self.channel = channel
         self.db = SessionLocal()
+        self.player = Player()
 
+    # -------- schedule --------
     def get_active_schedule(self):
         now = datetime.now().astimezone()
         now_time = now.time()
@@ -35,6 +39,7 @@ class ChannelRuntime:
 
         return active_schedules[0] if active_schedules else None
 
+    # -------- playlist --------
     def resolve_playlist_episodes(self, playlist):
         items = (
             self.db.query(PlaylistItem, Episode)
@@ -51,16 +56,15 @@ class ChannelRuntime:
                 key = ep.sequence_group or f"single_{ep.id}"
                 groups.setdefault(key, []).append(ep)
 
-            group_list = list(groups.values())
             import random
+            group_list = list(groups.values())
             random.shuffle(group_list)
             episodes = [ep for g in group_list for ep in g]
 
         return episodes
 
+    # -------- timeline / passo 5.1 --------
     def resolve_episode_by_time(self, episodes, channel_offset):
-        from timeline import build_segments, resolve_offset, effective_duration
-
         timeline = []
         acc = 0
 
@@ -96,27 +100,17 @@ class ChannelRuntime:
 
         return None, None
 
-    def play_black_screen(self, duration: int = 5, off_air_image: str = "off_air.png"):
-        cmd = []
-        if off_air_image and os.path.exists(off_air_image):
-            cmd = [
-                "ffmpeg",
-                "-loop", "1",
-                "-i", off_air_image,
-                "-t", str(duration),
-                "-f", "mpegts",
-                "pipe:1"
-            ]
-        else:
-            cmd = [
-                "ffmpeg",
-                "-f", "lavfi",
-                "-i", f"color=c=black:s=1280x720:d={duration}",
-                "-f", "mpegts",
-                "pipe:1"
-            ]
-        subprocess.run(cmd)
+    # -------- cleanup HLS antigo --------
+    def cleanup_old_episodes(self, keep_episode_id):
+        base_folder = os.path.join("hls_channels", f"channel_{self.channel.id}")
+        if not os.path.exists(base_folder):
+            return
+        for folder in os.listdir(base_folder):
+            folder_path = os.path.join(base_folder, folder)
+            if f"episode_{keep_episode_id}" not in folder:
+                shutil.rmtree(folder_path, ignore_errors=True)
 
+    # -------- run --------
     def run(self):
         print(f"📺 Canal '{self.channel.name}' iniciado")
 
@@ -124,7 +118,7 @@ class ChannelRuntime:
             schedule = self.get_active_schedule()
             if not schedule:
                 print("⛔ Fora do ar (sem schedule ativo)")
-                self.play_black_screen(duration=5)
+                self.player.play_off_air(duration=5)
                 time.sleep(5)
                 continue
 
@@ -133,7 +127,7 @@ class ChannelRuntime:
 
             if not episodes:
                 print("📭 Playlist vazia")
-                self.play_black_screen(duration=5)
+                self.player.play_off_air(duration=5)
                 time.sleep(5)
                 continue
 
@@ -145,16 +139,21 @@ class ChannelRuntime:
 
             if not slot or start_time is None:
                 print("⛔ Nenhum episódio disponível no momento")
-                self.play_black_screen(duration=5)
+                self.player.play_off_air(duration=5)
                 time.sleep(5)
                 continue
 
             ep = slot["episode"]
+            ep_folder = os.path.join("hls_channels", f"channel_{self.channel.id}", f"episode_{ep.id}")
+            os.makedirs(ep_folder, exist_ok=True)
 
-            print(
-                f"▶️ {ep.name} | "
-                f"start={start_time}s | "
-                f"first={slot['is_first']} last={slot['is_last']}"
-            )
+            # -------- Limpeza de episódios antigos --------
+            self.cleanup_old_episodes(ep.id)
 
+            print(f"▶️ {ep.name} | start={start_time}s | first={slot['is_first']} last={slot['is_last']}")
+            # Gera HLS adaptativo
+            master_playlist = self.player.generate_hls(ep.file, ep_folder)
+            print(f"🎬 HLS adaptativo gerado: {master_playlist}")
+
+            # Espera antes de verificar próximo episódio
             time.sleep(5)

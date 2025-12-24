@@ -47,7 +47,7 @@ def scan_media_folder(root_path: str):
                     episode = Episode(
                         name=name,
                         file=file_path,
-                        duration=duration,
+                        duration=duration,  # duração real do arquivo
                         folder_id=folder.id
                     )
                     db.add(episode)
