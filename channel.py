@@ -18,6 +18,15 @@ class ChannelRuntime:
 
         self.hls_base_folder = hls_base_folder
         os.makedirs(self.hls_base_folder, exist_ok=True)
+
+        self.current_folder = os.path.join(
+            self.hls_base_folder,
+            f"channel_{self.channel.id}",
+            "current"
+        )
+        os.makedirs(self.current_folder, exist_ok=True)
+
+        self.current_media_id = None
         
     def get_active_schedule(self):
         now = datetime.now().astimezone()
@@ -42,38 +51,38 @@ class ChannelRuntime:
 
         return None
 
-    def resolve_playlist_episodes(self, playlist):
+    def resolve_playlist_media(self, playlist):
         items = (
             self.db.query(PlaylistItem, MediaItem)
-            .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
+            .join(MediaItem, MediaItem.id == PlaylistItem.episode_id)
             .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
 
-        episodes = [ep for _, ep in items]
+        media_items = [m for _, m in items]
 
         if playlist.shuffle:
             import random
-            random.shuffle(episodes)
+            random.shuffle(media_items)
 
-        return episodes
+        return media_items
 
-    def resolve_episode_by_time(self, episodes, channel_offset):
+    def resolve_media_by_time(self, media_items, channel_offset):
         timeline = []
         acc = 0
 
-        for i, ep in enumerate(episodes):
-            prev_ep = episodes[i - 1] if i > 0 else None
-            next_ep = episodes[i + 1] if i < len(episodes) - 1 else None
+        for i, media in enumerate(media_items):
+            prev_media = media_items[i - 1] if i > 0 else None
+            next_media = media_items[i + 1] if i < len(media_items) - 1 else None
 
-            is_first = prev_ep is None or prev_ep.series != ep.series
-            is_last = next_ep is None or next_ep.series != ep.series
+            is_first = prev_media is None or prev_media.series != getattr(media, "series", None)
+            is_last = next_media is None or next_media.series != getattr(media, "series", None)
 
-            segments = build_segments(ep, is_first, is_last)
+            segments = build_segments(media, is_first, is_last)
             duration = effective_duration(segments)
 
             timeline.append({
-                "episode": ep,
+                "media": media,
                 "start": acc,
                 "end": acc + duration,
                 "segments": segments,
@@ -96,17 +105,11 @@ class ChannelRuntime:
 
         return None, None
 
-    def cleanup_old_episodes(self, keep_media_id):
-        channel_folder = os.path.join(
-            self.hls_base_folder, f"channel_{self.channel.id}"
-        )
-        if not os.path.exists(channel_folder):
-            return
-
-        for folder in os.listdir(channel_folder):
-            if f"episode_{keep_media_id}" not in folder:
+    def cleanup_old_media(self, keep_media_id):
+        for folder in os.listdir(self.current_folder):
+            if f"media_{keep_media_id}" not in folder:
                 shutil.rmtree(
-                    os.path.join(channel_folder, folder),
+                    os.path.join(self.current_folder, folder),
                     ignore_errors=True
                 )
 
@@ -122,46 +125,31 @@ class ChannelRuntime:
                 continue
 
             playlist = self.db.get(Playlist, schedule.playlist_id)
-            episodes = self.resolve_playlist_episodes(playlist)
+            media_items = self.resolve_playlist_media(playlist)
 
-            if not episodes:
+            if not media_items:
                 self.player.play_off_air()
                 time.sleep(5)
                 continue
 
             now = datetime.now(timezone.utc)
-            channel_offset = int(
-                (now - self.channel.created_at).total_seconds()
-            )
+            channel_offset = int((now - self.channel.created_at).total_seconds())
 
-            slot, start_time = self.resolve_episode_by_time(
-                episodes, channel_offset
-            )
-
+            slot, start_time = self.resolve_media_by_time(media_items, channel_offset)
             if not slot:
                 self.player.play_off_air()
                 time.sleep(5)
                 continue
 
-            ep = slot["episode"]
+            media = slot["media"]
 
-            if not os.path.exists(ep.file):
-                print(f"❌ Arquivo não encontrado: {ep.file}")
+            if not os.path.exists(media.file):
+                print(f"❌ Arquivo não encontrado: {media.file}")
                 time.sleep(5)
                 continue
 
-            ep_folder = os.path.join(
-                self.hls_base_folder,
-                f"channel_{self.channel.id}",
-                f"episode_{ep.id}"
-            )
+            if self.current_media_id != media.id:
+                self.player.generate_live_hls(media.file, self.current_folder, start_time)
+                self.current_media_id = media.id
 
-            os.makedirs(ep_folder, exist_ok=True)
-            self.cleanup_old_episodes(ep.id)
-
-            print(
-                f"▶️ {ep.name} | start={start_time}s"
-            )
-            
-            self.player.generate_hls(ep.file, ep_folder)
             time.sleep(5)
