@@ -4,7 +4,7 @@ import shutil
 from datetime import datetime, timezone
 
 from database import SessionLocal
-from models import Playlist, PlaylistItem, Episode, ChannelSchedule
+from models import Playlist, PlaylistItem, MediaItem, ChannelSchedule
 from timeline import build_segments, resolve_offset, effective_duration
 from player import Player
 from media_utils import MediaUtils
@@ -44,8 +44,8 @@ class ChannelRuntime:
 
     def resolve_playlist_episodes(self, playlist):
         items = (
-            self.db.query(PlaylistItem, Episode)
-            .join(Episode, Episode.id == PlaylistItem.episode_id)
+            self.db.query(PlaylistItem, MediaItem)
+            .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
             .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
@@ -96,7 +96,7 @@ class ChannelRuntime:
 
         return None, None
 
-    def cleanup_old_episodes(self, keep_episode_id):
+    def cleanup_old_episodes(self, keep_media_id):
         channel_folder = os.path.join(
             self.hls_base_folder, f"channel_{self.channel.id}"
         )
@@ -104,7 +104,7 @@ class ChannelRuntime:
             return
 
         for folder in os.listdir(channel_folder):
-            if f"episode_{keep_episode_id}" not in folder:
+            if f"episode_{keep_media_id}" not in folder:
                 shutil.rmtree(
                     os.path.join(channel_folder, folder),
                     ignore_errors=True

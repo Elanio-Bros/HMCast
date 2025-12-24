@@ -18,8 +18,8 @@ class MediaFolder(Base):
     name = Column(String, nullable=True)
 
 
-class Episode(Base):
-    __tablename__ = "episodes"
+class MediaItem(Base):
+    __tablename__ = "media_item"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
@@ -125,4 +125,4 @@ class PlaylistItem(Base):
 
     id = Column(Integer, primary_key=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
-    episode_id = Column(Integer, ForeignKey("episodes.id"))
+    media_id = Column(Integer, ForeignKey("media_item.id"))

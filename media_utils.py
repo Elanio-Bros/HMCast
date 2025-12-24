@@ -2,7 +2,7 @@ import os
 import subprocess
 from typing import Iterable
 from database import SessionLocal
-from models import Episode, MediaFolder
+from models import MediaItem, MediaFolder
 
 class MediaUtils:
     SUPPORTED_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mp3", ".aac", ".ogg")
@@ -79,8 +79,8 @@ class MediaUtils:
             name = os.path.splitext(os.path.basename(file_path))[0]
 
             exists = (
-                db.query(Episode)
-                .filter(Episode.file == file_path)
+                db.query(MediaItem)
+                .filter(MediaItem.file == file_path)
                 .first()
             )
 
@@ -89,7 +89,7 @@ class MediaUtils:
 
             duration = self.get_media_duration(file_path)
 
-            episode = Episode(
+            episode = MediaItem(
                 name=name,
                 file=file_path,
                 duration=duration,

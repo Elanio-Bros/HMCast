@@ -13,24 +13,24 @@ if not os.path.exists(HLS_BASE_FOLDER):
 
 app.mount("/hls", StaticFiles(directory=HLS_BASE_FOLDER), name="hls")
 
-@app.get("/channel/{channel_id}/episode/{episode_id}/master.m3u8")
-async def get_master_playlist(channel_id: int, episode_id: int):
+@app.get("/channel/{channel_id}/episode/{media_id}/master.m3u8")
+async def get_master_playlist(channel_id: int, media_id: int):
     file_path = os.path.join(
         HLS_BASE_FOLDER,
         f"channel_{channel_id}",
-        f"episode_{episode_id}",
+        f"episode_{media_id}",
         "master.m3u8"
     )
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Master playlist não encontrada")
     return FileResponse(file_path, media_type="application/vnd.apple.mpegurl")
 
-@app.get("/channel/{channel_id}/episode/{episode_id}/{segment_name}")
-async def get_ts_segment(channel_id: int, episode_id: int, segment_name: str):
+@app.get("/channel/{channel_id}/episode/{media_id}/{segment_name}")
+async def get_ts_segment(channel_id: int, media_id: int, segment_name: str):
     file_path = os.path.join(
         HLS_BASE_FOLDER,
         f"channel_{channel_id}",
-        f"episode_{episode_id}",
+        f"episode_{media_id}",
         segment_name
     )
     if not os.path.exists(file_path):
