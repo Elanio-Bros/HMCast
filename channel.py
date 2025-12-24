@@ -8,6 +8,7 @@ from models import Playlist, PlaylistItem, Media, ChannelSchedule
 from timeline import build_segments, resolve_offset, effective_duration
 from player import Player
 from media_utils import MediaUtils
+import server
 
 class ChannelRuntime:
     def __init__(self, channel, hls_base_folder="hls_channels"):
@@ -22,7 +23,7 @@ class ChannelRuntime:
         )
         os.makedirs(self.current_folder, exist_ok=True)
 
-        self.lock = threading.Lock()
+        self.lock = threading.Lock() 
 
     def get_active_schedule(self):
         now = datetime.now().astimezone()
@@ -58,7 +59,6 @@ class ChannelRuntime:
             import random
             random.shuffle(medias)
         return medias
-
 
     def resolve_media_by_time(self, medias, channel_offset):
         timeline = []
@@ -118,16 +118,21 @@ class ChannelRuntime:
         print(f"📺 Canal '{self.channel.name}' iniciado (HLS contínuo)")
 
         while True:
+            last_ts = server.last_access.get(self.channel.id, time.time())
+            if time.time() - last_ts > server.CHANNEL_TIMEOUT:
+                print(f"⏹ Canal '{self.channel.name}' desligado por inatividade")
+                if self.channel.id in server.active_channels:
+                    del server.active_channels[self.channel.id]
+                break
+            
             schedule = self.get_active_schedule()
             if not schedule:
-                print("⛔ Fora do ar")
                 self.player.play_off_air()
                 time.sleep(5)
                 continue
 
             playlist = self.db.get(Playlist, schedule.playlist_id)
             medias = self.resolve_playlist_media(playlist)
-
             if not medias:
                 self.player.play_off_air()
                 time.sleep(5)
@@ -143,7 +148,6 @@ class ChannelRuntime:
                 continue
 
             media_item = slot["media"]
-
             if not os.path.exists(media_item.file):
                 print(f"❌ Arquivo não encontrado: {media_item.file}")
                 time.sleep(5)
@@ -151,11 +155,8 @@ class ChannelRuntime:
 
             print(f"▶️ {media_item.name} | start={start_time}s")
 
-            # Gera HLS contínuo na pasta current
             self.player.generate_live_hls(media_item.file, self.current_folder)
 
-            # Limpeza segura dos .ts antigos
             self.cleanup_ts_segments()
 
-            # Espera 5s antes do próximo ciclo
             time.sleep(5)
