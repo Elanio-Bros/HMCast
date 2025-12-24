@@ -8,12 +8,13 @@ from timeline import build_segments, resolve_offset, effective_duration
 from player import Player
 
 class ChannelRuntime:
-    def __init__(self, channel):
+    def __init__(self, channel, hls_base_folder="hls_channels"):
         self.channel = channel
         self.db = SessionLocal()
         self.player = Player()
+        self.hls_base_folder = hls_base_folder
+        os.makedirs(self.hls_base_folder, exist_ok=True)
 
-    # -------- schedule --------
     def get_active_schedule(self):
         now = datetime.now().astimezone()
         now_time = now.time()
@@ -39,7 +40,6 @@ class ChannelRuntime:
 
         return active_schedules[0] if active_schedules else None
 
-    # -------- playlist --------
     def resolve_playlist_episodes(self, playlist):
         items = (
             self.db.query(PlaylistItem, Episode)
@@ -63,7 +63,6 @@ class ChannelRuntime:
 
         return episodes
 
-    # -------- timeline / passo 5.1 --------
     def resolve_episode_by_time(self, episodes, channel_offset):
         timeline = []
         acc = 0
@@ -100,17 +99,15 @@ class ChannelRuntime:
 
         return None, None
 
-    # -------- cleanup HLS antigo --------
     def cleanup_old_episodes(self, keep_episode_id):
-        base_folder = os.path.join("hls_channels", f"channel_{self.channel.id}")
-        if not os.path.exists(base_folder):
+        channel_folder = os.path.join(self.hls_base_folder, f"channel_{self.channel.id}")
+        if not os.path.exists(channel_folder):
             return
-        for folder in os.listdir(base_folder):
-            folder_path = os.path.join(base_folder, folder)
+        for folder in os.listdir(channel_folder):
+            folder_path = os.path.join(channel_folder, folder)
             if f"episode_{keep_episode_id}" not in folder:
                 shutil.rmtree(folder_path, ignore_errors=True)
 
-    # -------- run --------
     def run(self):
         print(f"📺 Canal '{self.channel.name}' iniciado")
 
@@ -144,16 +141,14 @@ class ChannelRuntime:
                 continue
 
             ep = slot["episode"]
-            ep_folder = os.path.join("hls_channels", f"channel_{self.channel.id}", f"episode_{ep.id}")
+            ep_folder = os.path.join(self.hls_base_folder, f"channel_{self.channel.id}", f"episode_{ep.id}")
             os.makedirs(ep_folder, exist_ok=True)
 
-            # -------- Limpeza de episódios antigos --------
             self.cleanup_old_episodes(ep.id)
 
             print(f"▶️ {ep.name} | start={start_time}s | first={slot['is_first']} last={slot['is_last']}")
-            # Gera HLS adaptativo
+
             master_playlist = self.player.generate_hls(ep.file, ep_folder)
             print(f"🎬 HLS adaptativo gerado: {master_playlist}")
 
-            # Espera antes de verificar próximo episódio
             time.sleep(5)

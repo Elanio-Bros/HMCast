@@ -1,58 +1,56 @@
-# server.py
-from fastapi import FastAPI, Response
-from fastapi.responses import StreamingResponse
-from datetime import datetime
-from channel import ChannelRuntime
-from models import Channels, Playlist
-from database import SessionLocal
-from player import Player
+import os
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
-app = FastAPI()
-db = SessionLocal()
-player = Player()
+app = FastAPI(title="ErsatzTV HLS Server")
 
-@app.get("/channel/{channel_id}")
-def stream_channel(channel_id: int):
-    channel = db.query(Channels).get(channel_id)
-    if not channel:
-        return Response(status_code=404, content="Channel not found")
+HLS_BASE_FOLDER = "hls_channels"
 
-    runtime = ChannelRuntime(channel)
+if not os.path.exists(HLS_BASE_FOLDER):
+    os.makedirs(HLS_BASE_FOLDER)
 
-    def streamer():
-        while True:
-            schedule = runtime.get_active_schedule()
-            if not schedule:
-                continue
+app.mount("/hls", StaticFiles(directory=HLS_BASE_FOLDER), name="hls")
 
-            playlist = db.query(Playlist).get(schedule.playlist_id)
-            episodes = runtime.resolve_playlist_episodes(playlist)
-            if not episodes:
-                continue
+@app.get("/channel/{channel_id}/episode/{episode_id}/master.m3u8")
+async def get_master_playlist(channel_id: int, episode_id: int):
+    file_path = os.path.join(
+        HLS_BASE_FOLDER,
+        f"channel_{channel_id}",
+        f"episode_{episode_id}",
+        "master.m3u8"
+    )
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Master playlist não encontrada")
+    return FileResponse(file_path, media_type="application/vnd.apple.mpegurl")
 
-            channel_offset = (datetime.now().astimezone() - channel.created_at).total_seconds()
-            slot, internal_offset = runtime.resolve_episode_by_time(episodes, channel_offset)
-            if not slot or internal_offset is None:
-                continue
+@app.get("/channel/{channel_id}/episode/{episode_id}/{segment_name}")
+async def get_ts_segment(channel_id: int, episode_id: int, segment_name: str):
+    file_path = os.path.join(
+        HLS_BASE_FOLDER,
+        f"channel_{channel_id}",
+        f"episode_{episode_id}",
+        segment_name
+    )
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Segmento não encontrado")
+    return FileResponse(file_path, media_type="video/MP2T")
 
-            ep = slot["episode"]
-            segments = slot["segments"]
+@app.get("/channels")
+async def list_channels():
+    channels = []
+    for channel_folder in os.listdir(HLS_BASE_FOLDER):
+        channels.append(channel_folder)
+    return {"channels": channels}
 
-            yield from player.stream_segments(ep.file, segments, internal_offset)
+@app.get("/channel/{channel_id}/episodes")
+async def list_episodes(channel_id: int):
+    channel_folder = os.path.join(HLS_BASE_FOLDER, f"channel_{channel_id}")
+    if not os.path.exists(channel_folder):
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    episodes = [d for d in os.listdir(channel_folder) if os.path.isdir(os.path.join(channel_folder, d))]
+    return {"episodes": episodes}
 
-    return StreamingResponse(streamer(), media_type="video/MP2T")
-
-
-@app.get("/playlist.m3u")
-def playlist_m3u():
-    """
-    Gera M3U dinâmico com todos os canais do banco.
-    Cada canal aponta para /channel/{id}
-    """
-    channels = db.query(Channels).all()
-    lines = ["#EXTM3U"]
-    for ch in channels:
-        lines.append(f'#EXTINF:-1,{ch.name}')
-        lines.append(f'http://localhost:8000/channel/{ch.id}')
-    content = "\n".join(lines)
-    return Response(content, media_type="application/x-mpegURL")
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
