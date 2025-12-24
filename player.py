@@ -1,61 +1,82 @@
 import os
-import subprocess
+from media_utils import MediaUtils
+
 class Player:
+    def __init__(self):
+        self.media = MediaUtils()
+
     def generate_hls(self, input_file: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)
-        qualities = [
-            ("1080", "5000k"),
-            ("720", "2500k"),
-            ("480", "1000k")
+
+        args = [
+            "-y",
+            "-i", input_file,
+
+            # ===== FILTER COMPLEX =====
+            "-filter_complex",
+            (
+                "[0:v]split=3[v1080][v720][v480];"
+                "[v1080]scale=-2:1080[v1080out];"
+                "[v720]scale=-2:720[v720out];"
+                "[v480]scale=-2:480[v480out]"
+            ),
+
+            # ===== MAPS =====
+            "-map", "[v1080out]", "-map", "0:a",
+            "-map", "[v720out]",  "-map", "0:a",
+            "-map", "[v480out]",  "-map", "0:a",
+
+            # ===== CODECS =====
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-profile:v", "main",
+            "-crf", "20",
+
+            "-c:a", "aac",
+            "-ar", "48000",
+            "-ac", "2",
+
+            # ===== BITRATES =====
+            "-b:v:0", "5000k",
+            "-b:v:1", "2500k",
+            "-b:v:2", "1000k",
+
+            # ===== HLS =====
+            "-f", "hls",
+            "-hls_time", "4",
+            "-hls_playlist_type", "event",
+            "-hls_flags", "independent_segments+delete_segments",
+            "-hls_segment_filename",
+            os.path.join(output_dir, "v%v_seg_%03d.ts"),
+
+            # ===== MASTER PLAYLIST =====
+            "-master_pl_name", "master.m3u8",
+
+            # ===== STREAM MAP =====
+            "-var_stream_map",
+            "v:0,a:0,name:1080p v:1,a:1,name:720p v:2,a:2,name:480p",
+
+            os.path.join(output_dir, "v%v.m3u8")
         ]
-        streams = []
 
-        for res, br in qualities:
-            playlist_name = f"{res}p.m3u8"
-            output_path = os.path.join(output_dir, playlist_name)
-            cmd = [
-                "ffmpeg",
-                "-y",  # sobrescrever se já existir
-                "-i", input_file,
-                "-vf", f"scale=-2:{res}",
-                "-c:v", "libx264",
-                "-b:v", br,
-                "-c:a", "aac",
-                "-ar", "48000",
-                "-ac", "2",
-                "-f", "hls",
-                "-hls_time", "4",
-                "-hls_playlist_type", "vod",
-                output_path
-            ]
-            subprocess.run(cmd, check=True)
-            streams.append((res, br, playlist_name))
+        self.media.run_ffmpeg(args)
+        return os.path.join(output_dir, "master.m3u8")
 
-        # Criar playlist mestre
-        master_path = os.path.join(output_dir, "master.m3u8")
-        with open(master_path, "w") as f:
-            f.write("#EXTM3U\n")
-            for res, br, pl in streams:
-                f.write(f"#EXT-X-STREAM-INF:BANDWIDTH={int(br[:-1])*1000},RESOLUTION={res}x{int(int(res)*16/9)}\n{pl}\n")
-        return master_path
-
-    def play_off_air(self, duration: int = 5, off_air_image: str = "off_air.png"):
-        cmd = []
-        if off_air_image and os.path.exists(off_air_image):
-            cmd = [
-                "ffmpeg",
+    def play_off_air(self, duration: int = 5, image_path: str | None = None):
+        if image_path and os.path.exists(image_path):
+            args = [
                 "-loop", "1",
-                "-i", off_air_image,
+                "-i", image_path,
                 "-t", str(duration),
                 "-f", "mpegts",
                 "pipe:1"
             ]
         else:
-            cmd = [
-                "ffmpeg",
+            args = [
                 "-f", "lavfi",
                 "-i", f"color=c=black:s=1280x720:d={duration}",
                 "-f", "mpegts",
                 "pipe:1"
             ]
-        subprocess.run(cmd, check=True)
+
+        self.media.run_ffmpeg(args)

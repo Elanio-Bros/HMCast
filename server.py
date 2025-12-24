@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-app = FastAPI(title="ErsatzTV HLS Server")
+app = FastAPI(title="ErsatzTV Minimal HLS Server")
 
 HLS_BASE_FOLDER = "hls_channels"
 

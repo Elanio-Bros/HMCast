@@ -84,3 +84,5 @@ env/
 ENV/
 
 hls_channels/
+media/
+ffmpeg/
