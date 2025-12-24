@@ -7,6 +7,15 @@ from datetime import datetime
 
 Base = declarative_base()
 
+
+class MediaFolder(Base):
+    __tablename__ = "media_folders"
+
+    id = Column(Integer, primary_key=True)
+    path = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=True)
+
+
 class Episode(Base):
     __tablename__ = "episodes"
 
@@ -17,6 +26,7 @@ class Episode(Base):
     series = Column(String, nullable=True)
     sequence_group = Column(String, nullable=True)
     skips = Column(JSON, nullable=True)  # { intro:{}, finish:{}, cuts:[] }
+    folder_id = Column(Integer, ForeignKey("media_folders.id"), nullable=False)
 
     # ---------- helpers ----------
     @staticmethod

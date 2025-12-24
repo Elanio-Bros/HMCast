@@ -1,5 +1,7 @@
 import time
 from datetime import datetime
+import os
+import subprocess
 import random
 from database import SessionLocal
 from models import (
@@ -38,13 +40,14 @@ class ChannelRuntime:
         return active_schedules[0] if active_schedules else None
 
 
-    def resolve_playlist_episodes(self, playlist: Playlist):
+    def resolve_playlist_episodes(self, playlist):
         items = (
             self.db.query(PlaylistItem, Episode)
             .join(Episode, Episode.id == PlaylistItem.episode_id)
             .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
+
         episodes = [ep for _, ep in items]
 
         if playlist.shuffle:
@@ -52,8 +55,10 @@ class ChannelRuntime:
             for ep in episodes:
                 key = ep.sequence_group or f"single_{ep.id}"
                 groups.setdefault(key, []).append(ep)
+
             group_list = list(groups.values())
             random.shuffle(group_list)
+
             episodes = [ep for g in group_list for ep in g]
 
         return episodes
@@ -95,14 +100,37 @@ class ChannelRuntime:
 
         return None, None
 
-    # -------- run --------
+    def play_black_screen(self, duration: int = 5, off_air_image: str = None):
+        cmd = []
+        if off_air_image and os.path.exists(off_air_image):
+            # Usa imagem fixa
+            cmd = [
+                "ffmpeg",
+                "-loop", "1",
+                "-i", off_air_image,
+                "-t", str(duration),
+                "-f", "mpegts",
+                "pipe:1"
+            ]
+        else:
+            # Tela preta padrão
+            cmd = [
+                "ffmpeg",
+                "-f", "lavfi",
+                "-i", f"color=c=black:s=1280x720:d={duration}",
+                "-f", "mpegts",
+                "pipe:1"
+            ]
+        subprocess.run(cmd)
+
     def run(self):
         print(f"📺 Canal '{self.channel.name}' iniciado")
 
         while True:
             schedule = self.get_active_schedule()
             if not schedule:
-                print("⛔ Fora do ar")
+                print("⛔ Fora do ar (sem schedule ativo)")
+                self.play_black_screen(duration=5, off_air_image="off_air.png")
                 time.sleep(5)
                 continue
 
@@ -111,6 +139,7 @@ class ChannelRuntime:
 
             if not episodes:
                 print("📭 Playlist vazia")
+                self.play_black_screen(duration=5, off_air_image="off_air.png")
                 time.sleep(5)
                 continue
 
@@ -118,11 +147,11 @@ class ChannelRuntime:
                 (datetime.now().astimezone() - self.channel.created_at).total_seconds()
             )
 
-            slot, start_time = self.resolve_episode_by_time(
-                episodes, channel_offset
-            )
+            slot, start_time = self.resolve_episode_by_time(episodes, channel_offset)
 
             if not slot or start_time is None:
+                print("⛔ Nenhum episódio disponível no momento")
+                self.play_black_screen(duration=5, off_air_image="off_air.png")
                 time.sleep(5)
                 continue
 
