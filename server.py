@@ -27,7 +27,7 @@ def start_channels():
 
     for channel in channels:
         runtime = ChannelRuntime(channel)
-        runtime.start()
+        runtime.start_thread()
         channel_runtimes[channel.id] = runtime
 
         print(f"✅ Canal {channel.id} iniciado")

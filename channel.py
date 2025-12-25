@@ -1,100 +1,81 @@
-import threading
-import time
 import os
+import time
+import threading
 from datetime import datetime, timezone
-
 from database import SessionLocal
-from models import ChannelSchedule, Playlist, MediaItem
-from timeline import build_segments, resolve_offset, effective_duration
+from models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
 from player import Player
-
 
 class ChannelRuntime:
     def __init__(self, channel, hls_base_folder="hls_channels"):
         self.channel = channel
         self.db = SessionLocal()
         self.player = Player()
+        self.hls_base_folder = hls_base_folder
 
-        self.hls_path = os.path.join(
-            hls_base_folder,
-            f"channel_{channel.id}"
+        self.channel_folder = os.path.join(
+            self.hls_base_folder, f"channel_{self.channel.id}"
         )
-        os.makedirs(self.hls_path, exist_ok=True)
+        os.makedirs(self.channel_folder, exist_ok=True)
 
-        self.thread = None
-        self.running = False
-
-    # -----------------------------
-    # PUBLIC
-    # -----------------------------
-
-    def start(self):
-        if self.running:
-            return
-
-        self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
-        self.thread.start()
+        self.stop_signal = False
 
-    def stop(self):
-        self.running = False
+    def start_thread(self):
+        if not self.thread.is_alive():
+            self.thread.start()
+
+    def stop_thread(self):
+        self.stop_signal = True
         self.player.stop()
 
-    # -----------------------------
-    # CORE LOOP
-    # -----------------------------
+    # ---------------- TIMELINE / SEGMENTS ----------------
 
-    def run(self):
-        print(f"[Channel {self.channel.id}] Worker iniciado")
+    def build_segments(self, episode, is_first: bool, is_last: bool):
+        skips = episode.skips or {}
+        cuts = skips.get("cuts", [])
+        cut_ranges = sorted(
+            [(episode.hms_to_seconds(c["start"]), episode.hms_to_seconds(c["end"])) for c in cuts]
+        )
 
-        while self.running:
-            try:
-                playlist = self.get_active_playlist()
-                if not playlist:
-                    time.sleep(1)
-                    continue
+        segments = []
+        cursor = 0.0
+        for start, end in cut_ranges:
+            if cursor < start:
+                segments.append((cursor, start))
+            cursor = max(cursor, end)
+        if cursor < episode.duration:
+            segments.append((cursor, episode.duration))
 
-                items = self.get_playlist_items(playlist)
-                if not items:
-                    time.sleep(1)
-                    continue
+        start_cut, end_cut = episode.get_cut_times(is_first, is_last)
+        final_segments = []
+        for s, e in segments:
+            s_new = max(s, start_cut)
+            e_new = min(e, end_cut)
+            if s_new < e_new:
+                final_segments.append((s_new, e_new))
 
-                # ⏱ calcula offset global do canal
-                offset = self.get_channel_offset()
+        return final_segments
 
-                # 🎯 encontra episódio atual
-                slot, start_time = self.resolve_episode(items, offset)
-                if not slot:
-                    time.sleep(1)
-                    continue
+    def effective_duration(self, segments):
+        return sum(end - start for start, end in segments)
 
-                media = slot["media"]
-                print(f"[Channel {self.channel.id}] Iniciando: {media.name}")
+    def resolve_offset(self, segments, offset):
+        acc = 0.0
+        for start, end in segments:
+            seg_len = end - start
+            if offset < acc + seg_len:
+                return start + (offset - acc)
+            acc += seg_len
+        return 0.0
 
-                # ▶ inicia player
-                try:
-                    self.player.start(media.file, self.hls_path, start_time)
-                    print(f"[Channel {self.channel.id}] FFmpeg iniciado: {media.name}")
-                except Exception as e:
-                    print(f"[Channel {self.channel.id}] Erro ao iniciar FFmpeg: {e}")
-                    time.sleep(2)
-                    continue
+    # ---------------- PLAYLIST / EPISODES ----------------
 
-                # ⏳ monitora episódio até terminar
-                while self.player.is_running() and self.running:
-                    time.sleep(0.5)
-
-                print(f"[Channel {self.channel.id}] Episódio finalizado: {media.name}")
-
-            except Exception as e:
-                print(f"[Channel {self.channel.id}] Erro no loop: {e}")
-                time.sleep(2)
-    # -----------------------------
-    # HELPERS
-    # -----------------------------
-
-    def get_active_playlist(self):
-        now = datetime.now().time()
+    def get_active_schedule(self):
+        now = datetime.now().astimezone()
+        now_time = now.time()
+        weekday = now.weekday()
+        month_day = now.day
 
         schedules = (
             self.db.query(ChannelSchedule)
@@ -103,54 +84,95 @@ class ChannelRuntime:
         )
 
         for sch in schedules:
-            if sch.start_time <= now <= sch.end_time:
-                return self.db.get(Playlist, sch.playlist_id)
-
+            if not (sch.start_time <= now_time <= sch.end_time):
+                continue
+            if sch.weekdays and weekday not in sch.weekdays:
+                continue
+            if sch.month_days and month_day not in sch.month_days:
+                continue
+            return sch
         return None
 
-    def get_playlist_items(self, playlist):
+    def resolve_playlist_items(self, playlist):
         items = (
-            self.db.query(MediaItem)
-            .join(Playlist, Playlist.id == playlist.id)
+            self.db.query(PlaylistItem, MediaItem)
+            .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
+            .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
+        media_items = [ep for _, ep in items]
+        import random
+        if playlist.shuffle:
+            random.shuffle(media_items)
+        return media_items
 
-        return items
+    # ---------------- MAIN RUN ----------------
 
-    def get_channel_offset(self):
-        now = datetime.now(timezone.utc)
-        return int((now - self.channel.created_at).total_seconds())
+    def run(self):
+        while not self.stop_signal:
+            schedule = self.get_active_schedule()
+            if not schedule:
+                time.sleep(5)
+                continue
 
-    def resolve_episode(self, items, channel_offset):
-        timeline = []
-        acc = 0
+            playlist = self.db.get(Playlist, schedule.playlist_id)
+            if not playlist:
+                time.sleep(5)
+                continue
 
-        for i, ep in enumerate(items):
-            is_first = i == 0
-            is_last = i == len(items) - 1
+            items = self.resolve_playlist_items(playlist)
+            if not items:
+                time.sleep(5)
+                continue
 
-            segments = build_segments(ep, is_first, is_last)
-            duration = effective_duration(segments)
+            # Calcula offset com base na criação do canal (persistência)
+            now = datetime.now(timezone.utc)
+            channel_offset = int((now - self.channel.created_at).total_seconds())
 
-            timeline.append({
-                "media": ep,
-                "start": acc,
-                "end": acc + duration,
-                "duration": duration,
-                "segments": segments,
-            })
+            acc_duration = 0
+            timeline = []
+            for i, ep in enumerate(items):
+                is_first = i == 0
+                is_last = i == len(items) - 1
+                segments = self.build_segments(ep, is_first, is_last)
+                duration = self.effective_duration(segments)
+                timeline.append({
+                    "media": ep,
+                    "segments": segments,
+                    "duration": duration,
+                    "is_first": is_first,
+                    "is_last": is_last
+                })
+                acc_duration += duration
 
-            acc += duration
+            if acc_duration == 0:
+                time.sleep(5)
+                continue
 
-        if acc == 0:
-            return None, None
+            # Calcula o ponto de reprodução atual
+            pos = channel_offset % acc_duration
+            idx = 0
+            elapsed = 0
+            for i, slot in enumerate(timeline):
+                if elapsed + slot["duration"] > pos:
+                    idx = i
+                    internal_offset = pos - elapsed
+                    break
+                elapsed += slot["duration"]
 
-        pos = channel_offset % acc
+            # Loop contínuo pelos episódios
+            while not self.stop_signal:
+                slot = timeline[idx]
+                ep = slot["media"]
+                start_time = self.resolve_offset(slot["segments"], internal_offset)
+                print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
 
-        for slot in timeline:
-            if slot["start"] <= pos < slot["end"]:
-                offset = resolve_offset(slot["segments"], pos - slot["start"])
-                slot["start_offset"] = offset
-                return slot, offset
+                # Inicia FFmpeg full live
+                self.player.start(ep.file, self.channel_folder, start_time)
+                self.player.process.wait()  # espera terminar antes de passar para o próximo
 
-        return None, None
+                print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
+
+                # próximo episódio
+                idx = (idx + 1) % len(timeline)
+                internal_offset = 0
