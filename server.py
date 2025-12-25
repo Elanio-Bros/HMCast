@@ -1,3 +1,4 @@
+# server.py
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 import os
@@ -27,21 +28,19 @@ def get_runtime(channel_id: int):
     channel_runtimes[channel_id] = runtime
     return runtime
 
-
 @app.get("/channel/{channel_id}/{filename}")
 async def serve_hls(channel_id: int, filename: str):
     runtime = get_runtime(channel_id)
     if not runtime:
         raise HTTPException(404)
 
+    # Inicia o live HLS on-demand
     runtime.get_current_master()
 
     path = os.path.join("hls_channels", f"channel_{channel_id}", filename)
-
     if not os.path.exists(path):
         raise HTTPException(404)
 
     if filename.endswith(".m3u8"):
         return FileResponse(path, media_type="application/vnd.apple.mpegurl")
-
     return FileResponse(path, media_type="video/MP2T")
