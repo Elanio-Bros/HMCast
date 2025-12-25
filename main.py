@@ -10,7 +10,6 @@ def prepare_environment():
 
     # Cria pastas
     os.makedirs("hls_channels", exist_ok=True)
-    os.makedirs("media", exist_ok=True)
 
 
 if __name__ == "__main__":

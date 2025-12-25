@@ -108,6 +108,6 @@ class ChannelRuntime:
             return None
 
         master_path = self.player.generate_live_hls(
-            media_item.file, self.channel_folder, self.channel.id
+            media_item.file, self.channel_folder, start_time
         )
         return master_path
