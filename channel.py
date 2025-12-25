@@ -1,30 +1,26 @@
 import os
-import time
 from datetime import datetime, timezone
-import threading
-
 from database import SessionLocal
-from models import Playlist, PlaylistItem, Media, ChannelSchedule
+from models import Playlist, PlaylistItem, MediaItem, ChannelSchedule
 from timeline import build_segments, resolve_offset, effective_duration
 from player import Player
-from media_utils import MediaUtils
-import server
 
 class ChannelRuntime:
     def __init__(self, channel, hls_base_folder="hls_channels"):
         self.channel = channel
         self.db = SessionLocal()
         self.player = Player()
-        self.media_utils = MediaUtils()
-
         self.hls_base_folder = hls_base_folder
-        self.current_folder = os.path.join(
-            self.hls_base_folder, f"channel_{self.channel.id}", "current"
+
+        # Pasta do canal
+        self.channel_folder = os.path.join(
+            self.hls_base_folder, f"channel_{self.channel.id}"
         )
-        os.makedirs(self.current_folder, exist_ok=True)
+        os.makedirs(self.channel_folder, exist_ok=True)
 
-        self.lock = threading.Lock() 
-
+    # -------------------------------
+    # Schedules e Playlist
+    # -------------------------------
     def get_active_schedule(self):
         now = datetime.now().astimezone()
         now_time = now.time()
@@ -45,43 +41,51 @@ class ChannelRuntime:
             if sch.month_days and month_day not in sch.month_days:
                 continue
             return sch
+
         return None
 
-    def resolve_playlist_media(self, playlist):
+    def resolve_playlist_items(self, playlist):
         items = (
-            self.db.query(PlaylistItem, Media)
-            .join(Media, Media.id == PlaylistItem.media_id)
+            self.db.query(PlaylistItem, MediaItem)
+            .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
             .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
-        medias = [m for _, m in items]
+
+        media_items = [ep for _, ep in items]
+
         if playlist.shuffle:
             import random
-            random.shuffle(medias)
-        return medias
+            random.shuffle(media_items)
 
-    def resolve_media_by_time(self, medias, channel_offset):
+        return media_items
+
+    # -------------------------------
+    # Timeline contínua
+    # -------------------------------
+    def resolve_episode_by_time(self, items, channel_offset):
         timeline = []
         acc = 0
 
-        for i, m in enumerate(medias):
-            prev = medias[i - 1] if i > 0 else None
-            next_ = medias[i + 1] if i < len(medias) - 1 else None
+        for i, ep in enumerate(items):
+            prev_ep = items[i - 1] if i > 0 else None
+            next_ep = items[i + 1] if i < len(items) - 1 else None
 
-            is_first = prev is None or prev.series != m.series
-            is_last = next_ is None or next_.series != m.series
+            is_first = prev_ep is None or prev_ep.series != ep.series
+            is_last = next_ep is None or next_ep.series != ep.series
 
-            segments = build_segments(m, is_first, is_last)
+            segments = build_segments(ep, is_first, is_last)
             duration = effective_duration(segments)
 
             timeline.append({
-                "media": m,
+                "media": ep,
                 "start": acc,
                 "end": acc + duration,
                 "segments": segments,
                 "is_first": is_first,
                 "is_last": is_last
             })
+
             acc += duration
 
         if acc == 0:
@@ -97,66 +101,55 @@ class ChannelRuntime:
 
         return None, None
 
-    def cleanup_ts_segments(self):
-        with self.lock:
-            master_path = os.path.join(self.current_folder, "master.m3u8")
-            if not os.path.exists(master_path):
-                return
+    # -------------------------------
+    # Cleanup
+    # -------------------------------
+    def cleanup_old_media(self):
+        """
+        Remove arquivos antigos, mantendo apenas o atual.
+        """
+        if not os.path.exists(self.channel_folder):
+            return
 
-            with open(master_path, "r") as f:
-                lines = f.readlines()
-            ts_files_in_m3u8 = set([l.strip() for l in lines if l.endswith(".ts")])
+        for f in os.listdir(self.channel_folder):
+            full_path = os.path.join(self.channel_folder, f)
+            try:
+                if os.path.isfile(full_path):
+                    os.remove(full_path)
+            except Exception:
+                pass
 
-            for f in os.listdir(self.current_folder):
-                if f.endswith(".ts") and f not in ts_files_in_m3u8:
-                    try:
-                        os.remove(os.path.join(self.current_folder, f))
-                    except:
-                        pass
+    # -------------------------------
+    # Método principal on-demand
+    # -------------------------------
+    def get_current_master(self):
+        """
+        Resolve o episódio ativo e gera HLS on-demand.
+        """
+        schedule = self.get_active_schedule()
+        if not schedule:
+            # Fora do ar → retorna off_air
+            return self.player.play_off_air()
 
-    def run(self):
-        print(f"📺 Canal '{self.channel.name}' iniciado (HLS contínuo)")
+        playlist = self.db.get(Playlist, schedule.playlist_id)
+        if not playlist:
+            return self.player.play_off_air()
 
-        while True:
-            last_ts = server.last_access.get(self.channel.id, time.time())
-            if time.time() - last_ts > server.CHANNEL_TIMEOUT:
-                print(f"⏹ Canal '{self.channel.name}' desligado por inatividade")
-                if self.channel.id in server.active_channels:
-                    del server.active_channels[self.channel.id]
-                break
-            
-            schedule = self.get_active_schedule()
-            if not schedule:
-                self.player.play_off_air()
-                time.sleep(5)
-                continue
+        items = self.resolve_playlist_items(playlist)
+        if not items:
+            return self.player.play_off_air()
 
-            playlist = self.db.get(Playlist, schedule.playlist_id)
-            medias = self.resolve_playlist_media(playlist)
-            if not medias:
-                self.player.play_off_air()
-                time.sleep(5)
-                continue
+        now = datetime.now(timezone.utc)
+        channel_offset = int((now - self.channel.created_at).total_seconds())
 
-            now = datetime.now(timezone.utc)
-            channel_offset = int((now - self.channel.created_at).total_seconds())
+        slot, start_time = self.resolve_episode_by_time(items, channel_offset)
+        if not slot:
+            return self.player.play_off_air()
 
-            slot, start_time = self.resolve_media_by_time(medias, channel_offset)
-            if not slot:
-                self.player.play_off_air()
-                time.sleep(5)
-                continue
+        media_item = slot["media"]
+        if not os.path.exists(media_item.file):
+            return self.player.play_off_air()
 
-            media_item = slot["media"]
-            if not os.path.exists(media_item.file):
-                print(f"❌ Arquivo não encontrado: {media_item.file}")
-                time.sleep(5)
-                continue
-
-            print(f"▶️ {media_item.name} | start={start_time}s")
-
-            self.player.generate_live_hls(media_item.file, self.current_folder)
-
-            self.cleanup_ts_segments()
-
-            time.sleep(5)
+        # Gera HLS direto na pasta do canal
+        master_path = self.player.generate_live_hls(media_item.file, self.channel_folder,self.channel.id)
+        return master_path
