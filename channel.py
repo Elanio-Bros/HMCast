@@ -106,6 +106,37 @@ class ChannelRuntime:
             random.shuffle(media_items)
         return media_items
 
+    def cleanup_old_segments(self):
+        """Roda em thread separada para apagar segmentos .ts antigos"""
+        def worker():
+            if not os.path.exists(self.channel_folder):
+                return
+
+            ts_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".ts")]
+            referenced_files = set()
+
+            # coleta os arquivos .ts ainda referenciados nas playlists
+            for file in os.listdir(self.channel_folder):
+                if file.endswith(".m3u8"):
+                    try:
+                        with open(os.path.join(self.channel_folder, file), "r", encoding="utf-8") as f:
+                            for line in f:
+                                line = line.strip()
+                                if line.endswith(".ts"):
+                                    referenced_files.add(line)
+                    except Exception as e:
+                        print(f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
+
+            # remove os segmentos que não estão mais na playlist
+            for ts in ts_files:
+                if ts not in referenced_files:
+                    try:
+                        os.remove(os.path.join(self.channel_folder, ts))
+                        print(f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
+                    except Exception as e:
+                        print(f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
+
+        threading.Thread(target=worker, daemon=True).start()
     # ---------------- MAIN RUN ----------------
 
     def run(self):
@@ -172,7 +203,7 @@ class ChannelRuntime:
                 self.player.process.wait()  # espera terminar antes de passar para o próximo
 
                 print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
-
+                self.cleanup_old_segments()
                 # próximo episódio
                 idx = (idx + 1) % len(timeline)
                 internal_offset = 0
