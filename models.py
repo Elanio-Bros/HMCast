@@ -2,7 +2,7 @@ from sqlalchemy import (
     Column, Integer, String, JSON, DateTime,
     Time, ForeignKey, Boolean
 )
-from sqlalchemy.orm import declarative_base, validates, reconstructor
+from sqlalchemy.orm import declarative_base, validates, reconstructor,relationship
 from datetime import datetime, timezone
 
 import re
@@ -26,8 +26,8 @@ class MediaItem(Base):
     file = Column(String, nullable=False)
     # duração total do arquivo em segundos
     duration = Column(Integer, nullable=False)
-    series = Column(String, nullable=True)
-    sequence_group = Column(String, nullable=True)
+    folder_id = Column(Integer, ForeignKey("media_folders.id"))
+    sequence_id = Column(Integer, ForeignKey("media_item.id"), nullable=True)
     skips = Column(JSON, nullable=True)  # { intro:{}, finish:{}, cuts:[] }
 
     @staticmethod
@@ -81,7 +81,6 @@ class Channels(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

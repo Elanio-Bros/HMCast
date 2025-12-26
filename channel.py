@@ -166,6 +166,7 @@ class ChannelRuntime:
                 is_first = i == 0
                 is_last = i == len(items) - 1
                 segments = self.build_segments(ep, is_first, is_last)
+                print(segments)
                 duration = self.effective_duration(segments)
                 timeline.append({
                     "media": ep,
@@ -197,13 +198,13 @@ class ChannelRuntime:
                 ep = slot["media"]
                 start_time = self.resolve_offset(slot["segments"], internal_offset)
                 print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
-
-                # Inicia FFmpeg full live
-                self.player.start(ep.file, self.channel_folder, start_time)
-                self.player.process.wait()  # espera terminar antes de passar para o próximo
-
-                print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
-                self.cleanup_old_segments()
-                # próximo episódio
-                idx = (idx + 1) % len(timeline)
-                internal_offset = 0
+                time.sleep(10000)
+                # # Inicia FFmpeg full live
+                # self.player.start(ep.file, self.channel_folder, start_time)
+                # self.player.process.wait()  # espera terminar antes de passar para o próximo
+                
+                # print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
+                # self.cleanup_old_segments()
+                # # próximo episódio
+                # idx = (idx + 1) % len(timeline)
+                # internal_offset = 0

@@ -2,12 +2,13 @@ import os
 import subprocess
 from media_utils import MediaUtils
 
+
 class Player:
     def __init__(self):
         self.media = MediaUtils()
         self.process = None
 
-    def start(self, input_file: str, output_dir: str, start_time: float = 0):
+    def start(self, input_file: str, output_dir: str, start_time: float = 0, duration: float = 0):
         self.stop()
         os.makedirs(output_dir, exist_ok=True)
 
@@ -15,6 +16,7 @@ class Player:
             self.media.ffmpeg,
             "-re", "-y",
             "-ss", str(start_time),
+            "-t", str(duration),
             "-i", input_file,
 
             # VIDEO FILTERS
@@ -60,7 +62,8 @@ class Player:
             "-hls_flags", "delete_segments+append_list+independent_segments+program_date_time+omit_endlist+discont_start",
             "-hls_allow_cache", "0",
 
-            "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%03d.ts"),
+            "-hls_segment_filename", os.path.join(
+                output_dir, "v%v_seg_%03d.ts"),
             "-master_pl_name", "master.m3u8",
             "-var_stream_map", "v:0,a:0,name:1080p v:1,a:1,name:720p v:2,a:2,name:480p",
             os.path.join(output_dir, "v%v.m3u8")
