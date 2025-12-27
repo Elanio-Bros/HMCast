@@ -200,8 +200,6 @@ class ChannelRuntime:
                     "media": media,
                     "segments": segments,
                     "duration": duration,
-                    "is_first": is_first,
-                    "is_last": is_last
                 })
                 acc_duration += duration
                
