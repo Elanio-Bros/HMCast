@@ -18,6 +18,7 @@ class Player:
             "-ss", str(start_time),
             "-t", str(duration),
             "-i", input_file,
+            "-threads","2",
 
             # VIDEO FILTERS
             "-filter_complex",
@@ -59,7 +60,7 @@ class Player:
             "-hls_time", "5",
             "-hls_list_size", "10",
             "-hls_delete_threshold", "5",
-            "-hls_flags", "delete_segments+append_list+independent_segments+program_date_time+omit_endlist+discont_start",
+            "-hls_flags", "delete_segments+append_list+program_date_time+omit_endlist+discont_start",
             "-hls_allow_cache", "0",
 
             "-hls_segment_filename", os.path.join(

@@ -133,7 +133,6 @@ class ChannelRuntime:
         return media_items
 
     def cleanup_old_segments(self):
-        """Roda em thread separada para apagar segmentos .ts antigos"""
         def worker():
             if not os.path.exists(self.channel_folder):
                 return
