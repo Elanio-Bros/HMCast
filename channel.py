@@ -31,45 +31,71 @@ class ChannelRuntime:
 
     # ---------------- TIMELINE / SEGMENTS ----------------
 
-    def build_segments(self, episode, is_first: bool, is_last: bool):
-        skips = episode.skips or {}
-        cuts = skips.get("cuts", [])
-        cut_ranges = sorted(
-            [(episode.hms_to_seconds(c["start"]), episode.hms_to_seconds(c["end"])) for c in cuts]
-        )
+    def build_segments(self, media, is_first: bool, is_last: bool):
+        skips = media.skips or {}
+        # print(media)
+        duration = media.duration
+        forbidden = []
 
+        # --- INTRO ---
+        intro = skips.get("intro")
+        if intro and not is_first:
+            forbidden.append((
+                media.hms_to_seconds(intro["start"]),
+                media.hms_to_seconds(intro["end"])
+            ))
+
+        # --- FINISH ---
+        finish = skips.get("finish")
+        if finish and not is_last:
+            forbidden.append((
+                media.hms_to_seconds(finish["start"]),
+                (duration if finish['end'] == '-00:00:00' else media.hms_to_seconds(finish["end"]))
+            ))
+
+        # --- CUTS ---
+        for cut in skips.get("cuts", []):
+            forbidden.append((
+                media.hms_to_seconds(cut["start"]),
+                media.hms_to_seconds(cut["end"])
+            ))
+
+        # Ordena tudo
+        forbidden.sort()
+
+        # Agora constrói os segmentos válidos
         segments = []
         cursor = 0.0
-        for start, end in cut_ranges:
+
+        for start, end in forbidden:
             if cursor < start:
                 segments.append((cursor, start))
             cursor = max(cursor, end)
-        if cursor < episode.duration:
-            segments.append((cursor, episode.duration))
 
-        start_cut, end_cut = episode.get_cut_times(is_first, is_last)
-        final_segments = []
-        for s, e in segments:
-            s_new = max(s, start_cut)
-            e_new = min(e, end_cut)
-            if s_new < e_new:
-                final_segments.append((s_new, e_new))
+        if cursor < duration:
+            segments.append((cursor, duration))
 
-        return final_segments
+        return segments
 
     def effective_duration(self, segments):
         return sum(end - start for start, end in segments)
 
-    def resolve_offset(self, segments, offset):
+    def resolve_offset(self, segments, internal_offset):
         acc = 0.0
         for start, end in segments:
             seg_len = end - start
-            if offset < acc + seg_len:
-                return start + (offset - acc)
-            acc += seg_len
-        return 0.0
 
-    # ---------------- PLAYLIST / EPISODES ----------------
+            if internal_offset < acc + seg_len:
+                offset_inside = internal_offset - acc
+                start_time = start + offset_inside
+                play_duration = end - start_time
+                return start_time, play_duration
+
+            acc += seg_len
+
+        return None, None
+
+    # ---------------- PLAYLIST / MEDIAS ----------------
 
     def get_active_schedule(self):
         now = datetime.now().astimezone()
@@ -100,7 +126,7 @@ class ChannelRuntime:
             .filter(PlaylistItem.playlist_id == playlist.id)
             .all()
         )
-        media_items = [ep for _, ep in items]
+        media_items = [media for _, media in items]
         import random
         if playlist.shuffle:
             random.shuffle(media_items)
@@ -112,7 +138,8 @@ class ChannelRuntime:
             if not os.path.exists(self.channel_folder):
                 return
 
-            ts_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".ts")]
+            ts_files = [f for f in os.listdir(
+                self.channel_folder) if f.endswith(".ts")]
             referenced_files = set()
 
             # coleta os arquivos .ts ainda referenciados nas playlists
@@ -125,16 +152,19 @@ class ChannelRuntime:
                                 if line.endswith(".ts"):
                                     referenced_files.add(line)
                     except Exception as e:
-                        print(f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
+                        print(
+                            f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
 
             # remove os segmentos que não estão mais na playlist
             for ts in ts_files:
                 if ts not in referenced_files:
                     try:
                         os.remove(os.path.join(self.channel_folder, ts))
-                        print(f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
+                        print(
+                            f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
                     except Exception as e:
-                        print(f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
+                        print(
+                            f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
 
         threading.Thread(target=worker, daemon=True).start()
     # ---------------- MAIN RUN ----------------
@@ -155,32 +185,30 @@ class ChannelRuntime:
             if not items:
                 time.sleep(5)
                 continue
-
             # Calcula offset com base na criação do canal (persistência)
             now = datetime.now(timezone.utc)
             channel_offset = int((now - self.channel.created_at).total_seconds())
-
             acc_duration = 0
             timeline = []
-            for i, ep in enumerate(items):
+            
+            for i, media in enumerate(items):
+                
                 is_first = i == 0
                 is_last = i == len(items) - 1
-                segments = self.build_segments(ep, is_first, is_last)
-                print(segments)
+                segments = self.build_segments(media, is_first, is_last)
                 duration = self.effective_duration(segments)
                 timeline.append({
-                    "media": ep,
+                    "media": media,
                     "segments": segments,
                     "duration": duration,
                     "is_first": is_first,
                     "is_last": is_last
                 })
                 acc_duration += duration
-
+               
             if acc_duration == 0:
                 time.sleep(5)
                 continue
-
             # Calcula o ponto de reprodução atual
             pos = channel_offset % acc_duration
             idx = 0
@@ -191,20 +219,33 @@ class ChannelRuntime:
                     internal_offset = pos - elapsed
                     break
                 elapsed += slot["duration"]
-
-            # Loop contínuo pelos episódios
+            
+            
+            # Loop contínuo
             while not self.stop_signal:
                 slot = timeline[idx]
                 ep = slot["media"]
-                start_time = self.resolve_offset(slot["segments"], internal_offset)
+
+                start_time, play_duration = self.resolve_offset(
+                    slot["segments"],
+                    internal_offset
+                )
+
                 print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
-                time.sleep(10000)
-                # # Inicia FFmpeg full live
-                # self.player.start(ep.file, self.channel_folder, start_time)
-                # self.player.process.wait()  # espera terminar antes de passar para o próximo
-                
-                # print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
-                # self.cleanup_old_segments()
-                # # próximo episódio
-                # idx = (idx + 1) % len(timeline)
-                # internal_offset = 0
+                print(f"Start: {start_time}s | Duration: {play_duration}s")
+
+                self.player.start(
+                    ep.file,
+                    self.channel_folder,
+                    start_time,
+                    play_duration
+                )
+
+                self.player.process.wait()
+
+                print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
+                self.cleanup_old_segments()
+
+                # Próximo episódio
+                idx = (idx + 1) % len(timeline)
+                internal_offset = 0

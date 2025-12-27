@@ -14,8 +14,8 @@ class MediaFolder(Base):
     __tablename__ = "media_folders"
 
     id = Column(Integer, primary_key=True)
-    path = Column(String, nullable=False, unique=True)
-    name = Column(String, nullable=True)
+    path = Column(String, nullable=True, unique=True)
+    name = Column(String, nullable=False)
 
 
 class MediaItem(Base):
@@ -63,17 +63,9 @@ class MediaItem(Base):
             start = self.hms_to_seconds(intro["end"])
 
         if finish and not is_last:
-            finish_end = finish.get("end")
-            if finish_end == "-00:00:00":
-                end = self.duration
-            else:
-                end = self.hms_to_seconds(finish["start"])
+            end = self.hms_to_seconds(finish["start"])
 
         return start, end
-
-    def effective_duration(self, is_first: bool, is_last: bool) -> float:
-        start, end = self.get_cut_times(is_first, is_last)
-        return max(0, end - start)
 
 
 class Channels(Base):
