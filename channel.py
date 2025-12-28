@@ -6,28 +6,64 @@ from database import SessionLocal
 from models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
 from player import Player
 
+
 class ChannelRuntime:
+    IDLE_TIMEOUT = 60
+
     def __init__(self, channel, hls_base_folder="hls_channels"):
         self.channel = channel
         self.db = SessionLocal()
         self.player = Player()
+
         self.hls_base_folder = hls_base_folder
+        self.channel_folder = f"{hls_base_folder}/channel_{channel.id}"
 
-        self.channel_folder = os.path.join(
-            self.hls_base_folder, f"channel_{self.channel.id}"
-        )
-        os.makedirs(self.channel_folder, exist_ok=True)
-
-        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread = None
         self.stop_signal = False
+        self.last_access = time.time()
+        self.running = False
 
-    def start_thread(self):
-        if not self.thread.is_alive():
-            self.thread.start()
+    def touch(self):
+        """Atualiza última atividade"""
+        self.last_access = time.time()
 
-    def stop_thread(self):
+    # -------------------------------------------------
+
+    def start(self):
+        if self.running:
+            return
+
+        self.stop_signal = False
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+        self.running = True
+        print(f"[Channel {self.channel.id}] ▶ Iniciado")
+
+        # watchdog
+        threading.Thread(target=self._watchdog, daemon=True).start()
+
+    # -------------------------------------------------
+
+    def stop(self):
+        if not self.running:
+            return
+
+        print(f"[Channel {self.channel.id}] ⛔ Encerrando")
+
         self.stop_signal = True
         self.player.stop()
+        self.running = False
+
+    # -------------------------------------------------
+
+    def _watchdog(self):
+        while self.running:
+            if time.time() - self.last_access > self.IDLE_TIMEOUT:
+                print(f"[Channel {self.channel.id}] 💤 Inativo, encerrando")
+                self.stop()
+                return
+            time.sleep(2)
 
     # ---------------- TIMELINE / SEGMENTS ----------------
 
@@ -50,7 +86,8 @@ class ChannelRuntime:
         if finish and not is_last:
             forbidden.append((
                 media.hms_to_seconds(finish["start"]),
-                (duration if finish['end'] == '-00:00:00' else media.hms_to_seconds(finish["end"]))
+                (duration if finish['end'] ==
+                 '-00:00:00' else media.hms_to_seconds(finish["end"]))
             ))
 
         # --- CUTS ---
@@ -186,12 +223,13 @@ class ChannelRuntime:
                 continue
             # Calcula offset com base na criação do canal (persistência)
             now = datetime.now(timezone.utc)
-            channel_offset = int((now - self.channel.created_at).total_seconds())
+            channel_offset = int(
+                (now - self.channel.created_at).total_seconds())
             acc_duration = 0
             timeline = []
-            
+
             for i, media in enumerate(items):
-                
+
                 is_first = i == 0
                 is_last = i == len(items) - 1
                 segments = self.build_segments(media, is_first, is_last)
@@ -202,7 +240,7 @@ class ChannelRuntime:
                     "duration": duration,
                 })
                 acc_duration += duration
-               
+
             if acc_duration == 0:
                 time.sleep(5)
                 continue
@@ -216,8 +254,7 @@ class ChannelRuntime:
                     internal_offset = pos - elapsed
                     break
                 elapsed += slot["duration"]
-            
-            
+
             # Loop contínuo
             while not self.stop_signal:
                 slot = timeline[idx]
@@ -230,7 +267,6 @@ class ChannelRuntime:
 
                 print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
                 print(f"Start: {start_time}s | Duration: {play_duration}s")
-
                 self.player.start(
                     ep.file,
                     self.channel_folder,
@@ -240,7 +276,8 @@ class ChannelRuntime:
 
                 self.player.process.wait()
 
-                print(f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
+                print(
+                    f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
                 self.cleanup_old_segments()
 
                 # Próximo episódio
