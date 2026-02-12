@@ -8,12 +8,14 @@ from player import Player
 
 
 class ChannelRuntime:
-    IDLE_TIMEOUT = 60
+    IDLE_TIMEOUT = int(os.getenv("CHANNEL_IDLE_TIMEOUT", "60"))
+    MAX_RETRIES = int(os.getenv("CHANNEL_MAX_RETRIES", "3"))
+    RETRY_DELAY = float(os.getenv("CHANNEL_RETRY_DELAY", "3"))
 
     def __init__(self, channel, hls_base_folder="hls_channels"):
         self.channel = channel
-        self.db = SessionLocal()
         self.player = Player()
+        self.retry_counts = {}
 
         self.hls_base_folder = hls_base_folder
         self.channel_folder = f"{hls_base_folder}/channel_{channel.id}"
@@ -140,11 +142,12 @@ class ChannelRuntime:
         weekday = now.weekday()
         month_day = now.day
 
-        schedules = (
-            self.db.query(ChannelSchedule)
-            .filter(ChannelSchedule.channel_id == self.channel.id)
-            .all()
-        )
+        with SessionLocal() as db:
+            schedules = (
+                db.query(ChannelSchedule)
+                .filter(ChannelSchedule.channel_id == self.channel.id)
+                .all()
+            )
 
         for sch in schedules:
             if not (sch.start_time <= now_time <= sch.end_time):
@@ -157,12 +160,13 @@ class ChannelRuntime:
         return None
 
     def resolve_playlist_items(self, playlist):
-        items = (
-            self.db.query(PlaylistItem, MediaItem)
-            .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
-            .filter(PlaylistItem.playlist_id == playlist.id)
-            .all()
-        )
+        with SessionLocal() as db:
+            items = (
+                db.query(PlaylistItem, MediaItem)
+                .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
+                .filter(PlaylistItem.playlist_id == playlist.id)
+                .all()
+            )
         media_items = [media for _, media in items]
         import random
         if playlist.shuffle:
@@ -212,7 +216,8 @@ class ChannelRuntime:
                 time.sleep(5)
                 continue
 
-            playlist = self.db.get(Playlist, schedule.playlist_id)
+            with SessionLocal() as db:
+                playlist = db.get(Playlist, schedule.playlist_id)
             if not playlist:
                 time.sleep(5)
                 continue
@@ -274,10 +279,44 @@ class ChannelRuntime:
                     play_duration
                 )
 
+                media_key = getattr(ep, 'id', ep.file)
+                if not self.player.process:
+                    # Falha ao iniciar FFmpeg
+                    if not os.path.exists(ep.file):
+                        # Falha permanente: arquivo não existe
+                        print(f"[Channel {self.channel.id}] Arquivo inexistente, pulando permanente: {ep.file}")
+                        # Zera contador (se houver)
+                        self.retry_counts.pop(media_key, None)
+                        # Avança para o próximo item
+                        idx = (idx + 1) % len(timeline)
+                        internal_offset = 0
+                        time.sleep(0.5)
+                        continue
+
+                    # Falha transitória: aplicar retries
+                    retry = self.retry_counts.get(media_key, 0) + 1
+                    if retry <= self.MAX_RETRIES:
+                        self.retry_counts[media_key] = retry
+                        print(f"[Channel {self.channel.id}] FFmpeg falhou ao iniciar; retry {retry}/{self.MAX_RETRIES} em {self.RETRY_DELAY}s")
+                        time.sleep(self.RETRY_DELAY)
+                        # Tenta novamente a mesma mídia (sem avançar idx)
+                        continue
+                    else:
+                        print(f"[Channel {self.channel.id}] Excedido retry para mídia; pulando item: {ep.name}")
+                        self.retry_counts.pop(media_key, None)
+                        idx = (idx + 1) % len(timeline)
+                        internal_offset = 0
+                        time.sleep(0.5)
+                        continue
+
+                # Iniciou com sucesso: zera contadores
+                self.retry_counts.pop(media_key, None)
                 self.player.process.wait()
 
                 print(
                     f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
+                # Garante reset do contador ao concluir com sucesso
+                self.retry_counts.pop(media_key, None)
                 self.cleanup_old_segments()
 
                 # Próximo episódio

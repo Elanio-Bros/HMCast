@@ -9,8 +9,11 @@ class MediaUtils:
     SUPPORTED_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mp3", ".aac", ".ogg")
 
     def __init__(self):
-        self.ffmpeg = os.path.abspath("./ffmpeg/bin/ffmpeg.exe")
-        self.ffprobe = os.path.abspath("./ffmpeg/bin/ffprobe.exe")
+        # Permite sobrescrever caminhos via variáveis de ambiente
+        ffmpeg_env = os.getenv("FFMPEG_BIN")
+        ffprobe_env = os.getenv("FFPROBE_BIN")
+        self.ffmpeg = os.path.abspath(ffmpeg_env) if ffmpeg_env else os.path.abspath("./ffmpeg/bin/ffmpeg.exe")
+        self.ffprobe = os.path.abspath(ffprobe_env) if ffprobe_env else os.path.abspath("./ffmpeg/bin/ffprobe.exe")
 
     # ======================================================
     # FFMPEG / FFPROBE
