@@ -56,7 +56,9 @@ async def channel_status(channel_id: int):
         return {
             "running": False,
             "ffmpeg_alive": False,
+            "ffmpeg_returncode": None,
             "last_access": None,
+            "since_last_access": None,
             "hls_path": None,
             "ffmpeg_log_tail": []
         }
@@ -77,10 +79,17 @@ async def channel_status(channel_id: int):
     except Exception:
         tail = []
 
+    proc = runtime.player.process
+    ffmpeg_alive = bool(proc and proc.poll() is None)
+    ffmpeg_returncode = (None if not proc else (proc.returncode if not ffmpeg_alive else None))
+    since_last_access = (None if runtime.last_access is None else (time.time() - runtime.last_access))
+
     return {
         "running": runtime.running,
-        "ffmpeg_alive": bool(runtime.player.process and runtime.player.process.poll() is None),
+        "ffmpeg_alive": ffmpeg_alive,
+        "ffmpeg_returncode": ffmpeg_returncode,
         "last_access": runtime.last_access,
+        "since_last_access": since_last_access,
         "hls_path": os.path.join(HLS_BASE, f"channel_{channel_id}"),
         "ffmpeg_log_tail": tail
     }
@@ -94,29 +103,55 @@ async def serve_hls(channel_id: int, filename: str):
         raise HTTPException(status_code=404)
 
     channel_path = os.path.join(HLS_BASE, f"channel_{channel_id}")
-    # Normaliza e impede path traversal
-    file_path = os.path.normpath(os.path.join(channel_path, filename))
-    if not file_path.startswith(os.path.abspath(channel_path)):
+    # Normaliza e impede path traversal com checagem de commonpath
+    base_path = os.path.realpath(os.path.abspath(channel_path))
+    file_path = os.path.realpath(os.path.abspath(os.path.join(channel_path, filename)))
+    try:
+        common = os.path.commonpath([base_path, file_path])
+    except Exception:
+        raise HTTPException(status_code=400, detail="Caminho inválido")
+    if common != base_path:
         raise HTTPException(status_code=400, detail="Caminho inválido")
 
     if filename.endswith(".m3u8"):
         start = time.time()
 
+        def variant_ready() -> bool:
+            # verifica se pelo menos um v*.m3u8 tem >= 3 segmentos
+            base_dir = os.path.dirname(file_path)
+            try:
+                for f in os.listdir(base_dir):
+                    if f.startswith("v") and f.endswith(".m3u8"):
+                        p = os.path.join(base_dir, f)
+                        with open(p, "r", encoding="utf-8") as fh:
+                            lines = [ln.strip() for ln in fh.readlines()]
+                        segs = [ln for ln in lines if ln.endswith(".ts")]
+                        if len(segs) >= 3:
+                            return True
+            except Exception:
+                pass
+            return False
+
         while time.time() - start < PLAYLIST_WARMUP_TIMEOUT:
             if os.path.exists(file_path):
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                except Exception:
-                    content = ""
+                if os.path.basename(file_path) == "master.m3u8":
+                    # para master, aguarda qualquer variante pronta
+                    if variant_ready():
+                        break
+                else:
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                    except Exception:
+                        content = ""
 
-                segments = [
-                    line for line in content.splitlines()
-                    if line.endswith(".ts")
-                ]
+                    segments = [
+                        line for line in content.splitlines()
+                        if line.endswith(".ts")
+                    ]
 
-                if len(segments) >= 3:
-                    break
+                    if len(segments) >= 3:
+                        break
 
             time.sleep(0.3)
 

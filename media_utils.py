@@ -1,5 +1,6 @@
 import os
 import subprocess
+import shutil
 from typing import Iterable
 from database import SessionLocal
 from models import MediaItem, MediaFolder
@@ -9,11 +10,20 @@ class MediaUtils:
     SUPPORTED_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mp3", ".aac", ".ogg")
 
     def __init__(self):
-        # Permite sobrescrever caminhos via variáveis de ambiente
+        # Usa variáveis de ambiente se definidas; caso contrário, usa binários no PATH do SO
         ffmpeg_env = os.getenv("FFMPEG_BIN")
         ffprobe_env = os.getenv("FFPROBE_BIN")
-        self.ffmpeg = os.path.abspath(ffmpeg_env) if ffmpeg_env else os.path.abspath("./ffmpeg/bin/ffmpeg.exe")
-        self.ffprobe = os.path.abspath(ffprobe_env) if ffprobe_env else os.path.abspath("./ffmpeg/bin/ffprobe.exe")
+
+        def resolve(bin_env: str | None, fallback_name: str) -> str:
+            if bin_env:
+                return os.path.abspath(bin_env)
+            found = shutil.which(fallback_name)
+            if found:
+                return os.path.abspath(found)
+            return fallback_name  # deixa para o sistema resolver pelo PATH
+
+        self.ffmpeg = resolve(ffmpeg_env, "ffmpeg")
+        self.ffprobe = resolve(ffprobe_env, "ffprobe")
 
     # ======================================================
     # FFMPEG / FFPROBE
@@ -24,29 +34,39 @@ class MediaUtils:
         Executa o ffmpeg retornando o processo.
         Usado para streams contínuos.
         """
-        return subprocess.Popen(
-            [self.ffmpeg] + args,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
+        popen_kwargs = {
+            "stdin": stdin,
+            "stdout": stdout,
+            "stderr": subprocess.DEVNULL,
+        }
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        return subprocess.Popen([self.ffmpeg] + args, **popen_kwargs)
 
     def run_ffmpeg_blocking(self, args: list):
         """
         Executa ffmpeg de forma bloqueante.
         Usado para operações simples.
         """
-        subprocess.run(
-            [self.ffmpeg] + args,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
+        run_kwargs = {
+            "check": True,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+        if os.name == "nt":
+            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        subprocess.run([self.ffmpeg] + args, **run_kwargs)
 
     def get_media_duration(self, file_path: str) -> int:
         try:
+            run_kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+                "check": True,
+            }
+            if os.name == "nt":
+                run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             result = subprocess.run(
                 [
                     self.ffprobe,
@@ -55,11 +75,7 @@ class MediaUtils:
                     "-of", "default=noprint_wrappers=1:nokey=1",
                     file_path
                 ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True,
-                creationflags=subprocess.CREATE_NO_WINDOW
+                **run_kwargs
             )
             return int(float(result.stdout.strip()))
         except Exception:

@@ -57,15 +57,33 @@ class ChannelRuntime:
         self.player.stop()
         self.running = False
 
+        # Limpeza agressiva opcional no encerramento
+        if os.getenv("CHANNEL_AGGRESSIVE_CLEANUP", "0") == "1":
+            try:
+                for f in os.listdir(self.channel_folder):
+                    # Mantém logs a menos que explicitamente pedido para remover
+                    if f.endswith(".log") and os.getenv("CHANNEL_KEEP_LOGS", "1") == "1":
+                        continue
+                    try:
+                        os.remove(os.path.join(self.channel_folder, f))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
     # -------------------------------------------------
 
     def _watchdog(self):
+        try:
+            interval = float(os.getenv("CHANNEL_WATCHDOG_INTERVAL", "2"))
+        except Exception:
+            interval = 2.0
         while self.running:
             if time.time() - self.last_access > self.IDLE_TIMEOUT:
                 print(f"[Channel {self.channel.id}] 💤 Inativo, encerrando")
                 self.stop()
                 return
-            time.sleep(2)
+            time.sleep(max(interval, 0.5))
 
     # ---------------- TIMELINE / SEGMENTS ----------------
 
@@ -150,7 +168,15 @@ class ChannelRuntime:
             )
 
         for sch in schedules:
-            if not (sch.start_time <= now_time <= sch.end_time):
+            st = sch.start_time
+            et = sch.end_time
+            # Intervalo padrão (mesmo dia)
+            in_window = (st <= now_time <= et)
+            # Intervalo overnight (cruza meia-noite): ex. 22:00 -> 02:00
+            if st > et:
+                in_window = (now_time >= st) or (now_time <= et)
+
+            if not in_window:
                 continue
             if sch.weekdays and weekday not in sch.weekdays:
                 continue
@@ -178,33 +204,49 @@ class ChannelRuntime:
             if not os.path.exists(self.channel_folder):
                 return
 
-            ts_files = [f for f in os.listdir(
-                self.channel_folder) if f.endswith(".ts")]
-            referenced_files = set()
+            # Coleta segmentos referenciados por qualquer playlist .m3u8
+            ts_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".ts")]
+            referenced_ts = set()
+            m3u8_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".m3u8")]
 
-            # coleta os arquivos .ts ainda referenciados nas playlists
-            for file in os.listdir(self.channel_folder):
-                if file.endswith(".m3u8"):
-                    try:
-                        with open(os.path.join(self.channel_folder, file), "r", encoding="utf-8") as f:
-                            for line in f:
-                                line = line.strip()
-                                if line.endswith(".ts"):
-                                    referenced_files.add(line)
-                    except Exception as e:
-                        print(
-                            f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
+            for file in m3u8_files:
+                try:
+                    with open(os.path.join(self.channel_folder, file), "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.endswith(".ts"):
+                                referenced_ts.add(line)
+                except Exception as e:
+                    print(f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
 
-            # remove os segmentos que não estão mais na playlist
+            # Remove segmentos .ts que não estão mais referenciados
             for ts in ts_files:
-                if ts not in referenced_files:
+                if ts not in referenced_ts:
                     try:
                         os.remove(os.path.join(self.channel_folder, ts))
-                        print(
-                            f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
+                        print(f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
                     except Exception as e:
-                        print(
-                            f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
+                        print(f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
+
+            # Limpeza de playlists variantes muito antigas (não remove master.m3u8)
+            try:
+                retention = int(os.getenv("CHANNEL_PLAYLIST_RETENTION_SEC", "600"))  # 10 min padrão
+            except Exception:
+                retention = 600
+            now = time.time()
+
+            for file in m3u8_files:
+                if file == "master.m3u8":
+                    continue
+                path = os.path.join(self.channel_folder, file)
+                try:
+                    mtime = os.path.getmtime(path)
+                    # Se a playlist não é atualizada há muito tempo, remover
+                    if now - mtime > retention:
+                        os.remove(path)
+                        print(f"[Channel {self.channel.id}] Removida playlist antiga: {file}")
+                except Exception as e:
+                    print(f"[Channel {self.channel.id}] Erro ao tratar playlist {file}: {e}")
 
         threading.Thread(target=worker, daemon=True).start()
     # ---------------- MAIN RUN ----------------
@@ -239,6 +281,9 @@ class ChannelRuntime:
                 is_last = i == len(items) - 1
                 segments = self.build_segments(media, is_first, is_last)
                 duration = self.effective_duration(segments)
+                if duration <= 0:
+                    # ignora itens efetivamente vazios
+                    continue
                 timeline.append({
                     "media": media,
                     "segments": segments,
@@ -269,6 +314,14 @@ class ChannelRuntime:
                     slot["segments"],
                     internal_offset
                 )
+
+                # Se cálculo falhou ou duração inválida, pula item
+                if start_time is None or play_duration is None or play_duration <= 0:
+                    print(f"[Channel {self.channel.id}] Slot inválido; pulando item: {ep.name}")
+                    idx = (idx + 1) % len(timeline)
+                    internal_offset = 0
+                    time.sleep(0.5)
+                    continue
 
                 print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
                 print(f"Start: {start_time}s | Duration: {play_duration}s")
