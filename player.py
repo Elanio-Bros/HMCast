@@ -14,7 +14,11 @@ class Player:
     def start(self, input_file: str, output_dir: str, start_time: float = 0, duration: float = 0):
         # Encerrar qualquer processo anterior
         self.stop()
-        os.makedirs(output_dir, exist_ok=True)
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception as e:
+            print(f"[Player] Falha ao criar diretório de saída '{output_dir}': {e}")
+            return
 
         if not os.path.exists(input_file):
             print(f"[Player] Arquivo de entrada não existe: {input_file}")

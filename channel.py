@@ -368,6 +368,14 @@ class ChannelRuntime:
                 # Iniciou com sucesso: zera contadores
                 self.retry_counts.pop(media_key, None)
                 self.player.process.wait()
+                # Fecha descritor de log após término do FFmpeg para flush/liberação de handle
+                try:
+                    if self.player.err_fd:
+                        self.player.err_fd.close()
+                except Exception:
+                    pass
+                finally:
+                    self.player.err_fd = None
 
                 print(
                     f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
