@@ -276,20 +276,23 @@ class ChannelRuntime:
             timeline = []
 
             for i, media in enumerate(items):
-
-                is_first = i == 0
-                is_last = i == len(items) - 1
-                segments = self.build_segments(media, is_first, is_last)
-                duration = self.effective_duration(segments)
-                if duration <= 0:
-                    # ignora itens efetivamente vazios
+                try:
+                    is_first = i == 0
+                    is_last = i == len(items) - 1
+                    segments = self.build_segments(media, is_first, is_last)
+                    duration = self.effective_duration(segments)
+                    if duration <= 0:
+                        # ignora itens efetivamente vazios
+                        continue
+                    timeline.append({
+                        "media": media,
+                        "segments": segments,
+                        "duration": duration,
+                    })
+                    acc_duration += duration
+                except Exception as e:
+                    print(f"[Channel {self.channel.id}] Erro ao montar segmentos para '{getattr(media, 'name', 'media')}', pulando: {e}")
                     continue
-                timeline.append({
-                    "media": media,
-                    "segments": segments,
-                    "duration": duration,
-                })
-                acc_duration += duration
 
             if acc_duration == 0:
                 time.sleep(5)
