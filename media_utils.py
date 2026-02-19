@@ -96,48 +96,75 @@ class MediaUtils:
 
     def scan_media_folder(self, root_path: str):
         """
-        Escaneia uma pasta e registra os arquivos no banco.
+        Escaneia uma pasta recursivamente e registra os arquivos no banco em lotes.
         """
         root_path = self.normalize_path(root_path)
         db = SessionLocal()
-
-        folder = (
-            db.query(MediaFolder)
-            .filter(MediaFolder.path == root_path)
-            .first()
-        )
-
-        if not folder:
-            folder = MediaFolder(
-                path=root_path,
-                name=os.path.basename(root_path)
-            )
-            db.add(folder)
-            db.commit()
-            db.refresh(folder)
-
-        for file_path in self.iter_media_files(root_path):
-            file_path = self.normalize_path(file_path)
-
-            exists = (
-                db.query(MediaItem)
-                .filter(MediaItem.file == file_path)
+        
+        try:
+            folder = (
+                db.query(MediaFolder)
+                .filter(MediaFolder.path == root_path)
                 .first()
             )
 
-            if exists:
-                continue
+            if not folder:
+                folder = MediaFolder(
+                    path=root_path,
+                    name=os.path.basename(root_path)
+                )
+                db.add(folder)
+                db.commit()
+                db.refresh(folder)
 
-            duration = self.get_media_duration(file_path)
+            BATCH_SIZE = 100
+            batch_count = 0
+            
+            print(f"[Scanner] Iniciando scan em: {root_path}")
+            
+            for file_path in self.iter_media_files(root_path):
+                try:
+                    file_path = self.normalize_path(file_path)
 
-            media = MediaItem(
-                name=os.path.splitext(os.path.basename(file_path))[0],
-                file=file_path,
-                duration=duration,
-                folder_id=folder.id
-            )
+                    exists = (
+                        db.query(MediaItem.id)
+                        .filter(MediaItem.file == file_path)
+                        .scalar()
+                    )
 
-            db.add(media)
+                    if exists:
+                        continue
 
-        db.commit()
-        db.close()
+                    duration = self.get_media_duration(file_path)
+                    if duration <= 0:
+                         print(f"[Scanner] Ignorando arquivo com duração 0/erro: {file_path}")
+                         continue
+
+                    media = MediaItem(
+                        name=os.path.splitext(os.path.basename(file_path))[0],
+                        file=file_path,
+                        duration=duration,
+                        folder_id=folder.id
+                    )
+
+                    db.add(media)
+                    batch_count += 1
+
+                    if batch_count >= BATCH_SIZE:
+                        db.commit()
+                        print(f"[Scanner] Commit parcial de {batch_count} itens...")
+                        batch_count = 0
+                        
+                except Exception as e:
+                    print(f"[Scanner] Erro ao processar {file_path}: {e}")
+                    # Rollback parcial
+                    db.rollback()
+
+            if batch_count > 0:
+                db.commit()
+                print(f"[Scanner] Commit final de {batch_count} itens.")
+
+        except Exception as e:
+            print(f"[Scanner] Erro fatal no scan: {e}")
+        finally:
+            db.close()

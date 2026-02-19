@@ -3,6 +3,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 import os
 import time
 import threading
+import asyncio
+import atexit
 
 from database import SessionLocal
 from models import Channels
@@ -18,6 +20,16 @@ PLAYLIST_WARMUP_TIMEOUT = float(os.getenv("HLS_PLAYLIST_WARMUP_TIMEOUT", "15"))
 
 channel_runtimes: dict[int, ChannelRuntime] = {}
 _channel_lock = threading.Lock()
+
+def shutdown_handler():
+    print("[Server] Desligando sistema... Parando canais.")
+    for cid, runtime in channel_runtimes.items():
+        try:
+            runtime.stop()
+        except Exception:
+            pass
+
+atexit.register(shutdown_handler)
 
 def ensure_channel_running(channel_id: int) -> ChannelRuntime:
     # Evita condições de corrida ao iniciar canais
@@ -153,7 +165,7 @@ async def serve_hls(channel_id: int, filename: str):
                     if len(segments) >= 3:
                         break
 
-            time.sleep(0.3)
+            await asyncio.sleep(0.3)
 
         if not os.path.exists(file_path):
             # Indica que o canal está iniciando/sem playlist ainda

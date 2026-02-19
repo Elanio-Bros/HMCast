@@ -108,7 +108,13 @@ class Player:
         ]
 
         print(f"[Player] Iniciando FFmpeg para {input_file}...")
-        self.process = subprocess.Popen(cmd, stderr=err_dest)
+        
+        popen_kwargs = {"stderr": err_dest}
+        if os.name != 'nt':
+            # Cria novo grupo de processos no Unix para permitir killpg
+            popen_kwargs["start_new_session"] = True
+            
+        self.process = subprocess.Popen(cmd, **popen_kwargs)
         # Checagem de falha rápida
         try:
             grace_ms = int(os.getenv("PLAYER_STARTUP_GRACE_MS", "1000"))
@@ -129,22 +135,59 @@ class Player:
         print(f"[Player] FFmpeg iniciado: {input_file}")
 
     def stop(self):
-        if self.process and self.process.poll() is None:
-            print("[Player] Encerrando FFmpeg (terminate)...")
+        if self.process: # Verifica se existe objeto, independente de poll
+            print("[Player] Encerrando FFmpeg...")
+            
+            # Tenta terminar graciosamente
+            if self.process.poll() is None:
+                try:
+                    # No Windows, terminate() é o mesmo que kill() para subprocessos simples.
+                    self.process.terminate()
+                except Exception:
+                    pass
+
+            # Aguarda um pouco
             try:
-                self.process.terminate()
-                self.process.wait(timeout=5)
-            except Exception:
-                print("[Player] Forçando encerramento (kill)...")
+                self.process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                print("[Player] Forçando kill no FFmpeg...")
                 try:
-                    self.process.kill()
+                    # Se Unix e temos grupo de processos, mata o grupo todo
+                    if os.name != 'nt':
+                        import signal
+                        try:
+                            os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        except Exception:
+                            self.process.kill()
+                    else:
+                        self.process.kill()
+                        
+                    self.process.wait(timeout=2)
                 except Exception:
                     pass
-            finally:
-                try:
-                    if self.err_fd:
-                        self.err_fd.close()
-                except Exception:
-                    pass
-                self.err_fd = None
-                self.process = None
+            
+            # Garante que não hajam zumbis (Windows: taskkill / Unix: killpg safety)
+            if self.process.poll() is None:
+                if os.name == 'nt':
+                     try:
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.process.pid)], 
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                     except Exception:
+                        pass
+                else:
+                    # Reforço para Unix
+                    try:
+                        import signal
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    except Exception:
+                        pass
+
+        # Cleanup de arquivos descritores
+        try:
+            if self.err_fd:
+                self.err_fd.close()
+        except Exception:
+            pass
+        finally:
+            self.err_fd = None
+            self.process = None

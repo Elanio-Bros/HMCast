@@ -248,6 +248,27 @@ class ChannelRuntime:
                 except Exception as e:
                     print(f"[Channel {self.channel.id}] Erro ao tratar playlist {file}: {e}")
 
+            # SAFETY VALVE: Limite rígido de arquivos .ts para evitar vazamento de disco
+            # Se acumulou muitos arquivos (ex: erro lógica de referência), força exclusão dos mais antigos
+            try:
+                hard_limit = int(os.getenv("CHANNEL_SEGMENT_HARD_LIMIT", "50"))
+                all_ts = [
+                    (os.path.join(self.channel_folder, f), os.path.getmtime(os.path.join(self.channel_folder, f)))
+                    for f in os.listdir(self.channel_folder) if f.endswith(".ts")
+                ]
+                if len(all_ts) > hard_limit:
+                    # Ordena pelos mais antigos
+                    all_ts.sort(key=lambda x: x[1])
+                    excess = len(all_ts) - hard_limit
+                    print(f"[Channel {self.channel.id}] SAFETY VALVE: Removendo {excess} segmentos antigos excedentes.")
+                    for path, _ in all_ts[:excess]:
+                        try:
+                            os.remove(path)
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"[Channel {self.channel.id}] Erro no Safety Valve: {e}")
+
         threading.Thread(target=worker, daemon=True).start()
     # ---------------- MAIN RUN ----------------
 
