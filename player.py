@@ -114,7 +114,18 @@ class Player:
             # Cria novo grupo de processos no Unix para permitir killpg
             popen_kwargs["start_new_session"] = True
             
-        self.process = subprocess.Popen(cmd, **popen_kwargs)
+        try:
+            self.process = subprocess.Popen(cmd, **popen_kwargs)
+        except Exception as e:
+            print(f"[Player] Falha crítica ao iniciar FFmpeg: {e}")
+            if self.err_fd:
+                try:
+                    self.err_fd.close()
+                except:
+                    pass
+            self.err_fd = None
+            self.process = None
+            return
         # Checagem de falha rápida
         try:
             grace_ms = int(os.getenv("PLAYER_STARTUP_GRACE_MS", "1000"))

@@ -331,6 +331,21 @@ class ChannelRuntime:
 
             # Loop contínuo
             while not self.stop_signal:
+                # Verificação de validade do agendamento (evita loop infinito na mesma playlist)
+                now_curr = datetime.now().astimezone().time()
+                st_curr = schedule.start_time
+                et_curr = schedule.end_time
+                
+                is_overnight = st_curr > et_curr
+                if is_overnight:
+                    in_window = (now_curr >= st_curr) or (now_curr <= et_curr)
+                else:
+                    in_window = (st_curr <= now_curr <= et_curr)
+                
+                if not in_window:
+                    print(f"[Channel {self.channel.id}] Agendamento expirou ({et_curr}), recarregando...")
+                    break
+
                 slot = timeline[idx]
                 ep = slot["media"]
 

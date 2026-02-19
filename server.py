@@ -23,7 +23,7 @@ _channel_lock = threading.Lock()
 
 def shutdown_handler():
     print("[Server] Desligando sistema... Parando canais.")
-    for cid, runtime in channel_runtimes.items():
+    for cid, runtime in list(channel_runtimes.items()):
         try:
             runtime.stop()
         except Exception:

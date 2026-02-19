@@ -5,7 +5,9 @@ DATABASE_URL = "sqlite:///./tv.db"
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False, "timeout": 30}
+    connect_args={"check_same_thread": False, "timeout": 30},
+    pool_size=20,
+    max_overflow=10
 )
 
 # Habilita WAL mode para melhor concorrência
@@ -16,4 +18,4 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.close()
 
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
