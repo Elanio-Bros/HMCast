@@ -33,7 +33,7 @@ class Player:
         # Log de erro por canal/saída
         ffmpeg_log = os.path.join(output_dir, "ffmpeg.log")
         try:
-            self.err_fd = open(ffmpeg_log, "ab", buffering=0)
+            self.err_fd = open(ffmpeg_log, "wb", buffering=0)
             err_dest = self.err_fd
         except Exception as e:
             print(f"[Player] Não foi possível abrir o log {ffmpeg_log}: {e}")

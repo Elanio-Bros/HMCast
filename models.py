@@ -81,6 +81,7 @@ class Channels(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     type = Column(String, nullable=False, default="TV")  # "TV" ou "RADIO"
+    execution_mode = Column(String, nullable=False, default="ON_DEMAND") # "ALWAYS_ON", "ON_DEMAND", "PREDICTIVE"
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

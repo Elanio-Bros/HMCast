@@ -24,7 +24,9 @@ class ChannelRuntime:
 
         self.thread = None
         self.stop_signal = False
-        self.last_access = time.time()
+        self.last_access = 0.0 # 0.0 significa que ainda não houve acesso real (warmup)
+        self.start_time = time.time()  # V7: Marca quando a thread iniciou
+        self.current_schedule_id = None # V7: Track do agendamento atual
         self.running = False
         self._cleanup_lock = threading.Lock()
         self._cleanup_running = False
@@ -82,9 +84,30 @@ class ChannelRuntime:
             interval = float(os.getenv("CHANNEL_WATCHDOG_INTERVAL", "2"))
         except Exception:
             interval = 2.0
+            
         while self.running:
-            if time.time() - self.last_access > self.IDLE_TIMEOUT:
-                print(f"[Channel {self.channel.id}] 💤 Inativo, encerrando")
+            # Obtém modo do canal com segurança
+            mode = getattr(self.channel, 'execution_mode', 'ON_DEMAND')
+            
+            # Se for ALWAYS_ON, nunca para por inatividade
+            if mode == "ALWAYS_ON":
+                time.sleep(10)
+                continue
+                
+            # Tempo de inatividade
+            if self.last_access > 0:
+                idle_time = time.time() - self.last_access
+            else:
+                # V7: No warmup, o idle_time conta a partir do start_time para não matar imediatamente
+                idle_time = time.time() - self.start_time
+            
+            # No modo PREDICTIVE, se não houver views, paramos mais rápido após o warmup (e.g. 30s)
+            terminate_threshold = float(self.IDLE_TIMEOUT)
+            if mode == "PREDICTIVE" and self.last_access == 0: # 0 indica que foi um warmup worker
+                 terminate_threshold = float(os.getenv("PREDICTIVE_WARMUP_DURATION", "30"))
+
+            if idle_time > terminate_threshold:
+                print(f"[Channel {self.channel.id}] 💤 Inativo (Modo {mode}), encerrando")
                 self.stop()
                 return
             time.sleep(max(interval, 0.5))
@@ -317,6 +340,11 @@ class ChannelRuntime:
 
             for i, media in enumerate(items):
                 try:
+                    # Auditoria V4: Verifica se o arquivo existe fisicamente
+                    if not os.path.exists(media.file):
+                        print(f"[Channel {self.channel.id}] ⚠️ ARQUIVO NÃO ENCONTRADO (PULANDO): {media.file}")
+                        continue
+
                     is_first = i == 0
                     is_last = i == len(items) - 1
                     segments = self.build_segments(media, is_first, is_last)
@@ -329,7 +357,7 @@ class ChannelRuntime:
                         "segments": segments,
                         "duration": duration,
                     })
-                    acc_duration += duration
+                    acc_duration = float(acc_duration) + duration
                 except Exception as e:
                     print(f"[Channel {self.channel.id}] Erro ao montar segmentos para '{getattr(media, 'name', 'media')}', pulando: {e}")
                     continue
@@ -376,7 +404,7 @@ class ChannelRuntime:
                 # Se cálculo falhou ou duração inválida, pula item
                 if start_time is None or play_duration is None or play_duration <= 0:
                     print(f"[Channel {self.channel.id}] Slot inválido; pulando item: {ep.name}")
-                    idx = (idx + 1) % len(timeline)
+                    idx = int((idx + 1) % len(timeline))
                     internal_offset = 0
                     time.sleep(0.5)
                     continue
@@ -406,10 +434,10 @@ class ChannelRuntime:
                         continue
 
                     # Falha transitória: aplicar retries
-                    retry = self.retry_counts.get(media_key, 0) + 1
-                    if retry <= self.MAX_RETRIES:
-                        self.retry_counts[media_key] = retry
-                        print(f"[Channel {self.channel.id}] FFmpeg falhou ao iniciar; retry {retry}/{self.MAX_RETRIES} em {self.RETRY_DELAY}s")
+                    current_retry = int(self.retry_counts.get(media_key, 0)) + 1
+                    if current_retry <= self.MAX_RETRIES:
+                        self.retry_counts[media_key] = current_retry
+                        print(f"[Channel {self.channel.id}] FFmpeg falhou ao iniciar; retry {current_retry}/{self.MAX_RETRIES} em {self.RETRY_DELAY}s")
                         time.sleep(self.RETRY_DELAY)
                         # Tenta novamente a mesma mídia (sem avançar idx)
                         continue

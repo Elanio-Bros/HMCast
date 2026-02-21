@@ -96,75 +96,89 @@ class MediaUtils:
 
     def scan_media_folder(self, root_path: str):
         """
-        Escaneia uma pasta recursivamente e registra os arquivos no banco em lotes.
+        Escaneia uma pasta recursivamente e registra os arquivos no banco em lotes com tratamento de erro robusto.
         """
         root_path = self.normalize_path(root_path)
-        db = SessionLocal()
         
-        try:
-            folder = (
-                db.query(MediaFolder)
-                .filter(MediaFolder.path == root_path)
-                .first()
-            )
-
-            if not folder:
-                folder = MediaFolder(
-                    path=root_path,
-                    name=os.path.basename(root_path)
+        with SessionLocal() as db:
+            try:
+                folder = (
+                    db.query(MediaFolder)
+                    .filter(MediaFolder.path == root_path)
+                    .first()
                 )
-                db.add(folder)
-                db.commit()
-                db.refresh(folder)
 
-            BATCH_SIZE = 100
-            batch_count = 0
-            
-            print(f"[Scanner] Iniciando scan em: {root_path}")
-            
-            for file_path in self.iter_media_files(root_path):
-                try:
-                    file_path = self.normalize_path(file_path)
-
-                    exists = (
-                        db.query(MediaItem.id)
-                        .filter(MediaItem.file == file_path)
-                        .scalar()
+                if not folder:
+                    folder = MediaFolder(
+                        path=root_path,
+                        name=os.path.basename(root_path)
                     )
+                    db.add(folder)
+                    db.commit()
+                    db.refresh(folder)
 
-                    if exists:
-                        continue
+                BATCH_SIZE = 100
+                batch_count = 0
+                
+                print(f"[Scanner] Iniciando scan em: {root_path}")
+                
+                # V7: Cache de caminhos existentes em memória para evitar SELECT N+1
+                existing_files = {
+                    row[0] for row in db.query(MediaItem.file)
+                    .filter(MediaItem.folder_id == folder.id)
+                    .all()
+                }
+                
+                # Precisamos dos objetos completos apenas se quisermos atualizar duração
+                # Mas para novos arquivos, o set acima já resolve 99% da velocidade
+                # Para atualização da V5, pegamos os itens sob demanda ou em cache
+                items_by_file = {}
+                if existing_files:
+                    # Carrega apenas o necessário para atualização
+                    all_items = db.query(MediaItem).filter(MediaItem.folder_id == folder.id).all()
+                    items_by_file = {it.file: it for it in all_items}
 
-                    duration = self.get_media_duration(file_path)
-                    if duration <= 0:
-                         print(f"[Scanner] Ignorando arquivo com duração 0/erro: {file_path}")
-                         continue
+                for file_path in self.iter_media_files(root_path):
+                    try:
+                        file_path = self.normalize_path(file_path)
+                        existing_item = items_by_file.get(file_path)
 
-                    media = MediaItem(
-                        name=os.path.splitext(os.path.basename(file_path))[0],
-                        file=file_path,
-                        duration=duration,
-                        folder_id=folder.id
-                    )
+                        duration = self.get_media_duration(file_path)
+                        if duration <= 0:
+                             print(f"[Scanner] Ignorando arquivo com duração 0/erro: {file_path}")
+                             continue
 
-                    db.add(media)
-                    batch_count += 1
+                        if existing_item:
+                            # Sustentabilidade V5: Atualiza duração se o arquivo mudou no disco
+                            if existing_item.duration != duration:
+                                print(f"[Scanner] Atualizando duração de '{existing_item.name}': {existing_item.duration}s -> {duration}s")
+                                existing_item.duration = duration
+                                batch_count += 1
+                            continue
 
-                    if batch_count >= BATCH_SIZE:
-                        db.commit()
-                        print(f"[Scanner] Commit parcial de {batch_count} itens...")
-                        batch_count = 0
-                        
-                except Exception as e:
-                    print(f"[Scanner] Erro ao processar {file_path}: {e}")
-                    # Rollback parcial
-                    db.rollback()
+                        media = MediaItem(
+                            name=os.path.splitext(os.path.basename(file_path))[0],
+                            file=file_path,
+                            duration=duration,
+                            folder_id=folder.id
+                        )
 
-            if batch_count > 0:
-                db.commit()
-                print(f"[Scanner] Commit final de {batch_count} itens.")
+                        db.add(media)
+                        batch_count = int(batch_count) + 1
 
-        except Exception as e:
-            print(f"[Scanner] Erro fatal no scan: {e}")
-        finally:
-            db.close()
+                        if batch_count >= BATCH_SIZE:
+                            db.commit()
+                            print(f"[Scanner] Commit parcial de {batch_count} itens...")
+                            batch_count = 0
+                            
+                    except Exception as e:
+                        print(f"[Scanner] Erro ao processar {file_path}: {e}")
+                        db.rollback()
+
+                if batch_count > 0:
+                    db.commit()
+                    print(f"[Scanner] Commit final de {batch_count} itens.")
+
+            except Exception as e:
+                print(f"[Scanner] Erro fatal no scan: {e}")
+                db.rollback()

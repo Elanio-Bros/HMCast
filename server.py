@@ -21,6 +21,35 @@ PLAYLIST_WARMUP_TIMEOUT = float(os.getenv("HLS_PLAYLIST_WARMUP_TIMEOUT", "15"))
 channel_runtimes: dict[int, ChannelRuntime] = {}
 _channel_lock = threading.Lock()
 
+def startup_handler():
+    print("[Server] Limpando arquivos HLS residuais...")
+    import shutil
+    try:
+        if os.path.exists(HLS_BASE):
+            # Remove o conteúdo, mas mantém a pasta base
+            for it in os.listdir(HLS_BASE):
+                it_path = os.path.join(HLS_BASE, it)
+                if os.path.isdir(it_path):
+                    shutil.rmtree(it_path)
+                else:
+                    os.remove(it_path)
+    except Exception as e:
+        print(f"[Server] Erro ao limpar HLS_BASE: {e}")
+
+    print("[Server] Verificando canais ALWAYS_ON...")
+    db = SessionLocal()
+    try:
+        always_on_channels = db.query(Channels).filter(Channels.execution_mode == "ALWAYS_ON").all()
+        for ch in always_on_channels:
+            print(f"[Server] Iniciando canal fixo: {ch.name}")
+            ensure_channel_running(ch.id)
+            # V7: Delay suave para não explodir CPU ligando tudo junto
+            time.sleep(1)
+    except Exception as e:
+        print(f"[Server] Erro no startup_handler: {e}")
+    finally:
+        db.close()
+
 def shutdown_handler():
     print("[Server] Desligando sistema... Parando canais.")
     for cid, runtime in list(channel_runtimes.items()):
@@ -29,15 +58,47 @@ def shutdown_handler():
         except Exception:
             pass
 
+# Handlers globais
 atexit.register(shutdown_handler)
+# Chamada de inicialização após definir handlers
+# Nota: Em FastAPI, o ideal seria @app.on_event("startup"), mas como usamos atexit para shutdown,
+# manteremos o padrão manual ou usaremos o lifepan do FastAPI se necessário.
+async def background_warmup_worker():
+    """Tarefa que pré-renderiza canais PREDICTIVE periodicamente"""
+    while True:
+        await asyncio.sleep(int(os.getenv("PREDICTIVE_WARMUP_INTERVAL", "300"))) # Padrao 5 min
+        print("[Server] Iniciando ciclo de Warmup para canais PREDICTIVE...")
+        db = SessionLocal()
+        try:
+            channels = db.query(Channels).filter(Channels.execution_mode == "PREDICTIVE").all()
+            for ch in channels:
+                # Só faz warmup se o canal NÃO estiver rodando ativamente (sem views)
+                runtime = channel_runtimes.get(ch.id)
+                if not runtime or not runtime.running:
+                    print(f"[Server] Warmup: Pré-renderizando canal {ch.name}...")
+                    # Inicia um runtime temporário (o IDLE_TIMEOUT fará ele parar após renderizar)
+                    ensure_channel_running(ch.id, is_warmup=True)
+        except Exception as e:
+            print(f"[Server] Erro no warmup worker: {e}")
+        finally:
+            db.close()
 
-def ensure_channel_running(channel_id: int) -> ChannelRuntime:
+@app.on_event("startup")
+async def app_startup():
+    # Inicia canais Always ON de forma assíncrona para não travar o loop
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, startup_handler)
+    # Inicia worker de warmup
+    asyncio.create_task(background_warmup_worker())
+
+def ensure_channel_running(channel_id: int, is_warmup: bool = False) -> ChannelRuntime:
     # Evita condições de corrida ao iniciar canais
     with _channel_lock:
         runtime = channel_runtimes.get(channel_id)
-        # Se ja existe e a thread está rodando, só atualiza o acesso
+        # Se ja existe e a thread está rodando, só atualiza o acesso se não for warmup
         if runtime and runtime.thread and runtime.thread.is_alive() and runtime.running:
-            runtime.touch()
+            if not is_warmup:
+                runtime.touch()
             return runtime
 
         # Se existe um "morto", limpa antes de criar novo
@@ -54,9 +115,12 @@ def ensure_channel_running(channel_id: int) -> ChannelRuntime:
         if not channel:
             raise HTTPException(status_code=404, detail="Canal não encontrado")
 
-        runtime = ChannelRuntime(channel)
-        channel_runtimes[channel_id] = runtime
+        runtime = ChannelRuntime(channel, HLS_BASE)
+        if not is_warmup:
+            runtime.touch()
+        
         runtime.start()
+        channel_runtimes[channel_id] = runtime
         return runtime
 
 @app.get("/channel/{channel_id}")
