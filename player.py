@@ -11,7 +11,7 @@ class Player:
         self.process = None
         self.err_fd = None
 
-    def start(self, input_file: str, output_dir: str, start_time: float = 0, duration: float = 0):
+    def start(self, input_file: str, output_dir: str, start_time: float = 0, duration: float = 0, channel_type: str = "TV"):
         # Encerrar qualquer processo anterior
         self.stop()
         try:
@@ -40,10 +40,19 @@ class Player:
             self.err_fd = None
             err_dest = subprocess.DEVNULL
 
-        # Monta comando base uma única vez e injeta entradas/mapas extras quando necessário
-        cmd = [
-            self.media.ffmpeg,
-            "-re", "-y",
+        # Imagem de fundo para rádio (opcional)
+        bg_image = os.getenv("RADIO_BACKGROUND_IMAGE")
+        # Se rádio mas sem imagem configurada, tentamos um fallback ou geramos cor sólida
+        use_bg = (channel_type == "RADIO" and bg_image and os.path.exists(bg_image))
+
+        # Monta comando base 
+        cmd = [self.media.ffmpeg, "-re", "-y"]
+        
+        if use_bg:
+            # Loop infinito da imagem
+            cmd += ["-loop", "1", "-i", bg_image]
+        
+        cmd += [
             "-ss", str(start_time),
             "-t", str(duration),
             "-i", input_file,
@@ -54,20 +63,38 @@ class Player:
         if silence_fallback:
             cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
 
-        # Demais opções comuns
-        cmd += [
-            "-threads", "2",
-            "-filter_complex",
-            "[0:v]split=3[v1080][v720][v480];"
-            "[v1080]scale=-2:1080[v1080out];"
-            "[v720]scale=-2:720[v720out];"
-            "[v480]scale=-2:480[v480out]",
-
-            # Sempre mapeia vídeo e tenta mapear áudio da entrada principal (opcional)
-            "-map", "[v1080out]", "-map", "0:a:0?",
-            "-map", "[v720out]",  "-map", "0:a:0?",
-            "-map", "[v480out]",  "-map", "0:a:0?",
-        ]
+        # Filtros e Mapeamento Adaptativo
+        if channel_type == "RADIO":
+            if use_bg:
+                # Sobrepõe áudio na imagem, redimensionando a imagem para 1080p
+                # -shortest faz o encode parar quando o áudio (input 1) acabar
+                cmd += [
+                    "-filter_complex",
+                    "[0:v]scale=1920:1080,format=yuv420p[bg];" # Background
+                    "[1:a]copy[aout]", # Audio
+                    "-map", "[bg]", "-map", "[aout]",
+                    "-shortest",
+                    "-r", "2", # Baixo framerate para economizar CPU
+                ]
+            else:
+                # Rádio sem imagem (Áudio Puro) -> Pouca compatibilidade, mas disponível
+                cmd += [
+                    "-vn", # No video
+                    "-map", "0:a:0",
+                ]
+        else:
+            # Modo TV (Original)
+            cmd += [
+                "-threads", "2",
+                "-filter_complex",
+                "[0:v]split=3[v1080][v720][v480];"
+                "[v1080]scale=-2:1080[v1080out];"
+                "[v720]scale=-2:720[v720out];"
+                "[v480]scale=-2:480[v480out]",
+                "-map", "[v1080out]", "-map", "0:a:0?",
+                "-map", "[v720out]",  "-map", "0:a:0?",
+                "-map", "[v480out]",  "-map", "0:a:0?",
+            ]
 
         # Se fallback de silêncio estiver ativo, adiciona também mapa de áudio da segunda entrada (opcional)
         if silence_fallback:
@@ -76,36 +103,47 @@ class Player:
         # Codecs e parâmetros
         cmd += [
             "-c:v", "libx264",
-            "-preset", "veryfast",
+            "-preset", "ultrafast" if channel_type == "RADIO" else "veryfast",
             "-profile:v", "main",
             "-pix_fmt", "yuv420p",
-            "-crf", "20",
-            "-tune", "zerolatency",
-            "-bf", "1",
-            "-sc_threshold", "0",
+            "-crf", "24" if channel_type == "RADIO" else "20",
+            "-tune", "stillimage" if channel_type == "RADIO" else "zerolatency",
             "-g", os.getenv("HLS_GOP_SIZE", "50"),
             "-keyint_min", os.getenv("HLS_GOP_SIZE", "50"),
             "-c:a", "aac",
-            "-ar", "48000",
+            "-ar", "44100" if channel_type == "RADIO" else "48000",
             "-ac", "2",
             "-b:a", "128k",
-            # Bitrates com limites por variante
-            "-b:v:0", "5000k", "-maxrate:v:0", "5350k", "-bufsize:v:0", "7500k",
-            "-b:v:1", "2500k", "-maxrate:v:1", "2675k", "-bufsize:v:1", "3750k",
-            "-b:v:2", "1000k", "-maxrate:v:2", "1070k", "-bufsize:v:2", "1500k",
-            # HLS
-            "-f", "hls",
-            "-segment_list_flags", "+live+append_list",
-            "-hls_time", "5",
-            "-hls_list_size", "10",
-            "-hls_delete_threshold", "5",
-            "-hls_flags", "delete_segments+append_list+program_date_time+omit_endlist+discont_start",
-            "-hls_allow_cache", "0",
-            "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%03d.ts"),
-            "-master_pl_name", "master.m3u8",
-            "-var_stream_map", "v:0,a:0,name:1080p v:1,a:0,name:720p v:2,a:0,name:480p",
-            os.path.join(output_dir, "v%v.m3u8")
         ]
+        
+        if channel_type == "RADIO":
+            # HLS simples para rádio
+            cmd += [
+                 "-f", "hls",
+                 "-hls_time", "6",
+                 "-hls_list_size", "10",
+                 "-hls_flags", "delete_segments+append_list+omit_endlist",
+                 "-hls_segment_filename", os.path.join(output_dir, "seg_%03d.ts"),
+                 os.path.join(output_dir, "master.m3u8")
+            ]
+        else:
+            # HLS Adaptativo para TV
+            cmd += [
+                "-b:v:0", "5000k", "-maxrate:v:0", "5350k", "-bufsize:v:0", "7500k",
+                "-b:v:1", "2500k", "-maxrate:v:1", "2675k", "-bufsize:v:1", "3750k",
+                "-b:v:2", "1000k", "-maxrate:v:2", "1070k", "-bufsize:v:2", "1500k",
+                "-f", "hls",
+                "-segment_list_flags", "+live+append_list",
+                "-hls_time", "5",
+                "-hls_list_size", "10",
+                "-hls_delete_threshold", "5",
+                "-hls_flags", "delete_segments+append_list+program_date_time+omit_endlist+discont_start",
+                "-hls_allow_cache", "0",
+                "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%03d.ts"),
+                "-master_pl_name", "master.m3u8",
+                "-var_stream_map", "v:0,a:0,name:1080p v:1,a:0,name:720p v:2,a:0,name:480p",
+                os.path.join(output_dir, "v%v.m3u8")
+            ]
 
         print(f"[Player] Iniciando FFmpeg para {input_file}...")
         

@@ -387,7 +387,8 @@ class ChannelRuntime:
                     ep.file,
                     self.channel_folder,
                     start_time,
-                    play_duration
+                    play_duration,
+                    channel_type=getattr(self.channel, 'type', 'TV')
                 )
 
                 media_key = getattr(ep, 'id', ep.file)

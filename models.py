@@ -80,6 +80,7 @@ class Channels(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
+    type = Column(String, nullable=False, default="TV")  # "TV" ou "RADIO"
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
