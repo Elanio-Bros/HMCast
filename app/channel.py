@@ -4,9 +4,10 @@ import threading
 import subprocess
 import random
 from datetime import datetime, timezone
-from database import SessionLocal
-from models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
-from player import Player
+from .database import SessionLocal
+from .models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
+from .player import Player
+from .media_utils import MediaUtils
 
 
 class ChannelRuntime:

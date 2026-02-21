@@ -14,11 +14,10 @@ from rich import box
 from rich.align import Align
 from rich.text import Text
 
-from database import engine,SessionLocal
-from models import Base,Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule
-from media_utils import MediaUtils
-from engine import channel_runtimes
-from models import PlaylistItem
+from app.database import engine,SessionLocal
+from app.models import Base,Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule, PlaylistItem
+from app.media_utils import MediaUtils
+from app.engine import channel_runtimes
 
 
 console = Console()

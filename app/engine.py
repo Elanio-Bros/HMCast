@@ -5,12 +5,12 @@ import asyncio
 import shutil
 from fastapi import HTTPException
 
-from database import SessionLocal
-from models import Channels, MediaFolder
-from channel import ChannelRuntime
-from media_utils import MediaUtils
+from .database import SessionLocal
+from .models import Channels, MediaFolder
+from .channel import ChannelRuntime
+from .media_utils import MediaUtils
 
-HLS_BASE = "hls_channels"
+HLS_BASE = "hls"
 os.makedirs(HLS_BASE, exist_ok=True)
 
 # Timeout configurável para aquecimento da playlist (segundos)

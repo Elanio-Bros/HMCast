@@ -3,7 +3,7 @@ import subprocess
 import time
 import shutil
 import signal
-from media_utils import MediaUtils
+from .media_utils import MediaUtils
 
 
 class Player:

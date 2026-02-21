@@ -2,8 +2,8 @@ import os
 import time
 import asyncio
 import atexit
-import engine
-from engine import HLS_BASE, ensure_channel_running, channel_runtimes
+from . import engine
+from .engine import HLS_BASE, ensure_channel_running, channel_runtimes
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 
