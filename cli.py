@@ -23,7 +23,7 @@ from app.service_manager import ServiceManager
 
 console = Console()
 
-class VideoTV_TUI:
+class TUI:
     def __init__(self):
         Base.metadata.create_all(bind=engine)
         
@@ -480,5 +480,5 @@ class VideoTV_TUI:
         console.print("[bold blue]Até logo![/]")
 
 if __name__ == "__main__":
-    tui = VideoTV_TUI()
+    tui = TUI()
     tui.run()
