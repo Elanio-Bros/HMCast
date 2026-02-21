@@ -1,12 +1,11 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
 import os
 import time
 import asyncio
 import atexit
-
 import engine
 from engine import HLS_BASE, ensure_channel_running, channel_runtimes
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse
 
 app = FastAPI()
 
@@ -15,8 +14,9 @@ async def app_startup():
     # Inicia lógica de core da engine em thread separada
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, engine.startup_logic)
-    # Inicia worker de warmup da engine
+    # Inicia workers de background da engine
     asyncio.create_task(engine.background_warmup_worker())
+    asyncio.create_task(engine.background_media_scanner())
 
 @app.on_event("shutdown")
 async def app_shutdown():

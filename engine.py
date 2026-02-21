@@ -6,8 +6,9 @@ import shutil
 from fastapi import HTTPException
 
 from database import SessionLocal
-from models import Channels
+from models import Channels, MediaFolder
 from channel import ChannelRuntime
+from media_utils import MediaUtils
 
 HLS_BASE = "hls_channels"
 os.makedirs(HLS_BASE, exist_ok=True)
@@ -75,6 +76,27 @@ async def background_warmup_worker():
             print(f"[Engine] Erro no warmup worker: {e}")
         finally:
             db.close()
+
+async def background_media_scanner():
+    """Tarefa que escaneia pastas de mídia periodicamente"""
+    scanner = MediaUtils()
+    while True:
+        # Pega intervalo (default 10 min)
+        interval = int(os.getenv("MEDIA_AUTO_SCAN_INTERVAL", "600"))
+        
+        print("[Engine] Iniciando ciclo de Auto-Scan de mídias...")
+        db = SessionLocal()
+        try:
+            folders = db.query(MediaFolder).all()
+            for f in folders:
+                print(f"[Engine] Escaneando: {f.path}")
+                scanner.scan_media_folder(f.path)
+        except Exception as e:
+            print(f"[Engine] Erro no media scanner worker: {e}")
+        finally:
+            db.close()
+            
+        await asyncio.sleep(interval)
 
 def ensure_channel_running(channel_id: int, is_warmup: bool = False) -> ChannelRuntime:
     """Garante que um canal está rodando, iniciando-o se necessário"""

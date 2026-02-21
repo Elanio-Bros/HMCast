@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import socket
+import subprocess
 from datetime import datetime
 from rich.console import Console
 from rich.table import Table
@@ -15,6 +17,9 @@ from rich.text import Text
 from database import engine,SessionLocal
 from models import Base,Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule
 from media_utils import MediaUtils
+from engine import channel_runtimes
+from models import PlaylistItem
+
 
 console = Console()
 
@@ -145,7 +150,6 @@ class VideoTV_TUI:
         p = self.db.get(Playlist, pid)
         if not p: return
 
-        from models import PlaylistItem
         while True:
             self.clear_screen()
             console.print(Panel(Text(f"Gerenciando Itens: {p.name}", style="bold magenta")))
@@ -231,15 +235,17 @@ class VideoTV_TUI:
             console.print("\n[1] 📋 Listar Mídias no Banco")
             console.print("[2] 📂 Gerenciar Pastas de Mídia")
             console.print("[3] ➕ Adicionar Arquivo Manualmente")
-            console.print("[4] 🔍 Escanear Pastas (Global)")
+            console.print("[4] 🌍 Scan Global (Todas as Pastas)")
+            console.print("[5] 🎯 Scan Específico (Escolher Pasta)")
             console.print("[0] 🔙 Voltar")
             
-            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "0"], default="0")
+            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "5", "0"], default="0")
             if opt == "0": break
             if opt == "1": self.list_media_items()
             if opt == "2": self.manage_media_folders()
             if opt == "3": self.add_media_manually()
             if opt == "4": self.scan_media()
+            if opt == "5": self.scan_media(specific=True)
 
     def list_media_items(self):
         items = self.db.query(MediaItem).limit(100).all()
@@ -288,13 +294,35 @@ class VideoTV_TUI:
             f = self.db.get(MediaFolder, fid)
             if f: self.db.delete(f); self.db.commit()
 
-    def scan_media(self):
-        console.print("[bold yellow]Iniciando scan global de mídias...[/]")
-        folders = self.db.query(MediaFolder).all()
-        for f in folders:
-            console.print(f"Lendo: {f.path}")
-            self.scanner.scan_media_folder(f.path)
-        console.print("[bold green]✔ Scan concluído![/]")
+    def scan_media(self, specific=False):
+        if specific:
+            folders = self.db.query(MediaFolder).all()
+            if not folders:
+                console.print("[yellow]Nenhuma pasta cadastrada.[/]")
+                time.sleep(1)
+                return
+            
+            table = Table(title="Selecione a Pasta para Scan")
+            table.add_column("ID")
+            table.add_column("NOME")
+            for f in folders: table.add_row(str(f.id), f.name)
+            console.print(table)
+            
+            fid = IntPrompt.ask("ID da Pasta")
+            folder = self.db.get(MediaFolder, fid)
+            if folder:
+                console.print(f"[bold yellow]Escaneando pasta: {folder.name}...[/]")
+                self.scanner.scan_media_folder(folder.path)
+                console.print("[bold green]✔ Scan concluído![/]")
+            else:
+                console.print("[red]Pasta não encontrada.[/]")
+        else:
+            console.print("[bold yellow]Iniciando scan global de mídias...[/]")
+            folders = self.db.query(MediaFolder).all()
+            for f in folders:
+                console.print(f"Lendo: {f.path}")
+                self.scanner.scan_media_folder(f.path)
+            console.print("[bold green]✔ Scan concluído![/]")
         time.sleep(1.5)
 
     def add_media_manually(self):
@@ -331,7 +359,6 @@ class VideoTV_TUI:
         time.sleep(2)
 
     def system_status(self):
-        from engine import channel_runtimes
         table = Table(title="STATUS DO MOTOR (ENGINE)", box=box.DOUBLE_EDGE)
         table.add_column("CANAL", style="bold")
         table.add_column("STATUS", justify="center")
@@ -346,7 +373,6 @@ class VideoTV_TUI:
         Prompt.ask("\nPressione Enter para voltar")
 
     def is_server_running(self):
-        import socket
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.5)
             # Retorna True se a conexão for bem sucedida (porta aberta)
@@ -388,7 +414,6 @@ class VideoTV_TUI:
                 self.system_status()
 
     def start_api_server(self):
-        import subprocess
         console.print("[bold yellow]Iniciando Servidor API (Uvicorn)...[/]")
         try:
             # Pegamos o valor da flag para evitar erro de lint em ambientes non-windows
@@ -403,7 +428,6 @@ class VideoTV_TUI:
         time.sleep(1.5)
 
     def stop_api_server(self):
-        import subprocess
         if not self.is_server_running():
             console.print("[yellow]ℹ O servidor já parece estar desligado.[/]")
             time.sleep(1)

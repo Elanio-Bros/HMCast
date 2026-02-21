@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 import shutil
+import signal
 from media_utils import MediaUtils
 
 
@@ -203,7 +204,6 @@ class Player:
                 try:
                     # Se Unix e temos grupo de processos, mata o grupo todo
                     if os.name != 'nt':
-                        import signal
                         try:
                             os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
                         except Exception:
@@ -226,7 +226,6 @@ class Player:
                 else:
                     # Reforço para Unix
                     try:
-                        import signal
                         os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
                     except Exception:
                         pass
