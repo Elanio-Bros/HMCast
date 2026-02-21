@@ -134,8 +134,7 @@ class ChannelRuntime:
         if finish and not is_last:
             forbidden.append((
                 media.hms_to_seconds(finish["start"]),
-                (duration if finish['end'] ==
-                 '-00:00:00' else media.hms_to_seconds(finish["end"]))
+                media.hms_to_seconds(finish["end"])
             ))
 
         # --- CUTS ---
@@ -220,14 +219,29 @@ class ChannelRuntime:
                 db.query(PlaylistItem, MediaItem)
                 .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
                 .filter(PlaylistItem.playlist_id == playlist.id)
+                .order_by(PlaylistItem.order.asc())
                 .all()
             )
-        media_items = [media for _, media in items]
-        if playlist.shuffle:
-            # Seed baseada na data atual e ID da playlist para manter ordem fixa no dia
-            seed = f"{datetime.now().date()}_{playlist.id}_{self.channel.id}"
-            random.Random(seed).shuffle(media_items)
-        return media_items
+            
+            # Agrupar por papel
+            openings = []
+            contents = []
+            closings = []
+            
+            for p_item, m_item in items:
+                if p_item.role == "OPENING":
+                    openings.append(m_item)
+                elif p_item.role == "CLOSING":
+                    closings.append(m_item)
+                else:
+                    contents.append(m_item)
+
+            # Shuffle apenas o miolo (CONTEUDO)
+            if playlist.shuffle and contents:
+                seed = f"{datetime.now().date()}_{playlist.id}_{self.channel.id}"
+                random.Random(seed).shuffle(contents)
+
+            return openings + contents + closings
 
     def cleanup_old_segments(self):
         def worker():

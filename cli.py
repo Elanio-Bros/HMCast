@@ -157,12 +157,13 @@ class TUI:
             
             items = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid).order_by(PlaylistItem.order).all()
             table = Table(box=box.SIMPLE)
-            table.add_column("ORDEM", justify="center")
+            table.add_column("PAPEL")
             table.add_column("MÍDIA")
             
             for item in items:
                 media = self.db.get(MediaItem, item.media_id)
-                table.add_row(str(item.order), media.name if media else "N/A")
+                role_style = "cyan" if item.role == "OPENING" else "yellow" if item.role == "CLOSING" else "white"
+                table.add_row(str(item.order), f"[{role_style}]{item.role}[/]", media.name if media else "N/A")
             
             console.print(table)
             console.print("\n[bold cyan][A][/] Adicionar Mídia | [bold red][D][/] Remover | [bold white][V][/] Voltar")
@@ -178,13 +179,15 @@ class TUI:
                 console.print(m_table)
                 mid = IntPrompt.ask("ID da Mídia")
                 order = IntPrompt.ask("Ordem", default=len(items) + 1)
-                new_item = PlaylistItem(playlist_id=pid, media_id=mid, order=order)
+                role = Prompt.ask("Papel", choices=["OPENING", "CONTENT", "CLOSING"], default="CONTENT")
+                new_item = PlaylistItem(playlist_id=pid, media_id=mid, order=order, role=role)
                 self.db.add(new_item)
                 self.db.commit()
             if opt == "d":
                 order = IntPrompt.ask("Ordem do item para remover")
                 item = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid, PlaylistItem.order == order).first()
                 if item: self.db.delete(item); self.db.commit()
+
 
     def list_schedules(self):
         schedules = self.db.query(ChannelSchedule).all()
@@ -259,8 +262,8 @@ class TUI:
             table.add_row(str(i.id), i.name, str(i.duration))
         
         console.print(table)
-        console.print("\n[bold red][D][/] Deletar Item | [bold yellow][E][/] Editar Metadado | [bold white][V][/] Voltar")
-        opt = Prompt.ask("Opção", choices=["d", "e", "v"], default="v").lower()
+        console.print("\n[bold red][D][/] Deletar Item | [bold yellow][E][/] Editar Nome | [bold cyan][M][/] Editar Metadados (Cortes) | [bold white][V][/] Voltar")
+        opt = Prompt.ask("Opção", choices=["d", "e", "m", "v"], default="v").lower()
         if opt == "d":
             mid = IntPrompt.ask("ID para deletar do banco")
             item = self.db.get(MediaItem, mid)
@@ -271,6 +274,55 @@ class TUI:
             if item:
                 item.name = Prompt.ask("Novo Nome", default=item.name)
                 self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
+        elif opt == "m":
+            self.edit_media_metadata()
+
+    def edit_media_metadata(self):
+        mid = IntPrompt.ask("ID da Mídia")
+        item = self.db.get(MediaItem, mid)
+        if not item: return
+
+        skips = item.skips or {}
+        
+        while True:
+            self.clear_screen()
+            console.print(Panel(Text(f"Metadados de Corte: {item.name}", style="bold green")))
+            
+            intro = skips.get("intro", {"start": "00:00:00", "end": "00:00:00"})
+            finish = skips.get("finish", {"start": "-00:00:00", "end": "-00:00:00"})
+            cuts = skips.get("cuts", [])
+            
+            console.print(f"[cyan]1.[/] Pular Abertura (Intro): [yellow]{intro['start']} -> {intro['end']}[/]")
+            console.print(f"[cyan]2.[/] Pular Créditos/Fim (Finish): [yellow]Inicia em {finish['start']}[/]")
+            console.print(f"[cyan]3.[/] Cortes Manuais (Cuts): [yellow]{len(cuts)} cortes configurados[/]")
+            console.print("[cyan]0.[/] Salvar e Voltar")
+
+            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "0"], default="0")
+            if opt == "0":
+                item.skips = skips
+                self.db.commit()
+                break
+            
+            if opt == "1":
+                intro["start"] = Prompt.ask("Início do Pulo (HH:MM:SS)", default=intro["start"])
+                intro["end"] = Prompt.ask("Fim do Pulo (HH:MM:SS)", default=intro["end"])
+                skips["intro"] = intro
+            
+            if opt == "2":
+                finish["start"] = Prompt.ask("Início do Pulo (HH:MM:SS ou -segundos)", default=finish["start"])
+                finish["end"] = "-00:00:00" # Geralmente até o fim
+                skips["finish"] = finish
+                
+            if opt == "3":
+                console.print("\n[1] Adicionar Corte | [2] Limpar Cortes | [0] Voltar")
+                copt = Prompt.ask("Escolha", choices=["1", "2", "0"], default="0")
+                if copt == "1":
+                    c_start = Prompt.ask("Início do Corte (HH:MM:SS)")
+                    c_end = Prompt.ask("Fim do Corte (HH:MM:SS)")
+                    cuts.append({"start": c_start, "end": c_end})
+                    skips["cuts"] = cuts
+                elif copt == "2":
+                    skips["cuts"] = []
 
     def manage_media_folders(self):
         folders = self.db.query(MediaFolder).all()

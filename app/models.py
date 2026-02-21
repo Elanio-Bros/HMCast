@@ -30,37 +30,48 @@ class MediaItem(Base):
     sequence_id = Column(Integer, ForeignKey("media_item.id"), nullable=True)
     skips = Column(JSON, nullable=True)  # { intro:{}, finish:{}, cuts:[] }
 
-    @staticmethod
-    def hms_to_seconds(hms: str) -> float:
+    def hms_to_seconds(self, hms: str) -> float:
         if not hms:
             return 0.0
 
-        if hms.startswith("-"):
-             # Valores negativos (sentinelas) devem ser tratados pela lógica chamadora
-             return 0.0
+        is_negative = False
+        if str(hms).startswith("-"):
+            is_negative = True
+            hms = hms[1:]
 
         hms = hms.replace(',', '.')
-        # Tenta splitar por ':'
-        parts = hms.split(':')
+        parts = str(hms).split(':')
         
         try:
+            val = 0.0
             if len(parts) == 3: # HH:MM:SS
                 h, m, s = parts
-                return int(h) * 3600 + int(m) * 60 + float(s)
+                val = int(h) * 3600 + int(m) * 60 + float(s)
             elif len(parts) == 2: # MM:SS
                 m, s = parts
-                return int(m) * 60 + float(s)
+                val = int(m) * 60 + float(s)
             elif len(parts) == 1: # SS
-                return float(parts[0])
+                val = float(parts[0])
             else:
                 raise ValueError
+            
+            final_val = -val if is_negative else val
+            
+            # Resolução absoluta se for negativo
+            if final_val < 0:
+                return max(0.0, float(self.duration) + final_val)
+            
+            # Caso especial: -00:00:00 significa "fim do arquivo"
+            if is_negative and val == 0:
+                return float(self.duration)
+
+            return final_val
         except (ValueError, TypeError):
-            print(f"[Models] Formato de tempo inválido: {hms}")
             return 0.0
 
     def get_cut_times(self, is_first: bool, is_last: bool):
-        start = 0
-        end = self.duration
+        start = 0.0
+        end = float(self.duration)
 
         skips = self.skips or {}
         intro = skips.get("intro")
@@ -126,3 +137,5 @@ class PlaylistItem(Base):
     id = Column(Integer, primary_key=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
     media_id = Column(Integer, ForeignKey("media_item.id"))
+    order = Column(Integer, default=0)
+    role = Column(String, default="CONTENT")  # "OPENING", "CONTENT", "CLOSING"
