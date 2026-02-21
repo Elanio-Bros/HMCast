@@ -82,6 +82,7 @@ Thumbs.db
 venv/
 env/
 ENV/
+*.env
 
 hls_channels/
 media/
