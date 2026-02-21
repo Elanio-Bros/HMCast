@@ -25,8 +25,8 @@ class ChannelRuntime:
         self.thread = None
         self.stop_signal = False
         self.last_access = 0.0 # 0.0 significa que ainda não houve acesso real (warmup)
-        self.start_time = time.time()  # V7: Marca quando a thread iniciou
-        self.current_schedule_id = None # V7: Track do agendamento atual
+        self.start_time = time.time() 
+        self.current_schedule_id = None
         self.running = False
         self._cleanup_lock = threading.Lock()
         self._cleanup_running = False

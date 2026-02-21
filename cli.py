@@ -12,14 +12,16 @@ from rich import box
 from rich.align import Align
 from rich.text import Text
 
-from database import SessionLocal
-from models import Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule
+from database import engine,SessionLocal
+from models import Base,Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule
 from media_utils import MediaUtils
 
 console = Console()
 
 class VideoTV_TUI:
     def __init__(self):
+        Base.metadata.create_all(bind=engine)
+        
         self.db = SessionLocal()
         self.scanner = MediaUtils()
         self.running = True
@@ -42,8 +44,8 @@ class VideoTV_TUI:
         table.add_row("[1] 📡 Gerenciar Canais")
         table.add_row("[2] 📝 Gerenciar Playlists")
         table.add_row("[3] 📅 Gerenciar Agenda")
-        table.add_row("[4] 📂 Escanear Mídias")
-        table.add_row("[5] 📊 Status do Sistema")
+        table.add_row("[4] 📂 Gerenciar Mídias")
+        table.add_row("[5]  Gerenciar Servidor API")
         table.add_row("[0] 🚪 Sair")
         return Panel(table, title="[bold yellow]MENU PRINCIPAL[/]", border_style="yellow", box=box.ROUNDED)
 
@@ -222,23 +224,110 @@ class VideoTV_TUI:
             s = self.db.get(ChannelSchedule, sid)
             if s: self.db.delete(s); self.db.commit()
 
+    def manage_media(self):
+        while True:
+            self.clear_screen()
+            console.print(Panel(Text("Gestão de Mídias e Conteúdo", style="bold green")))
+            console.print("\n[1] 📋 Listar Mídias no Banco")
+            console.print("[2] 📂 Gerenciar Pastas de Mídia")
+            console.print("[3] ➕ Adicionar Arquivo Manualmente")
+            console.print("[4] 🔍 Escanear Pastas (Global)")
+            console.print("[0] 🔙 Voltar")
+            
+            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "0"], default="0")
+            if opt == "0": break
+            if opt == "1": self.list_media_items()
+            if opt == "2": self.manage_media_folders()
+            if opt == "3": self.add_media_manually()
+            if opt == "4": self.scan_media()
+
+    def list_media_items(self):
+        items = self.db.query(MediaItem).limit(100).all()
+        table = Table(title="ITENS DE MÍDIA (TOP 100)", box=box.SIMPLE)
+        table.add_column("ID")
+        table.add_column("NOME")
+        table.add_column("DURAÇÃO (s)")
+        
+        for i in items:
+            table.add_row(str(i.id), i.name, str(i.duration))
+        
+        console.print(table)
+        console.print("\n[bold red][D][/] Deletar Item | [bold yellow][E][/] Editar Metadado | [bold white][V][/] Voltar")
+        opt = Prompt.ask("Opção", choices=["d", "e", "v"], default="v").lower()
+        if opt == "d":
+            mid = IntPrompt.ask("ID para deletar do banco")
+            item = self.db.get(MediaItem, mid)
+            if item: self.db.delete(item); self.db.commit(); console.print("[red]Removido.[/]"); time.sleep(1)
+        elif opt == "e":
+            mid = IntPrompt.ask("ID para editar")
+            item = self.db.get(MediaItem, mid)
+            if item:
+                item.name = Prompt.ask("Novo Nome", default=item.name)
+                self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
+
+    def manage_media_folders(self):
+        folders = self.db.query(MediaFolder).all()
+        table = Table(title="PASTAS DE MÍDIA")
+        table.add_column("ID")
+        table.add_column("NOME")
+        table.add_column("CAMINHO")
+        
+        for f in folders:
+            table.add_row(str(f.id), f.name, f.path)
+        
+        console.print(table)
+        console.print("\n[bold cyan][A][/] Adicionar | [bold red][D][/] Remover | [bold white][V][/] Voltar")
+        opt = Prompt.ask("Opção", choices=["a", "d", "v"], default="v").lower()
+        if opt == "a":
+            path = Prompt.ask("Caminho da Pasta")
+            if os.path.exists(path):
+                f = MediaFolder(path=path, name=os.path.basename(path))
+                self.db.add(f); self.db.commit()
+        elif opt == "d":
+            fid = IntPrompt.ask("ID para remover")
+            f = self.db.get(MediaFolder, fid)
+            if f: self.db.delete(f); self.db.commit()
+
     def scan_media(self):
         console.print("[bold yellow]Iniciando scan global de mídias...[/]")
         folders = self.db.query(MediaFolder).all()
-        if not folders:
-            console.print("[red]Nenhuma pasta de mídia cadastrada no banco![/]")
-            path = Prompt.ask("Digite o caminho de uma pasta para cadastrar")
-            if os.path.exists(path):
-                f = MediaFolder(path=path, name=os.path.basename(path))
-                self.db.add(f)
-                self.db.commit()
-                folders = [f]
-        
         for f in folders:
             console.print(f"Lendo: {f.path}")
-            self.scanner.scan_media_folder(f.id)
-        
+            self.scanner.scan_media_folder(f.path)
         console.print("[bold green]✔ Scan concluído![/]")
+        time.sleep(1.5)
+
+    def add_media_manually(self):
+        path = Prompt.ask("Caminho do arquivo (Vídeo/Áudio)")
+        if not os.path.exists(path):
+            console.print("[bold red]✘ Arquivo não encontrado![/]")
+            time.sleep(1.5)
+            return
+
+        # Verifica se já existe
+        exists = self.db.query(MediaItem).filter(MediaItem.file == path).first()
+        if exists:
+            console.print(f"[yellow]⚠ Este arquivo já está registrado como ID: {exists.id}[/]")
+            time.sleep(1.5)
+            return
+
+        console.print("[yellow]Analisando metadados...[/]")
+        duration = self.scanner.get_duration(path)
+        if duration <= 0:
+            console.print("[bold red]✘ Não foi possível obter a duração do arquivo.[/]")
+            time.sleep(1.5)
+            return
+
+        name = Prompt.ask("Nome de exibição", default=os.path.basename(path))
+        new_item = MediaItem(
+            name=name,
+            file=path,
+            duration=duration,
+            folder_id=None # Independente de pasta monitorada
+        )
+        self.db.add(new_item)
+        self.db.commit()
+        console.print(f"[bold green]✔ Mídia adicionada com sucesso! (ID: {new_item.id})[/]")
         time.sleep(2)
 
     def system_status(self):
@@ -256,6 +345,84 @@ class VideoTV_TUI:
         console.print(table)
         Prompt.ask("\nPressione Enter para voltar")
 
+    def is_server_running(self):
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            # Retorna True se a conexão for bem sucedida (porta aberta)
+            return s.connect_ex(('localhost', 8000)) == 0
+
+    def manage_api_server(self):
+        while True:
+            self.clear_screen()
+            running = self.is_server_running()
+            status = "[green]ONLINE[/]" if running else "[red]OFFLINE[/]"
+            
+            console.print(Panel(Text(f"Gestão do Servidor API - Status: {status}", style="bold cyan")))
+            console.print("\n[1] 🚀 Iniciar Servidor")
+            console.print("[2] 🛑 Desligar Servidor")
+            console.print("[3] 🔄 Reiniciar")
+            console.print("[4] 📊 Status Detalhado (Engine)")
+            console.print("[0] 🔙 Voltar")
+            
+            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "0"], default="0")
+            
+            if opt == "0": break
+            
+            if opt == "1":
+                if self.is_server_running():
+                    console.print("[yellow]⚠ Servidor já está rodando em http://localhost:8000[/]")
+                    time.sleep(1.5)
+                else:
+                    self.start_api_server()
+            
+            elif opt == "2":
+                self.stop_api_server()
+            
+            elif opt == "3":
+                self.stop_api_server()
+                time.sleep(1)
+                self.start_api_server()
+                
+            elif opt == "4":
+                self.system_status()
+
+    def start_api_server(self):
+        import subprocess
+        console.print("[bold yellow]Iniciando Servidor API (Uvicorn)...[/]")
+        try:
+            # Pegamos o valor da flag para evitar erro de lint em ambientes non-windows
+            CREATE_NEW_CONSOLE = 0x00000010
+            subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"],
+                creationflags=CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+            )
+            console.print("[bold green]✔ Servidor API disparado em uma nova janela![/]")
+        except Exception as e:
+            console.print(f"[bold red]✘ Erro ao iniciar servidor: {e}[/]")
+        time.sleep(1.5)
+
+    def stop_api_server(self):
+        import subprocess
+        if not self.is_server_running():
+            console.print("[yellow]ℹ O servidor já parece estar desligado.[/]")
+            time.sleep(1)
+            return
+
+        console.print("[bold red]Desligando Servidor API...[/]")
+        try:
+            if os.name == 'nt':
+                # No Windows, usamos taskkill buscando pelo uvicorn ou pela porta 8000
+                # O comando abaixo busca o PID da porta 8000 e mata
+                cmd = 'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :8000\') do taskkill /f /pid %a'
+                subprocess.run(cmd, shell=True, capture_output=True)
+            else:
+                subprocess.run(["pkill", "-f", "uvicorn"], capture_output=True)
+            console.print("[bold green]✔ Comando de desligamento enviado![/]")
+        except Exception as e:
+            console.print(f"[bold red]✘ Erro ao desligar: {e}[/]")
+        time.sleep(1.5)
+
     def run(self):
         while self.running:
             self.clear_screen()
@@ -271,9 +438,9 @@ class VideoTV_TUI:
             elif choice == "3":
                 self.list_schedules()
             elif choice == "4":
-                self.scan_media()
+                self.manage_media()
             elif choice == "5":
-                self.system_status()
+                self.manage_api_server()
             elif choice == "0":
                 self.running = False
             

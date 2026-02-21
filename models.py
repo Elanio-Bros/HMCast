@@ -26,7 +26,7 @@ class MediaItem(Base):
     file = Column(String, nullable=False)
     # duração total do arquivo em segundos
     duration = Column(Integer, nullable=False)
-    folder_id = Column(Integer, ForeignKey("media_folders.id"))
+    folder_id = Column(Integer, ForeignKey("media_folders.id"), nullable=True)
     sequence_id = Column(Integer, ForeignKey("media_item.id"), nullable=True)
     skips = Column(JSON, nullable=True)  # { intro:{}, finish:{}, cuts:[] }
 
