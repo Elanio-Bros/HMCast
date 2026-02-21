@@ -2,8 +2,8 @@ import os
 import subprocess
 import shutil
 from typing import Iterable
-from database import SessionLocal
-from models import MediaItem, MediaFolder
+from .database import SessionLocal
+from .models import MediaItem, MediaFolder
 
 
 class MediaUtils:

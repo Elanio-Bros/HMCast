@@ -14,10 +14,11 @@ from rich import box
 from rich.align import Align
 from rich.text import Text
 
-from app.database import engine,SessionLocal
-from app.models import Base,Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule, PlaylistItem
+from app.database import engine, SessionLocal
+from app.models import Base, Channels, Playlist, MediaItem, MediaFolder, ChannelSchedule, PlaylistItem
 from app.media_utils import MediaUtils
 from app.engine import channel_runtimes
+from app.service_manager import ServiceManager
 
 
 console = Console()
@@ -28,6 +29,7 @@ class VideoTV_TUI:
         
         self.db = SessionLocal()
         self.scanner = MediaUtils()
+        self.service = ServiceManager()
         self.running = True
 
     def clear_screen(self):
@@ -372,44 +374,51 @@ class VideoTV_TUI:
         Prompt.ask("\nPressione Enter para voltar")
 
     def is_server_running(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            # Retorna True se a conexão for bem sucedida (porta aberta)
-            return s.connect_ex(('localhost', 8000)) == 0
+        return self.service.is_running()
 
     def manage_api_server(self):
         while True:
             self.clear_screen()
             running = self.is_server_running()
-            status = "[green]ONLINE[/]" if running else "[red]OFFLINE[/]"
+            status = f"[green]{self.service.get_status()}[/]" if running else f"[red]{self.service.get_status()}[/]"
             
             console.print(Panel(Text(f"Gestão do Servidor API - Status: {status}", style="bold cyan")))
-            console.print("\n[1] 🚀 Iniciar Servidor")
+            console.print("\n[1] 🚀 Iniciar Servidor (Background)")
             console.print("[2] 🛑 Desligar Servidor")
             console.print("[3] 🔄 Reiniciar")
-            console.print("[4] 📊 Status Detalhado (Engine)")
+            console.print("[4] 📄 Ver Logs (Últimas 20 linhas)")
+            console.print("[5] 📊 Status Detalhado (Engine)")
             console.print("[0] 🔙 Voltar")
             
-            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "0"], default="0")
+            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "5", "0"], default="0")
             
             if opt == "0": break
             
             if opt == "1":
-                if self.is_server_running():
-                    console.print("[yellow]⚠ Servidor já está rodando em http://localhost:8000[/]")
-                    time.sleep(1.5)
-                else:
-                    self.start_api_server()
+                success, msg = self.service.start_service()
+                if success: console.print(f"[bold green]✔ {msg}[/]")
+                else: console.print(f"[bold yellow]⚠ {msg}[/]")
+                time.sleep(1.5)
             
             elif opt == "2":
-                self.stop_api_server()
+                success, msg = self.service.stop_service()
+                if success: console.print(f"[bold red]✔ {msg}[/]")
+                else: console.print(f"[bold yellow]⚠ {msg}[/]")
+                time.sleep(1.5)
             
             elif opt == "3":
-                self.stop_api_server()
+                self.service.stop_service()
                 time.sleep(1)
-                self.start_api_server()
+                self.service.start_service()
+                console.print("[bold green]✔ Sistema reiniciado.[/]")
+                time.sleep(1.5)
                 
             elif opt == "4":
+                self.clear_screen()
+                console.print(Panel(self.service.get_logs(), title="LOGS DO SERVIDOR", border_style="dim"))
+                Prompt.ask("\nPressione Enter para voltar")
+
+            elif opt == "5":
                 self.system_status()
 
     def start_api_server(self):
