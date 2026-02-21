@@ -1,6 +1,8 @@
 import os
 import time
 import threading
+import subprocess
+import random
 from datetime import datetime, timezone
 from database import SessionLocal
 from models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
@@ -24,6 +26,8 @@ class ChannelRuntime:
         self.stop_signal = False
         self.last_access = time.time()
         self.running = False
+        self._cleanup_lock = threading.Lock()
+        self._cleanup_running = False
 
     def touch(self):
         """Atualiza última atividade"""
@@ -155,10 +159,11 @@ class ChannelRuntime:
     # ---------------- PLAYLIST / MEDIAS ----------------
 
     def get_active_schedule(self):
-        now = datetime.now().astimezone()
-        now_time = now.time()
-        weekday = now.weekday()
-        month_day = now.day
+        # Normaliza 'now' para UTC para comparação robusta
+        now_utc = datetime.now(timezone.utc)
+        now_time = now_utc.astimezone().time()
+        weekday = now_utc.astimezone().weekday()
+        month_day = now_utc.astimezone().day
 
         with SessionLocal() as db:
             schedules = (
@@ -194,80 +199,94 @@ class ChannelRuntime:
                 .all()
             )
         media_items = [media for _, media in items]
-        import random
         if playlist.shuffle:
-            random.shuffle(media_items)
+            # Seed baseada na data atual e ID da playlist para manter ordem fixa no dia
+            seed = f"{datetime.now().date()}_{playlist.id}_{self.channel.id}"
+            random.Random(seed).shuffle(media_items)
         return media_items
 
     def cleanup_old_segments(self):
         def worker():
-            if not os.path.exists(self.channel_folder):
-                return
+            with self._cleanup_lock:
+                if self._cleanup_running:
+                    return
+                self._cleanup_running = True
+            
+            try:
+                if not os.path.exists(self.channel_folder):
+                    return
 
-            # Coleta segmentos referenciados por qualquer playlist .m3u8
-            ts_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".ts")]
-            referenced_ts = set()
-            m3u8_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".m3u8")]
+                # Coleta segmentos referenciados por qualquer playlist .m3u8
+                ts_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".ts")]
+                referenced_ts = set()
+                m3u8_files = [f for f in os.listdir(self.channel_folder) if f.endswith(".m3u8")]
 
-            for file in m3u8_files:
-                try:
-                    with open(os.path.join(self.channel_folder, file), "r", encoding="utf-8") as f:
-                        for line in f:
-                            line = line.strip()
-                            if line.endswith(".ts"):
-                                referenced_ts.add(line)
-                except Exception as e:
-                    print(f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
-
-            # Remove segmentos .ts que não estão mais referenciados
-            for ts in ts_files:
-                if ts not in referenced_ts:
+                for file in m3u8_files:
                     try:
-                        os.remove(os.path.join(self.channel_folder, ts))
-                        print(f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
+                        with open(os.path.join(self.channel_folder, file), "r", encoding="utf-8") as f:
+                            for line in f:
+                                line = line.strip()
+                                if line.endswith(".ts"):
+                                    referenced_ts.add(line)
                     except Exception as e:
-                        print(f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
+                        print(f"[Channel {self.channel.id}] Erro ao ler {file}: {e}")
 
-            # Limpeza de playlists variantes muito antigas (não remove master.m3u8)
-            try:
-                retention = int(os.getenv("CHANNEL_PLAYLIST_RETENTION_SEC", "600"))  # 10 min padrão
-            except Exception:
-                retention = 600
-            now = time.time()
-
-            for file in m3u8_files:
-                if file == "master.m3u8":
-                    continue
-                path = os.path.join(self.channel_folder, file)
-                try:
-                    mtime = os.path.getmtime(path)
-                    # Se a playlist não é atualizada há muito tempo, remover
-                    if now - mtime > retention:
-                        os.remove(path)
-                        print(f"[Channel {self.channel.id}] Removida playlist antiga: {file}")
-                except Exception as e:
-                    print(f"[Channel {self.channel.id}] Erro ao tratar playlist {file}: {e}")
-
-            # SAFETY VALVE: Limite rígido de arquivos .ts para evitar vazamento de disco
-            # Se acumulou muitos arquivos (ex: erro lógica de referência), força exclusão dos mais antigos
-            try:
-                hard_limit = int(os.getenv("CHANNEL_SEGMENT_HARD_LIMIT", "50"))
-                all_ts = [
-                    (os.path.join(self.channel_folder, f), os.path.getmtime(os.path.join(self.channel_folder, f)))
-                    for f in os.listdir(self.channel_folder) if f.endswith(".ts")
-                ]
-                if len(all_ts) > hard_limit:
-                    # Ordena pelos mais antigos
-                    all_ts.sort(key=lambda x: x[1])
-                    excess = len(all_ts) - hard_limit
-                    print(f"[Channel {self.channel.id}] SAFETY VALVE: Removendo {excess} segmentos antigos excedentes.")
-                    for path, _ in all_ts[:excess]:
+                # Remove segmentos .ts que não estão mais referenciados
+                for ts in ts_files:
+                    if ts not in referenced_ts:
                         try:
+                            os.remove(os.path.join(self.channel_folder, ts))
+                            print(f"[Channel {self.channel.id}] Removido segmento antigo: {ts}")
+                        except Exception as e:
+                            print(f"[Channel {self.channel.id}] Erro ao remover {ts}: {e}")
+
+                # Limpeza de playlists variantes muito antigas (não remove master.m3u8)
+                try:
+                    retention_str = os.getenv("CHANNEL_PLAYLIST_RETENTION_SEC", "600")
+                    retention = int(retention_str)
+                except Exception:
+                    retention = 600
+                now = time.time()
+
+                for file in m3u8_files:
+                    if file == "master.m3u8":
+                        continue
+                    path = os.path.join(self.channel_folder, file)
+                    try:
+                        m_time = os.path.getmtime(path)
+                        # Se a playlist não é atualizada há muito tempo, remover
+                        if now - m_time > retention:
                             os.remove(path)
-                        except Exception:
-                            pass
+                            print(f"[Channel {self.channel.id}] Removida playlist antiga: {file}")
+                    except Exception as e:
+                        print(f"[Channel {self.channel.id}] Erro ao tratar playlist {file}: {e}")
+
+                # SAFETY VALVE: Limite rígido de arquivos .ts para evitar vazamento de disco
+                try:
+                    hard_limit_str = os.getenv("CHANNEL_SEGMENT_HARD_LIMIT", "50")
+                    hard_limit = int(hard_limit_str)
+                    all_ts = [
+                        (os.path.join(self.channel_folder, f), os.path.getmtime(os.path.join(self.channel_folder, f)))
+                        for f in os.listdir(self.channel_folder) if f.endswith(".ts")
+                    ]
+                    if len(all_ts) > hard_limit:
+                        # Ordena pelos mais antigos
+                        all_ts.sort(key=lambda x: x[1])
+                        excess = len(all_ts) - hard_limit
+                        print(f"[Channel {self.channel.id}] SAFETY VALVE: Removendo {excess} segmentos antigos excedentes.")
+                        for path, _ in all_ts[:excess]:
+                            try:
+                                os.remove(path)
+                            except Exception:
+                                pass
+                except Exception as e:
+                    print(f"[Channel {self.channel.id}] Erro no Safety Valve: {e}")
+            
             except Exception as e:
-                print(f"[Channel {self.channel.id}] Erro no Safety Valve: {e}")
+                print(f"[Channel {self.channel.id}] Erro crítico no worker de limpeza: {e}")
+            finally:
+                with self._cleanup_lock:
+                    self._cleanup_running = False
 
         threading.Thread(target=worker, daemon=True).start()
     # ---------------- MAIN RUN ----------------
@@ -403,8 +422,37 @@ class ChannelRuntime:
 
                 # Iniciou com sucesso: zera contadores
                 self.retry_counts.pop(media_key, None)
-                self.player.process.wait()
-                # Fecha descritor de log após término do FFmpeg para flush/liberação de handle
+                
+                # MONITOR DE HANG: Loop de espera com check de progresso
+                last_log_size = 0
+                hang_counter = 0
+                max_hang = 12  # 12 * 5s = 60s sem resposta = kill
+                
+                log_path = os.path.join(self.channel_folder, "ffmpeg.log")
+                
+                while not self.stop_signal and self.player.process.poll() is None:
+                    try:
+                        self.player.process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        # Verifica se o log está crescendo
+                        if os.path.exists(log_path):
+                            current_size = os.path.getsize(log_path)
+                            if current_size > last_log_size:
+                                last_log_size = current_size
+                                hang_counter = 0
+                            else:
+                                hang_counter += 1
+                        else:
+                            hang_counter += 1
+                        
+                        if hang_counter >= max_hang:
+                            print(f"[Channel {self.channel.id}] FFmpeg parou de responder (hang); reiniciando...")
+                            self.player.stop()
+                            break
+                    except Exception:
+                        break
+
+                # Limpeza final de descritores neste ciclo
                 try:
                     if self.player.err_fd:
                         self.player.err_fd.close()

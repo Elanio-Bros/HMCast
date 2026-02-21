@@ -36,20 +36,27 @@ class MediaItem(Base):
             return 0.0
 
         if hms.startswith("-"):
-            raise ValueError(
-                f"Sentinel '{hms}' não representa tempo válido. "
-                "Este valor deve ser tratado pela regra de negócio."
-            )
+             # Valores negativos (sentinelas) devem ser tratados pela lógica chamadora
+             return 0.0
 
         hms = hms.replace(',', '.')
-        pattern = r'^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$'
-        match = re.match(pattern, hms)
-
-        if not match:
-            raise ValueError(f"Formato inválido de tempo: {hms}")
-
-        h, m, s = match.groups()
-        return int(h) * 3600 + int(m) * 60 + float(s)
+        # Tenta splitar por ':'
+        parts = hms.split(':')
+        
+        try:
+            if len(parts) == 3: # HH:MM:SS
+                h, m, s = parts
+                return int(h) * 3600 + int(m) * 60 + float(s)
+            elif len(parts) == 2: # MM:SS
+                m, s = parts
+                return int(m) * 60 + float(s)
+            elif len(parts) == 1: # SS
+                return float(parts[0])
+            else:
+                raise ValueError
+        except (ValueError, TypeError):
+            print(f"[Models] Formato de tempo inválido: {hms}")
+            return 0.0
 
     def get_cut_times(self, is_first: bool, is_last: bool):
         start = 0

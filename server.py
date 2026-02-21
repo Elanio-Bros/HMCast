@@ -35,9 +35,17 @@ def ensure_channel_running(channel_id: int) -> ChannelRuntime:
     # Evita condições de corrida ao iniciar canais
     with _channel_lock:
         runtime = channel_runtimes.get(channel_id)
-        if runtime and runtime.thread.is_alive():
+        # Se ja existe e a thread está rodando, só atualiza o acesso
+        if runtime and runtime.thread and runtime.thread.is_alive() and runtime.running:
             runtime.touch()
             return runtime
+
+        # Se existe um "morto", limpa antes de criar novo
+        if runtime:
+            try:
+                runtime.stop()
+            except:
+                pass
 
         db = SessionLocal()
         channel = db.get(Channels, channel_id)
@@ -47,7 +55,6 @@ def ensure_channel_running(channel_id: int) -> ChannelRuntime:
             raise HTTPException(status_code=404, detail="Canal não encontrado")
 
         runtime = ChannelRuntime(channel)
-        # Armazena antes de iniciar para evitar duplicatas em corrida
         channel_runtimes[channel_id] = runtime
         runtime.start()
         return runtime
@@ -145,26 +152,28 @@ async def serve_hls(channel_id: int, filename: str):
             return False
 
         while time.time() - start < PLAYLIST_WARMUP_TIMEOUT:
+            # Check if file exists
             if os.path.exists(file_path):
+                # Se for master, espera qualquer variante
                 if os.path.basename(file_path) == "master.m3u8":
-                    # para master, aguarda qualquer variante pronta
                     if variant_ready():
                         break
                 else:
+                    # Para variantes, checa segmentos ou se processo terminou (clipe curto)
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
                             content = f.read()
-                    except Exception:
-                        content = ""
-
-                    segments = [
-                        line for line in content.splitlines()
-                        if line.endswith(".ts")
-                    ]
-
-                    if len(segments) >= 3:
-                        break
-
+                        segments = [l for l in content.splitlines() if l.endswith(".ts")]
+                        if len(segments) >= 3:
+                            break
+                    except:
+                        pass
+            
+            # Se o player ja encerrou com sucesso, libera o que tiver (vídeo curto)
+            if runtime.player.process and runtime.player.process.poll() is not None:
+                if os.path.exists(file_path):
+                    break
+            
             await asyncio.sleep(0.3)
 
         if not os.path.exists(file_path):
