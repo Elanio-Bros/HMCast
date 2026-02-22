@@ -137,5 +137,5 @@ class PlaylistItem(Base):
     id = Column(Integer, primary_key=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
     media_id = Column(Integer, ForeignKey("media_item.id"))
-    order = Column(Integer, default=0)
+    position = Column(Integer, default=0)
     role = Column(String, default="CONTENT")  # "OPENING", "CONTENT", "CLOSING"

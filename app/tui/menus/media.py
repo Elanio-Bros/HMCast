@@ -1,10 +1,10 @@
+import time
+import os
 from rich.table import Table
 from rich import box
 from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Prompt, IntPrompt
-import time
-import os
 from app.models import MediaItem, MediaFolder
 from app.tui.base import BaseMenu, console
 
@@ -202,7 +202,7 @@ class MediaMenu(BaseMenu):
             return
 
         console.print("[yellow]Analisando metadados...[/]")
-        duration = self.scanner.get_duration(path)
+        duration = self.scanner.get_media_duration(path)
         if duration <= 0:
             console.print("[bold red]✘ Não foi possível obter a duração do arquivo.[/]")
             time.sleep(1.5)

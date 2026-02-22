@@ -1,12 +1,13 @@
-from rich.table import Table
+import time
 import os
+from rich.table import Table
 from rich import box
 from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Prompt
-import time
 from app.engine import channel_runtimes
 from app.tui.base import BaseMenu, console
+from app.migrations import DatabaseMigrator
 
 class ServerMenu(BaseMenu):
     label = "⚙️ Gerenciar Servidor"
@@ -19,18 +20,19 @@ class ServerMenu(BaseMenu):
             status = f"[green]{self.service.get_status()}[/]" if running else f"[red]{self.service.get_status()}[/]"
             
             console.print(Panel(Text(f"Gestão do Servidor - Status: {status}", style="bold cyan")))
-            console.print("\n[1] 🚀 Iniciar Servidor (Background)")
-            console.print("[2] 🛑 Desligar Servidor")
-            console.print("[3] 🔄 Reiniciar")
-            console.print("[4] 📄 Ver Logs (Últimas 20 linhas)")
-            console.print("[5] 📊 Status Detalhado (Engine)")
-            console.print("[6] 🩺 Diagnóstico do Sistema")
-            console.print("[bold white][V][/] 🔙 Voltar")
-            
-            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "5", "6", "v"], default="v").lower()
+            console.print(" [bold cyan][1]🚀 Iniciar Transmissão")
+            console.print(" [bold cyan][2] 🛑 Parar Transmissão")
+            console.print(" [bold cyan][3] 🔄 Reiniciar Transmissão")
+            console.print(" [bold cyan][4] 📄 Ver Logs")
+            console.print(" [bold cyan][5] 📊 Status Detalhado")
+            console.print(" [bold cyan][6] 🩺 Validar Ambiente")
+            console.print(" [bold yellow][7] 🩹 Reparar/Migrar Banco de Dados")
+            console.print(" [bold white][V] Voltar")
+
+            opt = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6", "7", "v"], default="v").lower()
+
             if opt == "v": break
-            
-            if opt == "1":
+            elif opt == "1":
                 success, msg = self.service.start_service()
                 if success: console.print(f"[bold green]✔ {msg}[/]")
                 else: console.print(f"[bold yellow]⚠ {msg}[/]")
@@ -54,6 +56,8 @@ class ServerMenu(BaseMenu):
                 self.system_status()
             elif opt == "6":
                 self.run_system_diagnostics()
+            elif opt == "7":
+                self.run_migration()
 
     def system_status(self):
         table = Table(title="STATUS DO MOTOR (ENGINE)", box=box.DOUBLE_EDGE)
@@ -90,36 +94,15 @@ class ServerMenu(BaseMenu):
         console.print("\n[dim]Ambiente de transmissão validado.[/]")
         Prompt.ask("\nPressione Enter para voltar")
 
-    def start_api_server(self):
-        import sys
-        import subprocess
-        console.print("[bold yellow]Iniciando Servidor API (Uvicorn)...[/]")
+    def run_migration(self):
+        console.print("[bold yellow]Iniciando reparo/migração do banco de dados...[/]")
         try:
-            CREATE_NEW_CONSOLE = 0x00000010
-            subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"],
-                creationflags=CREATE_NEW_CONSOLE if os.name == 'nt' else 0
-            )
-            console.print("[bold green]✔ Servidor API disparado em uma nova janela![/]")
-        except Exception as e:
-            console.print(f"[bold red]✘ Erro ao iniciar servidor: {e}[/]")
-        time.sleep(1.5)
-
-    def stop_api_server(self):
-        import subprocess
-        if not self.service.is_running():
-            console.print("[yellow]ℹ O servidor já parece estar desligado.[/]")
-            time.sleep(1)
-            return
-
-        console.print("[bold red]Desligando Servidor API...[/]")
-        try:
-            if os.name == 'nt':
-                cmd = 'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :8000\') do taskkill /f /pid %a'
-                subprocess.run(cmd, shell=True, capture_output=True)
+            success = DatabaseMigrator.migrate()
+            if success:
+                console.print("[bold green]✔ Banco de dados atualizado com sucesso![/]")
             else:
-                subprocess.run(["pkill", "-f", "uvicorn"], capture_output=True)
-            console.print("[bold green]✔ Comando de desligamento enviado![/]")
+                console.print("[bold red]✘ Ocorreram erros durante a migração. Verifique os logs.[/]")
         except Exception as e:
-            console.print(f"[bold red]✘ Erro ao desligar: {e}[/]")
-        time.sleep(1.5)
+            console.print(f"[bold red]✘ Erro crítico na migração: {e}[/]")
+        
+        Prompt.ask("\nPressione Enter para continuar")

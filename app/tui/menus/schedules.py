@@ -1,8 +1,8 @@
+import time
+from datetime import datetime
 from rich.table import Table
 from rich import box
 from rich.prompt import Prompt, IntPrompt
-import time
-from datetime import datetime
 from app.models import ChannelSchedule, Channels, Playlist
 from app.tui.base import BaseMenu, console
 

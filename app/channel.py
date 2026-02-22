@@ -165,19 +165,32 @@ class ChannelRuntime:
         return sum(end - start for start, end in segments)
 
     def resolve_offset(self, segments, internal_offset):
+        """
+        Retorna a lista de segmentos (start, duration) que devem ser tocados
+        a partir do internal_offset.
+        """
         acc = 0.0
-        for start, end in segments:
+        remaining = []
+        
+        found_start = False
+        for i, (start, end) in enumerate(segments):
             seg_len = end - start
+            
+            if not found_start:
+                if internal_offset < acc + seg_len:
+                    # Este é o segmento onde o offset cai
+                    offset_inside = internal_offset - acc
+                    start_time = start + offset_inside
+                    play_duration = end - start_time
+                    remaining.append((start_time, play_duration))
+                    found_start = True
+                else:
+                    acc += seg_len
+            else:
+                # Todos os segmentos subsequentes são incluídos integralmente
+                remaining.append((start, seg_len))
 
-            if internal_offset < acc + seg_len:
-                offset_inside = internal_offset - acc
-                start_time = start + offset_inside
-                play_duration = end - start_time
-                return start_time, play_duration
-
-            acc += seg_len
-
-        return None, None
+        return remaining if remaining else None
 
     # ---------------- PLAYLIST / MEDIAS ----------------
 
@@ -219,7 +232,7 @@ class ChannelRuntime:
                 db.query(PlaylistItem, MediaItem)
                 .join(MediaItem, MediaItem.id == PlaylistItem.media_id)
                 .filter(PlaylistItem.playlist_id == playlist.id)
-                .order_by(PlaylistItem.order.asc())
+                .order_by(PlaylistItem.position.asc())
                 .all()
             )
             
@@ -411,13 +424,13 @@ class ChannelRuntime:
                 slot = timeline[idx]
                 ep = slot["media"]
 
-                start_time, play_duration = self.resolve_offset(
+                remaining_segments = self.resolve_offset(
                     slot["segments"],
                     internal_offset
                 )
 
-                # Se cálculo falhou ou duração inválida, pula item
-                if start_time is None or play_duration is None or play_duration <= 0:
+                # Se cálculo falhou ou lista vazia, pula item
+                if not remaining_segments:
                     print(f"[Channel {self.channel.id}] Slot inválido; pulando item: {ep.name}")
                     idx = int((idx + 1) % len(timeline))
                     internal_offset = 0
@@ -425,12 +438,11 @@ class ChannelRuntime:
                     continue
 
                 print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
-                print(f"Start: {start_time}s | Duration: {play_duration}s")
+                # print(f"Segmentos: {remaining_segments}")
                 self.player.start(
                     ep.file,
                     self.channel_folder,
-                    start_time,
-                    play_duration,
+                    remaining_segments,
                     channel_type=getattr(self.channel, 'type', 'TV')
                 )
 

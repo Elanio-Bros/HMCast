@@ -1,9 +1,9 @@
+import time
 from rich.table import Table
 from rich import box
 from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Prompt, IntPrompt
-import time
 from app.models import Playlist, MediaItem, PlaylistItem
 from app.tui.base import BaseMenu, console
 
@@ -27,7 +27,8 @@ class PlaylistsMenu(BaseMenu):
             table.add_column("MODO", justify="center")
 
             for p in playlists:
-                table.add_row(str(p.id), p.name, p.shuffle_mode or "SEQUENCIAL")
+                mode_str = "SHUFFLE" if p.shuffle else "SEQUENCIAL"
+                table.add_row(str(p.id), p.name, mode_str)
             
             console.print(table)
             console.print(f"\n[bold cyan][N][/] Próxima | [bold cyan][P][/] Anterior | [bold cyan][G][/] Ir para Pág | [bold cyan][A][/] Criar | [bold yellow][I][/] Itens | [bold yellow][E][/] Editar | [bold red][D][/] Deletar | [bold white][V][/] Voltar")
@@ -60,7 +61,8 @@ class PlaylistsMenu(BaseMenu):
         p = self.db.get(Playlist, pid)
         if p:
             p.name = Prompt.ask("Novo Nome", default=p.name)
-            p.shuffle_mode = Prompt.ask("Modo Shuffle", choices=["SEQUENCIAL", "SHUFFLE"], default=p.shuffle_mode or "SEQUENCIAL")
+            mode = Prompt.ask("Modo Shuffle", choices=["SEQUENCIAL", "SHUFFLE"], default="SHUFFLE" if p.shuffle else "SEQUENCIAL")
+            p.shuffle = (mode == "SHUFFLE")
             self.db.commit(); console.print("[green]Atualizada.[/]"); time.sleep(1)
 
     def delete_playlist(self):
@@ -81,7 +83,7 @@ class PlaylistsMenu(BaseMenu):
             self.clear_screen()
             console.print(Panel(Text(f"Gerenciando Itens: {p.name}", style="bold magenta")))
             
-            items = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid).order_by(PlaylistItem.order).all()
+            items = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid).order_by(PlaylistItem.position).all()
             table = Table(box=box.SIMPLE)
             table.add_column("ORDEM")
             table.add_column("PAPEL")
@@ -90,7 +92,7 @@ class PlaylistsMenu(BaseMenu):
             for item in items:
                 media = self.db.get(MediaItem, item.media_id)
                 role_style = "cyan" if item.role == "OPENING" else "yellow" if item.role == "CLOSING" else "white"
-                table.add_row(str(item.order), f"[{role_style}]{item.role}[/]", media.name if media else "N/A")
+                table.add_row(str(item.position), f"[{role_style}]{item.role}[/]", media.name if media else "N/A")
             
             console.print(table)
             console.print("\n[bold cyan][A][/] Adicionar Mídia | [bold red][D][/] Remover | [bold white][V][/] Voltar")
@@ -130,7 +132,7 @@ class PlaylistsMenu(BaseMenu):
                         if media:
                             order = IntPrompt.ask("Ordem", default=len(items) + 1)
                             role = Prompt.ask("Papel", choices=["OPENING", "CONTENT", "CLOSING"], default="CONTENT")
-                            new_item = PlaylistItem(playlist_id=pid, media_id=mid, order=order, role=role)
+                            new_item = PlaylistItem(playlist_id=pid, media_id=mid, position=order, role=role)
                             self.db.add(new_item)
                             self.db.commit()
                             break
@@ -139,5 +141,5 @@ class PlaylistsMenu(BaseMenu):
                         time.sleep(1)
             if opt == "d":
                 order = IntPrompt.ask("Ordem do item para remover")
-                item = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid, PlaylistItem.order == order).first()
+                item = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid, PlaylistItem.position == order).first()
                 if item: self.db.delete(item); self.db.commit()

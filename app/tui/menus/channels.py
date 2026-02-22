@@ -1,8 +1,8 @@
+import time
 from rich.table import Table
 from rich import box
 from rich.text import Text
 from rich.prompt import Prompt, IntPrompt, Confirm
-import time
 from app.models import Channels
 from app.tui.base import BaseMenu, console
 
