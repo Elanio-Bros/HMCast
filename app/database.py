@@ -1,6 +1,9 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 db_path = os.getenv("DB_PATH", "./data/tv.db")
 DATABASE_URL = f"sqlite:///{db_path}"

@@ -1,6 +1,7 @@
 import os
 import subprocess
 import shutil
+from dotenv import load_dotenv
 from typing import Iterable
 from .database import SessionLocal
 from .models import MediaItem, MediaFolder
@@ -10,9 +11,14 @@ class MediaUtils:
     SUPPORTED_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mp3", ".aac", ".ogg")
 
     def __init__(self):
+        load_dotenv()
         # Usa variáveis de ambiente se definidas; caso contrário, usa binários no PATH do SO
         ffmpeg_env = os.getenv("FFMPEG_BIN")
         ffprobe_env = os.getenv("FFPROBE_BIN")
+
+        # Limpeza de aspas residuais que podem vir do .env
+        if ffmpeg_env: ffmpeg_env = ffmpeg_env.strip("'\"")
+        if ffprobe_env: ffprobe_env = ffprobe_env.strip("'\"")
 
         def resolve(bin_env: str | None, fallback_name: str) -> str:
             if bin_env:
@@ -58,7 +64,11 @@ class MediaUtils:
         subprocess.run([self.ffmpeg] + args, **run_kwargs)
 
     def get_media_duration(self, file_path: str) -> int:
-        try:
+        """
+        Obtém a duração total do arquivo. Tenta primeiro pelo cabeçalho do formato
+        e, se falhar, tenta pela duração do primeiro stream de vídeo/áudio.
+        """
+        def call_ffprobe(entries: str):
             run_kwargs = {
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.PIPE,
@@ -67,18 +77,37 @@ class MediaUtils:
             }
             if os.name == "nt":
                 run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-            result = subprocess.run(
+            
+            res = subprocess.run(
                 [
                     self.ffprobe,
                     "-v", "error",
-                    "-show_entries", "format=duration",
+                    "-show_entries", entries,
                     "-of", "default=noprint_wrappers=1:nokey=1",
                     file_path
                 ],
                 **run_kwargs
             )
-            return int(float(result.stdout.strip()))
-        except Exception:
+            return res.stdout.strip()
+
+        try:
+            # Tenta pela duração do formato (rápido)
+            out = call_ffprobe("format=duration")
+            if out:
+                return int(float(out))
+            
+            # Se falhar, tenta pela duração dos streams (mais lento, mas resolve alguns MKVs)
+            out = call_ffprobe("stream=duration")
+            if out:
+                # Pode retornar várias linhas se houver vários streams, pega a primeira válida
+                durations = [int(float(d)) for d in out.splitlines() if d.replace('.','',1).isdigit()]
+                if durations:
+                    return max(durations)
+            
+            return 0
+        except Exception as e:
+            # Em caso de erro real, não apenas silenciamos
+            # Mas retornamos 0 para manter a lógica do scanner
             return 0
 
     # ======================================================
@@ -182,3 +211,24 @@ class MediaUtils:
             except Exception as e:
                 print(f"[Scanner] Erro fatal no scan: {e}")
                 db.rollback()
+
+    def check_dependencies(self) -> dict:
+        """
+        Verifica se ffmpeg e ffprobe estão instalados e retornam versão.
+        """
+        results = {}
+        for name, exe in [("ffmpeg", self.ffmpeg), ("ffprobe", self.ffprobe)]:
+            try:
+                res = subprocess.run(
+                    [exe, "-version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+                )
+                first_line = res.stdout.splitlines()[0]
+                results[name] = {"ok": True, "version": first_line}
+            except Exception as e:
+                results[name] = {"ok": False, "error": str(e)}
+        return results

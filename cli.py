@@ -4,6 +4,7 @@ import time
 import socket
 import subprocess
 from datetime import datetime
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -22,6 +23,7 @@ from app.service_manager import ServiceManager
 
 
 console = Console()
+load_dotenv()
 
 class TUI:
     def __init__(self):
@@ -51,7 +53,7 @@ class TUI:
         table.add_row("[2] 📝 Gerenciar Playlists")
         table.add_row("[3] 📅 Gerenciar Agenda")
         table.add_row("[4] 📂 Gerenciar Mídias")
-        table.add_row("[5]  Gerenciar Servidor API")
+        table.add_row("[5] ⚙️ Gerenciar Servidor")
         table.add_row("[0] 🚪 Sair")
         return Panel(table, title="[bold yellow]MENU PRINCIPAL[/]", border_style="yellow", box=box.ROUNDED)
 
@@ -428,21 +430,22 @@ class TUI:
     def is_server_running(self):
         return self.service.is_running()
 
-    def manage_api_server(self):
+    def manage_server(self):
         while True:
             self.clear_screen()
             running = self.is_server_running()
             status = f"[green]{self.service.get_status()}[/]" if running else f"[red]{self.service.get_status()}[/]"
             
-            console.print(Panel(Text(f"Gestão do Servidor API - Status: {status}", style="bold cyan")))
+            console.print(Panel(Text(f"Gestão do Servidor - Status: {status}", style="bold cyan")))
             console.print("\n[1] 🚀 Iniciar Servidor (Background)")
             console.print("[2] 🛑 Desligar Servidor")
             console.print("[3] 🔄 Reiniciar")
             console.print("[4] 📄 Ver Logs (Últimas 20 linhas)")
             console.print("[5] 📊 Status Detalhado (Engine)")
+            console.print("[6] 🩺 Diagnóstico do Sistema")
             console.print("[0] 🔙 Voltar")
             
-            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "5", "0"], default="0")
+            opt = Prompt.ask("\nEscolha", choices=["1", "2", "3", "4", "5", "6", "0"], default="0")
             
             if opt == "0": break
             
@@ -472,6 +475,33 @@ class TUI:
 
             elif opt == "5":
                 self.system_status()
+            
+            elif opt == "6":
+                self.run_system_diagnostics()
+
+    def run_system_diagnostics(self):
+        self.clear_screen()
+        console.print(Panel(Text("Diagnóstico do Sistema", style="bold yellow")))
+        console.print("[yellow]Validando dependências...[/]\n")
+        
+        deps = self.scanner.check_dependencies()
+        
+        table = Table(box=box.SIMPLE)
+        table.add_column("COMPONENTE")
+        table.add_column("STATUS")
+        table.add_column("DETALHES")
+        
+        for name, info in deps.items():
+            if info["ok"]:
+                table.add_row(name.upper(), "[bold green]✔ OK[/]", info["version"])
+            else:
+                table.add_row(name.upper(), "[bold red]✘ FALHA[/]", f"[red]{info['error']}[/]")
+        
+        console.print(table)
+        
+        # Futuras validações podem entrar aqui (espaço, banco, etc)
+        console.print("\n[dim]Ambiente de transmissão validado.[/]")
+        Prompt.ask("\nPressione Enter para voltar")
 
     def start_api_server(self):
         console.print("[bold yellow]Iniciando Servidor API (Uvicorn)...[/]")
@@ -508,6 +538,31 @@ class TUI:
         time.sleep(1.5)
 
     def run(self):
+        # 🛡️ Portão de Segurança: Validação de Dependências antes do Loop
+        deps = self.scanner.check_dependencies()
+        all_ok = all(info["ok"] for info in deps.values())
+        
+        if not all_ok:
+            self.clear_screen()
+            console.print(self.make_header())
+            table = Table(title="[bold red]ERRO CRÍTICO DE AMBIENTE[/]", box=box.DOUBLE_EDGE, border_style="red")
+            table.add_column("DEPENDÊNCIA", style="bold")
+            table.add_column("STATUS")
+            table.add_column("DETALHES")
+            
+            for name, info in deps.items():
+                status = "[green]OK[/]" if info["ok"] else "[red]FALHA[/]"
+                err = "" if info["ok"] else info["error"]
+                table.add_row(name.upper(), status, err)
+            
+            console.print(table)
+            console.print("\n[bold yellow]O sistema não pode prosseguir sem estas dependências essenciais.[/]")
+            console.print("[dim]Dica: Verifique se o FFMPEG e FFPROBE estão no PATH ou configurados corretamente no seu arquivo .env[/]\n")
+            
+            # Força o usuário a sair ou tentar novamente (reiniciando a TUI)
+            Prompt.ask("[bold white][0][/] Sair", choices=["0"], default="0")
+            self.running = False
+
         while self.running:
             self.clear_screen()
             console.print(self.make_header())
@@ -524,7 +579,7 @@ class TUI:
             elif choice == "4":
                 self.manage_media()
             elif choice == "5":
-                self.manage_api_server()
+                self.manage_server()
             elif choice == "0":
                 self.running = False
             
