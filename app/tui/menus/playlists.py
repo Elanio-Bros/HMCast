@@ -8,7 +8,7 @@ from app.models import Playlist, MediaItem, PlaylistItem
 from app.tui.base import BaseMenu, console
 
 class PlaylistsMenu(BaseMenu):
-    label = "📝 Gerenciar Playlists"
+    label = "Gerenciar Playlists"
     order = 2
 
     def execute(self):

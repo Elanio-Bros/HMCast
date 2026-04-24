@@ -9,7 +9,7 @@ from app.models import MediaItem, MediaFolder
 from app.tui.base import BaseMenu, console
 
 class MediaMenu(BaseMenu):
-    label = "📂 Gerenciar Mídias"
+    label = "Gerenciar Mídias"
     order = 4
 
     def execute(self):

@@ -7,7 +7,7 @@ from app.models import ChannelSchedule, Channels, Playlist
 from app.tui.base import BaseMenu, console
 
 class SchedulesMenu(BaseMenu):
-    label = "📅 Gerenciar Agenda"
+    label = "Gerenciar Agenda"
     order = 3
 
     def execute(self):

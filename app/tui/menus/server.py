@@ -10,7 +10,7 @@ from app.tui.base import BaseMenu, console
 from app.migrations import DatabaseMigrator
 
 class ServerMenu(BaseMenu):
-    label = "⚙️ Gerenciar Servidor"
+    label = "Gerenciar Servidor"
     order = 5
 
     def execute(self):

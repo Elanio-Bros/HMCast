@@ -7,7 +7,7 @@ from app.models import Channels
 from app.tui.base import BaseMenu, console
 
 class ChannelsMenu(BaseMenu):
-    label = "📡 Gerenciar Canais"
+    label = "Gerenciar Canais"
     order = 1
 
     def execute(self):
