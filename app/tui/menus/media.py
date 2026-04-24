@@ -47,7 +47,8 @@ class MediaMenu(BaseMenu):
             table.add_column("DURAÇÃO (s)")
             
             for i in items:
-                table.add_row(str(i.id), i.name, str(i.duration))
+                status_name = i.name if os.path.exists(i.file) else f"[red]\\[PERDIDO][/] {i.name}"
+                table.add_row(str(i.id), status_name, str(i.duration))
             
             console.print(table)
             console.print(f"\n[bold cyan][N][/] Próxima | [bold cyan][P][/] Anterior | [bold cyan][G][/] Ir para Pág | [bold red][D][/] Deletar | [bold yellow][E][/] Editar Nome | [bold blue][M][/] Metadados | [bold white][V][/] Voltar")
@@ -59,24 +60,32 @@ class MediaMenu(BaseMenu):
             if opt == "n": page = (page + 1) % total_pages
             if opt == "p": page = (page - 1) % total_pages
             if opt == "g":
-                target = IntPrompt.ask(f"Ir para página (1-{total_pages})", default=page+1)
-                if 1 <= target <= total_pages: page = target - 1
+                target = self.prompt_int_or_cancel(f"Ir para página (1-{total_pages})", allow_zero=True)
+                if target is not None and 1 <= target <= total_pages: page = target - 1
             
             if opt == "d":
-                mid = IntPrompt.ask("ID para deletar")
-                item = self.db.get(MediaItem, mid)
-                if item: self.db.delete(item); self.db.commit(); console.print("[red]Removido.[/]"); time.sleep(1)
+                mids_str = Prompt.ask("IDs para deletar (ex: 1,2,5) ou [V] para cancelar", default="v")
+                if mids_str.lower() not in ['v', 'c']:
+                    for m_str in mids_str.split(','):
+                        try:
+                            item = self.db.get(MediaItem, int(m_str.strip()))
+                            if item: self.db.delete(item)
+                        except ValueError: pass
+                    self.db.commit()
+                    console.print("[red]Item(ns) removido(s).[/]"); time.sleep(1)
             elif opt == "e":
-                mid = IntPrompt.ask("ID para editar")
-                item = self.db.get(MediaItem, mid)
-                if item:
-                    item.name = Prompt.ask("Novo Nome", default=item.name)
-                    self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
+                mid = self.prompt_int_or_cancel("ID para editar")
+                if mid is not None:
+                    item = self.db.get(MediaItem, mid)
+                    if item:
+                        item.name = Prompt.ask("Novo Nome", default=item.name)
+                        self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
             elif opt == "m":
                 self.edit_media_metadata()
 
     def edit_media_metadata(self):
-        mid = IntPrompt.ask("ID da Mídia")
+        mid = self.prompt_int_or_cancel("ID da Mídia")
+        if mid is None: return
         item = self.db.get(MediaItem, mid)
         if not item: return
 
@@ -140,22 +149,24 @@ class MediaMenu(BaseMenu):
             
             if opt == "v": break
             if opt == "a":
-                path = Prompt.ask("Caminho da Pasta")
-                if os.path.exists(path):
+                path = self.browse_files(dirs_only=True)
+                if path and os.path.exists(path):
                     name = Prompt.ask("Nome da Pasta", default=os.path.basename(path))
                     f = MediaFolder(path=path, name=name)
                     self.db.add(f); self.db.commit()
             elif opt == "e":
-                fid = IntPrompt.ask("ID para editar")
-                f = self.db.get(MediaFolder, fid)
-                if f:
-                    f.name = Prompt.ask("Novo Nome", default=f.name)
-                    f.path = Prompt.ask("Novo Caminho", default=f.path)
-                    self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
+                fid = self.prompt_int_or_cancel("ID para editar")
+                if fid is not None:
+                    f = self.db.get(MediaFolder, fid)
+                    if f:
+                        f.name = Prompt.ask("Novo Nome", default=f.name)
+                        f.path = Prompt.ask("Novo Caminho", default=f.path)
+                        self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
             elif opt == "d":
-                fid = IntPrompt.ask("ID para remover")
-                f = self.db.get(MediaFolder, fid)
-                if f: self.db.delete(f); self.db.commit()
+                fid = self.prompt_int_or_cancel("ID para remover")
+                if fid is not None:
+                    f = self.db.get(MediaFolder, fid)
+                    if f: self.db.delete(f); self.db.commit()
 
     def scan_media(self, specific=False):
         if specific:
@@ -171,7 +182,8 @@ class MediaMenu(BaseMenu):
             for f in folders: table.add_row(str(f.id), f.name)
             console.print(table)
             
-            fid = IntPrompt.ask("ID da Pasta")
+            fid = self.prompt_int_or_cancel("ID da Pasta")
+            if fid is None: return
             folder = self.db.get(MediaFolder, fid)
             if folder:
                 console.print(f"[bold yellow]Escaneando pasta: {folder.name}...[/]")
@@ -189,8 +201,8 @@ class MediaMenu(BaseMenu):
         time.sleep(1.5)
 
     def add_media_manually(self):
-        path = Prompt.ask("Caminho do arquivo (Vídeo/Áudio)")
-        if not os.path.exists(path):
+        path = self.browse_files()
+        if not path or not os.path.exists(path):
             console.print("[bold red]✘ Arquivo não encontrado![/]")
             time.sleep(1.5)
             return

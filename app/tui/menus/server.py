@@ -27,9 +27,11 @@ class ServerMenu(BaseMenu):
             console.print(" [bold cyan][5] 📊 Status Detalhado")
             console.print(" [bold cyan][6] 🩺 Validar Ambiente")
             console.print(" [bold yellow][7] 🩹 Reparar/Migrar Banco de Dados")
+            console.print(" [bold cyan][8] 📡 Logs ao Vivo (Live Tail)")
+            console.print(" [bold green][9] 💾 Backup do Banco de Dados")
             console.print(" [bold white][V] Voltar")
 
-            opt = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6", "7", "v"], default="v").lower()
+            opt = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "v"], default="v").lower()
 
             if opt == "v": break
             elif opt == "1":
@@ -58,6 +60,10 @@ class ServerMenu(BaseMenu):
                 self.run_system_diagnostics()
             elif opt == "7":
                 self.run_migration()
+            elif opt == "8":
+                self.live_logs()
+            elif opt == "9":
+                self.backup_db()
 
     def system_status(self):
         table = Table(title="STATUS DO MOTOR (ENGINE)", box=box.DOUBLE_EDGE)
@@ -106,3 +112,54 @@ class ServerMenu(BaseMenu):
             console.print(f"[bold red]✘ Erro crítico na migração: {e}[/]")
         
         Prompt.ask("\nPressione Enter para continuar")
+
+    def live_logs(self):
+        self.clear_screen()
+        console.print(Panel(Text("Monitor Live: (Pressione Ctrl+C para sair)", style="bold cyan")))
+        
+        log_file = "video_tv.log"
+        if not os.path.exists(log_file):
+            console.print(f"[yellow]Arquivo de log ({log_file}) não encontrado.[/]")
+            Prompt.ask("\nPressione Enter para voltar")
+            return
+            
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                f.seek(0, os.SEEK_END)
+                while True:
+                    line = f.readline()
+                    if not line:
+                        time.sleep(0.5)
+                        continue
+                    console.print(line.rstrip(), highlight=False)
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            console.print(f"[red]Erro no live log: {e}[/]")
+            time.sleep(2)
+
+    def backup_db(self):
+        import shutil
+        from datetime import datetime
+        
+        self.clear_screen()
+        console.print(Panel(Text("Backup do Banco de Dados SQLite", style="bold green")))
+        
+        db_path = os.getenv("DATABASE_URL", "sqlite:///./video_tv.db")
+        if db_path.startswith("sqlite:///"):
+            db_file = db_path.replace("sqlite:///", "")
+            
+            if not os.path.exists(db_file):
+                console.print(f"[red]Arquivo do banco não encontrado em: {db_file}[/]")
+            else:
+                backup_name = f"backup_videotv_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+                try:
+                    shutil.copy2(db_file, backup_name)
+                    console.print(f"[bold green]✔ Backup concluído com sucesso![/]")
+                    console.print(f"[cyan]Arquivo gerado na raiz: {backup_name}[/]")
+                except Exception as e:
+                    console.print(f"[bold red]✘ Erro ao fazer backup: {e}[/]")
+        else:
+            console.print("[yellow]O banco de dados atual não é um SQLite local reconhecido.[/]")
+            
+        Prompt.ask("\nPressione Enter para voltar")

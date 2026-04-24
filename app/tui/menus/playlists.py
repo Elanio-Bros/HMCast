@@ -40,8 +40,8 @@ class PlaylistsMenu(BaseMenu):
             if opt == "n": page = (page + 1) % total_pages
             if opt == "p": page = (page - 1) % total_pages
             if opt == "g":
-                target = IntPrompt.ask(f"Ir para página (1-{total_pages})", default=page+1)
-                if 1 <= target <= total_pages: page = target - 1
+                target = self.prompt_int_or_cancel(f"Ir para página (1-{total_pages})", allow_zero=True)
+                if target is not None and 1 <= target <= total_pages: page = target - 1
             
             if opt == "a": self.create_playlist()
             elif opt == "i": self.manage_playlist_items()
@@ -57,7 +57,8 @@ class PlaylistsMenu(BaseMenu):
         time.sleep(1)
 
     def edit_playlist(self):
-        pid = IntPrompt.ask("ID da Playlist para editar")
+        pid = self.prompt_int_or_cancel("ID da Playlist para editar")
+        if pid is None: return
         p = self.db.get(Playlist, pid)
         if p:
             p.name = Prompt.ask("Novo Nome", default=p.name)
@@ -66,7 +67,8 @@ class PlaylistsMenu(BaseMenu):
             self.db.commit(); console.print("[green]Atualizada.[/]"); time.sleep(1)
 
     def delete_playlist(self):
-        pid = IntPrompt.ask("ID para deletar")
+        pid = self.prompt_int_or_cancel("ID para deletar")
+        if pid is None: return
         p = self.db.get(Playlist, pid)
         if p: 
             self.db.delete(p)
@@ -75,7 +77,8 @@ class PlaylistsMenu(BaseMenu):
             time.sleep(1)
 
     def manage_playlist_items(self):
-        pid = IntPrompt.ask("ID da Playlist para gerenciar")
+        pid = self.prompt_int_or_cancel("ID da Playlist para gerenciar")
+        if pid is None: return
         p = self.db.get(Playlist, pid)
         if not p: return
 
@@ -95,10 +98,11 @@ class PlaylistsMenu(BaseMenu):
                 table.add_row(str(item.position), f"[{role_style}]{item.role}[/]", media.name if media else "N/A")
             
             console.print(table)
-            console.print("\n[bold cyan][A][/] Adicionar Mídia | [bold red][D][/] Remover | [bold white][V][/] Voltar")
+            console.print("\n[bold cyan][A] Adicionar[/] | [bold blue][M] Adição em Lote[/] | [bold yellow][E] Editar Item[/] | [bold red][D] Remover[/] | [bold white][V] Voltar[/]")
             
-            opt = Prompt.ask("Opção", choices=["a", "d", "v"]).lower()
+            opt = Prompt.ask("Opção", choices=["a", "m", "e", "d", "v"]).lower()
             if opt == "v": break
+            
             if opt == "a":
                 m_page = 0
                 while True:
@@ -118,19 +122,27 @@ class PlaylistsMenu(BaseMenu):
                     console.print(f"\n[bold cyan][N][/] Próxima | [bold cyan][P][/] Anterior | [bold cyan][G][/] Ir para Pág | [bold white][V][/] Voltar")
                     m_opt = Prompt.ask("Escolha o ID da Mídia ou Opção", default="v")
                     
-                    if m_opt.lower() == "v": break
+                    if m_opt.lower() in ["v", "c"]: break
                     if m_opt.lower() == "n": m_page = (m_page + 1) % m_total_pages; continue
                     if m_opt.lower() == "p": m_page = (m_page - 1) % m_total_pages; continue
                     if m_opt.lower() == "g":
-                        m_target = IntPrompt.ask(f"Ir para página (1-{m_total_pages})", default=m_page+1)
-                        if 1 <= m_target <= m_total_pages: m_page = m_target - 1
+                        m_target = self.prompt_int_or_cancel(f"Ir para página (1-{m_total_pages})", allow_zero=True)
+                        if m_target is not None and 1 <= m_target <= m_total_pages: m_page = m_target - 1
                         continue
                     
                     try:
                         mid = int(m_opt)
                         media = self.db.get(MediaItem, mid)
                         if media:
-                            order = IntPrompt.ask("Ordem", default=len(items) + 1)
+                            order = self.prompt_int_or_cancel("Ordem", allow_zero=True)
+                            if order is None: order = len(items) + 1
+                            
+                            exists = self.db.query(PlaylistItem).filter_by(playlist_id=pid, position=order).first()
+                            if exists:
+                                console.print(f"[red]Já existe um item na ordem {order}![/]")
+                                time.sleep(1.5)
+                                continue
+                                
                             role = Prompt.ask("Papel", choices=["OPENING", "CONTENT", "CLOSING"], default="CONTENT")
                             new_item = PlaylistItem(playlist_id=pid, media_id=mid, position=order, role=role)
                             self.db.add(new_item)
@@ -139,7 +151,55 @@ class PlaylistsMenu(BaseMenu):
                     except:
                         console.print("[red]ID inválido.[/]")
                         time.sleep(1)
-            if opt == "d":
-                order = IntPrompt.ask("Ordem do item para remover")
-                item = self.db.query(PlaylistItem).filter(PlaylistItem.playlist_id == pid, PlaylistItem.position == order).first()
-                if item: self.db.delete(item); self.db.commit()
+            
+            elif opt == "m":
+                mids_str = Prompt.ask("IDs das Mídias (ex: 1,3,5) ou V para cancelar", default="v")
+                if mids_str.lower() not in ['v', 'c']:
+                    role = Prompt.ask("Papel para todas", choices=["OPENING", "CONTENT", "CLOSING"], default="CONTENT")
+                    start_order = self.prompt_int_or_cancel("Ordem Inicial (ou Enter para fim)", allow_zero=True)
+                    if start_order is None: start_order = len(items) + 1
+                    
+                    added = 0
+                    current_order = start_order
+                    for m_s in mids_str.split(','):
+                        try:
+                            mid = int(m_s.strip())
+                            if self.db.get(MediaItem, mid):
+                                while self.db.query(PlaylistItem).filter_by(playlist_id=pid, position=current_order).first():
+                                    current_order += 1
+                                    
+                                new_item = PlaylistItem(playlist_id=pid, media_id=mid, position=current_order, role=role)
+                                self.db.add(new_item)
+                                added += 1
+                                current_order += 1
+                        except ValueError: pass
+                    self.db.commit()
+                    console.print(f"[green]{added} item(ns) adicionado(s) em lote.[/]")
+                    time.sleep(1.5)
+            
+            elif opt == "e":
+                order = self.prompt_int_or_cancel("Ordem do item para editar", allow_zero=True)
+                if order is not None:
+                    item = self.db.query(PlaylistItem).filter_by(playlist_id=pid, position=order).first()
+                    if item:
+                        new_order = self.prompt_int_or_cancel("Nova Ordem (V=manter)", allow_zero=True)
+                        if new_order is None: new_order = item.position
+                        
+                        if new_order != item.position:
+                            exists = self.db.query(PlaylistItem).filter_by(playlist_id=pid, position=new_order).first()
+                            if exists:
+                                console.print(f"[red]Ordem {new_order} já está ocupada! Abortando.[/]")
+                                time.sleep(1.5)
+                                continue
+                            item.position = new_order
+                            
+                        item.role = Prompt.ask("Novo Papel", choices=["OPENING", "CONTENT", "CLOSING"], default=item.role)
+                        self.db.commit()
+                        console.print("[green]Item atualizado.[/]")
+                        time.sleep(1.5)
+            
+            elif opt == "d":
+                order = self.prompt_int_or_cancel("Ordem do item para remover", allow_zero=True)
+                if order is not None:
+                    item = self.db.query(PlaylistItem).filter_by(playlist_id=pid, position=order).first()
+                    if item: self.db.delete(item); self.db.commit()
