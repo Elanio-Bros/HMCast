@@ -159,9 +159,25 @@ class MediaMenu(BaseMenu):
                 if fid is not None:
                     f = self.db.get(MediaFolder, fid)
                     if f:
-                        f.name = Prompt.ask("Novo Nome", default=f.name)
-                        f.path = Prompt.ask("Novo Caminho", default=f.path)
-                        self.db.commit(); console.print("[green]Atualizado.[/]"); time.sleep(1)
+                        while True:
+                            self.clear_screen()
+                            console.print(Panel(Text(f"Editando Pasta: {f.name}", style="bold yellow")))
+                            console.print(f"[1] Nome (Atual: {f.name})")
+                            console.print(f"[2] Caminho (Atual: {f.path})")
+                            console.print("[bold green][C][/] Salvar e Sair")
+                            
+                            m_opt = Prompt.ask("Opção", choices=["1", "2", "c", "v"], default="c").lower()
+                            if m_opt in ["c", "v"]:
+                                break
+                            
+                            if m_opt == "1":
+                                f.name = Prompt.ask("Novo Nome", default=f.name)
+                            elif m_opt == "2":
+                                f.path = Prompt.ask("Novo Caminho", default=f.path)
+                                
+                        self.db.commit()
+                        console.print("[bold green]✔ Pasta atualizada![/]")
+                        time.sleep(1)
             elif opt == "d":
                 fid = self.prompt_int_or_cancel("ID para remover")
                 if fid is not None:

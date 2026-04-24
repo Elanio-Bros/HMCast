@@ -19,7 +19,6 @@ from app.service_manager import ServiceManager
 from app.tui.base import console
 from app.tui.menus.channels import ChannelsMenu
 from app.tui.menus.playlists import PlaylistsMenu
-from app.tui.menus.schedules import SchedulesMenu
 from app.tui.menus.media import MediaMenu
 from app.tui.menus.server import ServerMenu
 
@@ -40,7 +39,6 @@ class TUI:
         self.menus = [
             ChannelsMenu(self.db, self.scanner, self.service, self.page_size),
             PlaylistsMenu(self.db, self.scanner, self.service, self.page_size),
-            SchedulesMenu(self.db, self.scanner, self.service, self.page_size),
             MediaMenu(self.db, self.scanner, self.service, self.page_size),
             ServerMenu(self.db, self.scanner, self.service, self.page_size),
         ]

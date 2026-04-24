@@ -20,8 +20,8 @@ class BaseMenu:
     def clear_screen(self):
         os.system('cls' if os.name == 'nt' else 'clear')
 
-    def prompt_int_or_cancel(self, message: str, allow_zero: bool = False):
-        """Pede um inteiro. Retorna None se o usuário teclar V (Voltar) ou C (Cancelar)."""
+    def prompt_int_or_cancel(self, message: str, allow_zero: bool = False, allow_empty: bool = False):
+        """Pede um inteiro. Retorna None se o usuário teclar V (Voltar) ou C (Cancelar). Se allow_empty=True, Enter vazio retorna ''."""
         while True:
             extra = " [bold white][V] Voltar[/]" if allow_zero else " [bold white][0 ou V] Voltar[/]"
             val_str = Prompt.ask(message + extra)
@@ -32,6 +32,8 @@ class BaseMenu:
                 return None
                 
             if not val_str:
+                if allow_empty:
+                    return ""
                 continue
                 
             try:
