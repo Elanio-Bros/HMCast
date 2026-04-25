@@ -1,0 +1,148 @@
+/* Paleta Modern Slate — Dashboard Profissional */
+
+Screen {
+    background: #cbd5e1;
+    color: #1e293b;
+}
+
+/* ══════════════════════════════════
+   Modals (Nav + Motor)
+   ══════════════════════════════════ */
+NavigationModal,
+MotorModal {
+    align: center middle;
+    background: rgba(10, 15, 30, 0.75);
+}
+
+#nav-modal-container {
+    width: 46;
+    height: auto;
+    background: #1e293b;
+    border: round #38bdf8;
+    padding: 1 2;
+}
+
+#nav-modal-title {
+    text-align: center;
+    color: #38bdf8;
+    text-style: bold;
+    margin-bottom: 1;
+    border-bottom: solid #334155;
+}
+
+#nav-option-list,
+#motor-option-list {
+    border: blank;
+    background: transparent;
+    color: #e2e8f0;
+}
+
+#nav-option-list > .option-list--option-highlighted,
+#motor-option-list > .option-list--option-highlighted {
+    background: #334155;
+    color: #38bdf8;
+}
+
+/* ══════════════════════════════════
+   Layout SPA
+   ══════════════════════════════════ */
+#spa-layout {
+    layout: horizontal;
+    height: 100%;
+    width: 100%;
+}
+
+/* ── Mini-Dash (Esquerda) ── */
+#mini-dash {
+    width: 26;
+    height: 100%;
+    background: #1e293b;
+    border-right: solid #334155;
+    padding: 1 2;
+}
+
+.dash-panel {
+    background: transparent;
+    height: auto;
+    margin-bottom: 2;
+    padding-bottom: 1;
+    border-bottom: solid #334155;
+}
+
+.last-panel {
+    border-bottom: none;
+}
+
+.panel-title {
+    color: #38bdf8;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.status-item {
+    color: #94a3b8;
+    margin-bottom: 1;
+}
+
+.metric-row {
+    layout: horizontal;
+    height: 3;
+    margin-bottom: 1;
+}
+
+.metric-label {
+    width: 6;
+    content-align: left middle;
+    color: #94a3b8;
+    text-style: bold;
+}
+
+ProgressBar {
+    height: 1;
+}
+ProgressBar > .progress--bar {
+    color: #38bdf8;
+    background: #38bdf8;
+}
+ProgressBar > .progress--eta { display: none; }
+
+/* ── Workspace (Direita) ── */
+#workspace {
+    width: 1fr;
+    height: 100%;
+    background: #0f172a;
+    padding: 2 3;
+}
+
+#live_logs {
+    height: 1fr;
+    background: #0f172a;
+    border: solid #334155;
+    padding: 1;
+    color: #64748b;
+}
+
+#status-view {
+    padding: 0;
+}
+
+#channels_status {
+    background: #1e293b;
+    border: round #334155;
+    padding: 1 2;
+    height: 1fr;
+    color: #e2e8f0;
+}
+
+#channels-view, #playlists-view, #media-view, #settings-view {
+    height: 100%;
+    align: center middle;
+    background: #1e293b;
+    border: round #334155;
+}
+
+.placeholder-text {
+    color: #334155;
+    text-align: center;
+    text-style: bold;
+}
