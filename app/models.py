@@ -90,9 +90,11 @@ class Channels(Base):
     __tablename__ = "channels"
 
     id = Column(Integer, primary_key=True)
+    identifier = Column(String, unique=True, nullable=True) # Código personalizado (slug)
     name = Column(String, nullable=False)
     type = Column(String, nullable=False, default="TV")  # "TV" ou "RADIO"
     execution_mode = Column(String, nullable=False, default="ON_DEMAND") # "ALWAYS_ON", "ON_DEMAND", "PREDICTIVE"
+    active = Column(Boolean, default=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

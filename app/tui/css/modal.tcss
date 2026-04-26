@@ -1,0 +1,47 @@
+/* ── Estilo de Modais Flutuantes ── */
+
+ModalScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.7); /* Overlay escuro */
+}
+
+#modal-container {
+    width: 60;
+    height: auto;
+    background: $surface;
+    border: ascii $primary;
+    padding: 1 2;
+}
+
+#modal-title {
+    width: 100%;
+    content-align: center middle;
+    text-style: bold;
+    color: $secondary;
+    margin-bottom: 1;
+    border-bottom: ascii $panel;
+}
+
+.input-group {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.input-group Label {
+    color: $text-muted;
+    margin-bottom: 0;
+}
+
+.input-group Input, .input-group Select {
+    border: ascii $panel;
+}
+
+#modal-actions {
+    margin-top: 1;
+    height: 3;
+    align: right middle;
+}
+
+#modal-actions Button {
+    margin-left: 1;
+}

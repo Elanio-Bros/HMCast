@@ -4,12 +4,20 @@ import time
 from datetime import timedelta
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Static
+from textual.widgets import Header, Footer, Static, ContentSwitcher
 from textual.containers import Vertical, Horizontal, VerticalScroll, Grid
+
+# Importamos todas as views isoladas
+from app.tui.views.main_menu import MainMenuView
+from app.tui.views.channels import ChannelsView
+from app.tui.views.channel_detail import ChannelDetailView
 
 
 class HomeScreen(Screen):
-    """Tela inicial com Cabeçalho Fixo e Workspace Dinâmico."""
+    """
+    Tela Principal (Orquestradora).
+    Mantém o Hero Section fixo e gerencia a troca de conteúdo no Workspace.
+    """
     id = "home"
 
     def __init__(self, **kwargs):
@@ -34,57 +42,26 @@ class HomeScreen(Screen):
         # ── CABEÇALHO FIXO (Sempre Visível) ──
         with Vertical(id="hero-section"):
             with Grid(id="system-metrics-grid"):
-                # Linha 1
                 yield Static("STATUS:", classes="m-label")
                 yield Static("OFFLINE", id="status-val", classes="m-val error")
-                
                 yield Static("CPU:", classes="m-label")
                 yield Static("0%", id="cpu-val", classes="m-val")
-                
                 yield Static("NET UP:", classes="m-label")
                 yield Static("0 KB/s", id="net-up-val", classes="m-val")
-
-                # Linha 2
                 yield Static("API URL:", classes="m-label")
                 yield Static("http://localhost:8000", id="api-url-val", classes="m-val")
-                
                 yield Static("MEM:", classes="m-label")
                 yield Static("0%", id="mem-val", classes="m-val")
-
                 yield Static("LOCAL IP:", classes="m-label")
                 yield Static(self.get_local_ip(), id="ip-val", classes="m-val ok")
 
-        # ── WORKSPACE DINÂMICO (Área de conteúdo com scroll e borda) ──
+        # ── WORKSPACE (Container de Navegação) ──
         with VerticalScroll(id="workspace"):
-            with Horizontal(classes="card-row"):
-                with Horizontal(classes="card"):
-                    yield Static("1", classes="card-number")
-                    with Vertical(classes="card-content"):
-                        yield Static("Canais", classes="card-title")
-                        yield Static("Broadcasting", classes="card-subtitle")
-                        yield Static("Visualize e monitore todos os seus canais em tempo real.", classes="card-desc")
-                
-                with Horizontal(classes="card"):
-                    yield Static("2", classes="card-number")
-                    with Vertical(classes="card-content"):
-                        yield Static("Motor de Fluxo", classes="card-title")
-                        yield Static("Service Manager", classes="card-subtitle")
-                        yield Static("Controle o estado dos processos FFmpeg e estabilidade.", classes="card-desc")
-
-            with Horizontal(classes="card-row"):
-                with Horizontal(classes="card"):
-                    yield Static("3", classes="card-number")
-                    with Vertical(classes="card-content"):
-                        yield Static("Playlists", classes="card-title")
-                        yield Static("Content", classes="card-subtitle")
-                        yield Static("Organize seus vídeos e programe sequências automáticas.", classes="card-desc")
-                
-                with Horizontal(classes="card"):
-                    yield Static("4", classes="card-number")
-                    with Vertical(classes="card-content"):
-                        yield Static("Midias", classes="card-title")
-                        yield Static("Storage", classes="card-subtitle")
-                        yield Static("Gerencie seus arquivos de vídeo e metadados.", classes="card-desc")
+            with ContentSwitcher(initial="home-menu"):
+                # Cada conteúdo agora é uma classe externa e independente
+                yield MainMenuView(id="home-menu")
+                yield ChannelsView(id="channels-manager")
+                yield ChannelDetailView(id="channel-detail")
 
         yield Footer()
 
@@ -117,6 +94,20 @@ class HomeScreen(Screen):
             else:
                 status_widget.update("OFFLINE")
                 status_widget.set_classes("m-val error")
-            
-        except Exception as e:
-            self.app.log.error(f"Erro na telemetria: {e}")
+        except Exception:
+            pass
+
+    # ── LOGICA DE NAVEGAÇÃO GLOBAL ──
+
+    def on_button_pressed(self, event) -> None:
+        """Gerencia botões de navegação 'Voltar' presentes em qualquer view."""
+        if event.button.id == "btn-back-home":
+            self.query_one(ContentSwitcher).current = "home-menu"
+        elif event.button.id == "btn-detail-back":
+            self.query_one(ContentSwitcher).current = "channels-manager"
+
+    def switch_to_channel_detail(self, channel_id: int) -> None:
+        """Chamado pela ChannelsView para carregar detalhes."""
+        detail_view = self.query_one("#channel-detail", ChannelDetailView)
+        detail_view.load_channel(channel_id)
+        self.query_one(ContentSwitcher).current = "channel-detail"

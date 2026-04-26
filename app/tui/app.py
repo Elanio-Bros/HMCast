@@ -3,7 +3,7 @@ from textual.theme import Theme
 from app.database import SessionLocal
 from app.media_utils import MediaUtils
 from app.service_manager import ServiceManager
-from app.tui.screens.home import HomeScreen
+from app.tui.views.home import HomeScreen
 
 # ══════════════════════════════════
 # Tema personalizado: "Broadcast"
@@ -29,7 +29,7 @@ class HMCli(App):
     """Aplicativo Textual para gerenciar"""
     
     ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = "css/main.tcss"
+    CSS_PATH = ["css/main.tcss", "css/channels.tcss", "css/modal.tcss"]
     
     BINDINGS = [
         ("v", "pop_screen", "Voltar"),

@@ -1,0 +1,89 @@
+/* ── View de Canais ── */
+
+#channels-view {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+.view-header {
+    height: 3;
+    width: 100%;
+    border-bottom: ascii $panel;
+    margin-bottom: 1;
+    content-align: left middle;
+}
+
+.view-title {
+    color: $secondary;
+    text-style: bold;
+    margin-left: 1;
+}
+
+/* ── Tabela de Canais Estilizada ── */
+#channels-table, #schedules-table {
+    height: 1fr;
+    border: ascii $panel;
+    background: $background;
+    color: $foreground;
+    scrollbar-gutter: stable;
+}
+
+/* Cabeçalho - Centralizado */
+DataTable > .datatable--header {
+    background: $surface;
+    color: $secondary;
+    text-style: bold;
+    text-align: center;
+}
+
+/* Células - Centralizadas */
+DataTable > .datatable--cell {
+    text-align: center;
+    border-right: ascii $panel;
+}
+
+/* ── Detalhes do Canal ── */
+#detail-container {
+    padding: 1 2;
+    background: $surface;
+    margin-bottom: 1;
+    border: ascii $panel;
+}
+
+#detail-info-grid {
+    grid-size: 2;
+    grid-columns: 15 1fr;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#detail-info-grid Label {
+    color: $text-muted;
+    text-style: bold;
+}
+
+#detail-info-grid Static {
+    color: $foreground;
+    background: $background;
+    padding: 0 1;
+}
+
+.section-label {
+    margin: 1 0;
+    color: $primary;
+    text-style: bold;
+}
+
+/* ── Barra de Ações ── */
+.action-bar {
+    height: 3;
+    width: 100%;
+    margin-top: 1;
+    align: right middle; 
+}
+
+.btn-action {
+    margin-left: 1;
+    min-width: 16;
+}
