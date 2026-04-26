@@ -1,5 +1,7 @@
 import psutil
 import socket
+import time
+from datetime import timedelta
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Header, Footer, Static
@@ -7,17 +9,16 @@ from textual.containers import Vertical, Horizontal, VerticalScroll, Grid
 
 
 class HomeScreen(Screen):
-    """Tela inicial — Dashboard com foco em Transmissão."""
+    """Tela inicial com Cabeçalho Fixo e Workspace Dinâmico."""
     id = "home"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Inicializa psutil
         psutil.cpu_percent(interval=None)
         self.last_net_io = psutil.net_io_counters()
+        self.start_time = time.time()
 
     def get_local_ip(self):
-        """Retorna o IP local da máquina."""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -30,31 +31,31 @@ class HomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
 
-        with VerticalScroll(id="main-scroll"):
+        # ── CABEÇALHO FIXO (Sempre Visível) ──
+        with Vertical(id="hero-section"):
+            with Grid(id="system-metrics-grid"):
+                # Linha 1
+                yield Static("STATUS:", classes="m-label")
+                yield Static("OFFLINE", id="status-val", classes="m-val error")
+                
+                yield Static("CPU:", classes="m-label")
+                yield Static("0%", id="cpu-val", classes="m-val")
+                
+                yield Static("NET UP:", classes="m-label")
+                yield Static("0 KB/s", id="net-up-val", classes="m-val")
 
-            # ── Cabeçalho Estendido (Focado em Transmissão) ──
-            with Vertical(id="hero-section"):
-                with Grid(id="system-metrics-grid"):
-                    # Linha 1
-                    yield Static("STATUS:", classes="m-label")
-                    yield Static("INITIALIZING", id="status-val", classes="m-val")
-                    
-                    yield Static("CPU:", classes="m-label")
-                    yield Static("0%", id="cpu-val", classes="m-val")
-                    
-                    yield Static("NET UP:", classes="m-label")
-                    yield Static("0 KB/s", id="net-up-val", classes="m-val")
+                # Linha 2
+                yield Static("API URL:", classes="m-label")
+                yield Static("http://localhost:8000", id="api-url-val", classes="m-val")
+                
+                yield Static("MEM:", classes="m-label")
+                yield Static("0%", id="mem-val", classes="m-val")
 
-                    # Linha 2
-                    yield Static("API URL:", classes="m-label")
-                    yield Static("http://localhost:8000", id="api-url-val", classes="m-val")
-                    
-                    yield Static("MEM:", classes="m-label")
-                    yield Static("0%", id="mem-val", classes="m-val")
+                yield Static("LOCAL IP:", classes="m-label")
+                yield Static(self.get_local_ip(), id="ip-val", classes="m-val ok")
 
-                    yield Static("LOCAL IP:", classes="m-label")
-                    yield Static(self.get_local_ip(), id="ip-val", classes="m-val ok")
-
+        # ── WORKSPACE DINÂMICO (Área de conteúdo com scroll e borda) ──
+        with VerticalScroll(id="workspace"):
             with Horizontal(classes="card-row"):
                 with Horizontal(classes="card"):
                     yield Static("1", classes="card-number")
@@ -88,33 +89,26 @@ class HomeScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Inicia a atualização da telemetria."""
         self.update_metrics()
         self.set_interval(1.0, self.update_metrics)
 
     def format_bytes(self, n):
-        """Formata bytes para KB/s ou MB/s."""
         if n < 1024: return f"{n} B/s"
         elif n < 1024 * 1024: return f"{n/1024:.1f} KB/s"
         else: return f"{n/(1024*1024):.1f} MB/s"
 
     def update_metrics(self) -> None:
-        """Atualiza os valores de CPU, Memória, Rede e Status do Serviço."""
         try:
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory().percent
-            
-            # Rede
             new_net_io = psutil.net_io_counters()
             sent_delta = new_net_io.bytes_sent - self.last_net_io.bytes_sent
             self.last_net_io = new_net_io
             
-            # Atualiza widgets
             self.query_one("#cpu-val", Static).update(f"{cpu}%")
             self.query_one("#mem-val", Static).update(f"{mem}%")
             self.query_one("#net-up-val", Static).update(self.format_bytes(sent_delta))
             
-            # Status do Serviço Real
             service = self.app.service
             status_widget = self.query_one("#status-val", Static)
             if service.is_running():
