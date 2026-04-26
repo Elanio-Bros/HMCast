@@ -1,116 +1,128 @@
+import psutil
+import socket
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Static, Label, RichLog, ProgressBar, ContentSwitcher
-from textual.containers import Vertical, Horizontal
-from app.engine import channel_runtimes
-import psutil
+from textual.widgets import Header, Footer, Static
+from textual.containers import Vertical, Horizontal, VerticalScroll, Grid
+
 
 class HomeScreen(Screen):
-    """Single-Page Application (SPA) Mestre."""
+    """Tela inicial — Dashboard com foco em Transmissão."""
     id = "home"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Inicializa psutil
+        psutil.cpu_percent(interval=None)
+        self.last_net_io = psutil.net_io_counters()
+
+    def get_local_ip(self):
+        """Retorna o IP local da máquina."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "127.0.0.1"
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        
-        with Horizontal(id="spa-layout"):
-            
-            # Coluna Esquerda: Mini-Dash Persistente
-            with Vertical(id="mini-dash"):
-                
-                with Vertical(classes="dash-panel"):
-                    yield Static("SYSTEM STATUS", classes="panel-title")
-                    yield Label("Env: Buscando...", id="lbl_env", classes="status-item")
-                    yield Label("Motor: Buscando...", id="lbl_status", classes="status-item")
-                
-                with Vertical(classes="dash-panel"):
-                    yield Static("HARDWARE", classes="panel-title")
-                    with Horizontal(classes="metric-row"):
-                        yield Label("CPU", classes="metric-label")
-                        yield ProgressBar(total=100, show_eta=False, id="pb_cpu")
-                    
-                    with Horizontal(classes="metric-row"):
-                        yield Label("RAM", classes="metric-label")
-                        yield ProgressBar(total=100, show_eta=False, id="pb_ram")
-                        
-                with Vertical(classes="dash-panel last-panel"):
-                    yield Static("LIVE TELEMETRY", classes="panel-title")
-                    yield RichLog(id="live_logs", highlight=True, markup=True)
 
-            # Coluna Direita: Workspace dinâmico
-            with Vertical(id="workspace"):
-                with ContentSwitcher(initial="status-view", id="main-switcher"):
+        with VerticalScroll(id="main-scroll"):
+
+            # ── Cabeçalho Estendido (Focado em Transmissão) ──
+            with Vertical(id="hero-section"):
+                with Grid(id="system-metrics-grid"):
+                    # Linha 1
+                    yield Static("STATUS:", classes="m-label")
+                    yield Static("INITIALIZING", id="status-val", classes="m-val")
                     
-                    # Aba 1: Dashboard de Canais (Status)
-                    with Vertical(id="status-view"):
-                        yield Static("MOTORES DE TRANSMISSÃO ATIVOS", classes="panel-title")
-                        yield Static("Buscando informações dos canais...", id="channels_status", markup=True)
-                        
-                    # Aba 2: Canais
-                    with Vertical(id="channels-view"):
-                        yield Static("Painel de Canais carregará aqui...", classes="placeholder-text")
-                        
-                    # Aba 3: Playlists
-                    with Vertical(id="playlists-view"):
-                        yield Static("Gerenciador de Playlists carregará aqui...", classes="placeholder-text")
-                        
-                    # Aba 4: Mídias
-                    with Vertical(id="media-view"):
-                        yield Static("Gerenciador de Mídias carregará aqui...", classes="placeholder-text")
-                        
-                    # Aba 5: Configurações
-                    with Vertical(id="settings-view"):
-                        yield Static("Painel de Configurações carregará aqui...", classes="placeholder-text")
-                        
+                    yield Static("CPU:", classes="m-label")
+                    yield Static("0%", id="cpu-val", classes="m-val")
+                    
+                    yield Static("NET UP:", classes="m-label")
+                    yield Static("0 KB/s", id="net-up-val", classes="m-val")
+
+                    # Linha 2
+                    yield Static("API URL:", classes="m-label")
+                    yield Static("http://localhost:8000", id="api-url-val", classes="m-val")
+                    
+                    yield Static("MEM:", classes="m-label")
+                    yield Static("0%", id="mem-val", classes="m-val")
+
+                    yield Static("LOCAL IP:", classes="m-label")
+                    yield Static(self.get_local_ip(), id="ip-val", classes="m-val ok")
+
+            with Horizontal(classes="card-row"):
+                with Horizontal(classes="card"):
+                    yield Static("1", classes="card-number")
+                    with Vertical(classes="card-content"):
+                        yield Static("Canais", classes="card-title")
+                        yield Static("Broadcasting", classes="card-subtitle")
+                        yield Static("Visualize e monitore todos os seus canais em tempo real.", classes="card-desc")
+                
+                with Horizontal(classes="card"):
+                    yield Static("2", classes="card-number")
+                    with Vertical(classes="card-content"):
+                        yield Static("Motor de Fluxo", classes="card-title")
+                        yield Static("Service Manager", classes="card-subtitle")
+                        yield Static("Controle o estado dos processos FFmpeg e estabilidade.", classes="card-desc")
+
+            with Horizontal(classes="card-row"):
+                with Horizontal(classes="card"):
+                    yield Static("3", classes="card-number")
+                    with Vertical(classes="card-content"):
+                        yield Static("Playlists", classes="card-title")
+                        yield Static("Content", classes="card-subtitle")
+                        yield Static("Organize seus vídeos e programe sequências automáticas.", classes="card-desc")
+                
+                with Horizontal(classes="card"):
+                    yield Static("4", classes="card-number")
+                    with Vertical(classes="card-content"):
+                        yield Static("Midias", classes="card-title")
+                        yield Static("Storage", classes="card-subtitle")
+                        yield Static("Gerencie seus arquivos de vídeo e metadados.", classes="card-desc")
+
         yield Footer()
 
     def on_mount(self) -> None:
-        self.update_telemetry()
-        self.set_interval(2.0, self.update_telemetry)
-        self.validate_environment()
+        """Inicia a atualização da telemetria."""
+        self.update_metrics()
+        self.set_interval(1.0, self.update_metrics)
 
-    def validate_environment(self) -> None:
+    def format_bytes(self, n):
+        """Formata bytes para KB/s ou MB/s."""
+        if n < 1024: return f"{n} B/s"
+        elif n < 1024 * 1024: return f"{n/1024:.1f} KB/s"
+        else: return f"{n/(1024*1024):.1f} MB/s"
+
+    def update_metrics(self) -> None:
+        """Atualiza os valores de CPU, Memória, Rede e Status do Serviço."""
         try:
-            deps = self.app.scanner.check_dependencies()
-            all_ok = all(info.get("ok", False) for info in deps.values())
-            lbl_env = self.query_one("#lbl_env", Label)
-            if all_ok:
-                lbl_env.update("Env: [bold #10b981]Validado[/]")
+            cpu = psutil.cpu_percent()
+            mem = psutil.virtual_memory().percent
+            
+            # Rede
+            new_net_io = psutil.net_io_counters()
+            sent_delta = new_net_io.bytes_sent - self.last_net_io.bytes_sent
+            self.last_net_io = new_net_io
+            
+            # Atualiza widgets
+            self.query_one("#cpu-val", Static).update(f"{cpu}%")
+            self.query_one("#mem-val", Static).update(f"{mem}%")
+            self.query_one("#net-up-val", Static).update(self.format_bytes(sent_delta))
+            
+            # Status do Serviço Real
+            service = self.app.service
+            status_widget = self.query_one("#status-val", Static)
+            if service.is_running():
+                status_widget.update("ONLINE")
+                status_widget.set_classes("m-val ok")
             else:
-                lbl_env.update("Env: [bold #ef4444]Faltam Deps[/]")
-        except Exception:
-            self.query_one("#lbl_env", Label).update("Env: [bold #f59e0b]Alerta[/]")
-
-    def update_telemetry(self) -> None:
-        cpu = psutil.cpu_percent()
-        ram = psutil.virtual_memory().percent
-        self.query_one("#pb_cpu", ProgressBar).update(progress=cpu)
-        self.query_one("#pb_ram", ProgressBar).update(progress=ram)
-        
-        service = self.app.service
-        is_running = service.is_running()
-        lbl_status = self.query_one("#lbl_status", Label)
-        if is_running:
-            lbl_status.update(f"Motor: [bold #10b981]Online[/]")
-        else:
-            lbl_status.update(f"Motor: [bold #ef4444]Offline[/]")
-
-        channels_str = ""
-        if not channel_runtimes:
-            channels_str = "[#64748b]Nenhum processo ativo.[/]"
-        else:
-            for cid, runtime in channel_runtimes.items():
-                status = "[#10b981]ON[/]" if runtime.running else "[#ef4444]OFF[/]"
-                channels_str += f"📺 Canal {cid} ➜ {status}\n"
-        self.query_one("#channels_status", Static).update(channels_str)
-
-        log_widget = self.query_one("#live_logs", RichLog)
-        try:
-            recent_logs = service.get_logs(lines=25)
-            log_widget.clear()
-            if recent_logs:
-                log_widget.write(recent_logs)
-            else:
-                log_widget.write("[#64748b]Aguardando eventos...[/]")
-        except Exception:
-            log_widget.clear()
-            log_widget.write("[bold #ef4444]SYSTEM FAULT: Falha ao ler logs.[/]")
+                status_widget.update("OFFLINE")
+                status_widget.set_classes("m-val error")
+            
+        except Exception as e:
+            self.app.log.error(f"Erro na telemetria: {e}")

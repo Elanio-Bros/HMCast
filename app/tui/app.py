@@ -1,26 +1,37 @@
 from textual.app import App
+from textual.theme import Theme
 from app.database import SessionLocal
 from app.media_utils import MediaUtils
 from app.service_manager import ServiceManager
 from app.tui.screens.home import HomeScreen
 
-from textual.screen import Screen
-from textual.widgets import Header, Footer, Static
+# ══════════════════════════════════
+# Tema personalizado: "Broadcast"
+# Inspirado em dashboards de monitoramento de TV
+# ══════════════════════════════════
+BROADCAST_THEME = Theme(
+    name="broadcast",
+    primary="#a1a1aa",       # Zinc 400 — cinza neutro para destaques
+    secondary="#10b981",     # Emerald — status positivo
+    accent="#71717a",        # Zinc 500 — acentos discretos
+    warning="#f59e0b",
+    error="#ef4444",
+    success="#10b981",
+    foreground="#e4e4e7",    # Zinc 200 — texto claro
+    background="#18181b",    # Zinc 900 — fundo base escuro
+    surface="#27272a",       # Zinc 800 — painéis
+    panel="#3f3f46",         # Zinc 700 — bordas e divisores
+    dark=True,
+)
 
-class DummyChannelsScreen(Screen):
-    def compose(self):
-        yield Header(show_clock=True)
-        yield Static("Tela de Canais em construção...")
-        yield Footer()
 
-class VideoTVApp(App):
-    """Aplicativo Textual para gerenciar o Video TV."""
+class HMCli(App):
+    """Aplicativo Textual para gerenciar"""
     
     ENABLE_COMMAND_PALETTE = False
     CSS_PATH = "css/main.tcss"
     
     BINDINGS = [
-        ("m", "open_menu", "Menu"),
         ("v", "pop_screen", "Voltar"),
         ("escape", "pop_screen", "Voltar"),
         ("q", "quit", "Sair"),
@@ -28,45 +39,21 @@ class VideoTVApp(App):
     
     SCREENS = {
         "home": HomeScreen,
-        "channels": DummyChannelsScreen,
     }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Injeção de dependência na raiz do App (acessível por qualquer Screen via self.app)
         self.db = SessionLocal()
         self.scanner = MediaUtils()
         self.service = ServiceManager()
 
     def on_mount(self) -> None:
-        self.title = "Video TV"
+        self.register_theme(BROADCAST_THEME)
+        self.theme = "broadcast"
+        self.title = "HMC"
+        self.sub_title = "Media Transmission System"
         self.push_screen("home")
 
     def action_pop_screen(self) -> None:
         if len(self.screen_stack) > 2:
             self.pop_screen()
-
-    def action_open_menu(self) -> None:
-        from app.tui.modals.nav_modal import NavigationModal
-        
-        def handle_nav(view_name: str | None) -> None:
-            if view_name == "__motor__":
-                from app.tui.modals.motor_modal import MotorModal
-                
-                def after_motor(result: str | None) -> None:
-                    if result == "__back__":
-                        # Volta para o NavigationModal (reabrir)
-                        self.call_after_refresh(self.action_open_menu)
-                
-                self.call_after_refresh(lambda: self.push_screen(MotorModal(), after_motor))
-                return
-            if view_name:
-                from textual.widgets import ContentSwitcher
-                try:
-                    # Switch view on the ContentSwitcher
-                    switcher = self.screen.query_one("#main-switcher", ContentSwitcher)
-                    switcher.current = view_name
-                except Exception:
-                    pass
-                        
-        self.push_screen(NavigationModal(), handle_nav)

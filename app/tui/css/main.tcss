@@ -1,148 +1,123 @@
-/* Paleta Modern Slate — Dashboard Profissional */
-
 Screen {
-    background: #cbd5e1;
-    color: #1e293b;
+    background: $background;
+    color: $foreground;
 }
 
-/* ══════════════════════════════════
-   Modals (Nav + Motor)
-   ══════════════════════════════════ */
-NavigationModal,
-MotorModal {
-    align: center middle;
-    background: rgba(10, 15, 30, 0.75);
+#main-scroll {
+    padding: 1 4;
 }
 
-#nav-modal-container {
-    width: 46;
+/* ── Hero Section ── */
+#hero-section {
     height: auto;
-    background: #1e293b;
-    border: round #38bdf8;
-    padding: 1 2;
-}
-
-#nav-modal-title {
-    text-align: center;
-    color: #38bdf8;
-    text-style: bold;
-    margin-bottom: 1;
-    border-bottom: solid #334155;
-}
-
-#nav-option-list,
-#motor-option-list {
-    border: blank;
-    background: transparent;
-    color: #e2e8f0;
-}
-
-#nav-option-list > .option-list--option-highlighted,
-#motor-option-list > .option-list--option-highlighted {
-    background: #334155;
-    color: #38bdf8;
-}
-
-/* ══════════════════════════════════
-   Layout SPA
-   ══════════════════════════════════ */
-#spa-layout {
-    layout: horizontal;
-    height: 100%;
     width: 100%;
+    background: $surface; 
+    margin: 1 0 2 0;     
+    padding: 1 3;
+    border: ascii $panel;
 }
 
-/* ── Mini-Dash (Esquerda) ── */
-#mini-dash {
-    width: 26;
-    height: 100%;
-    background: #1e293b;
-    border-right: solid #334155;
-    padding: 1 2;
-}
-
-.dash-panel {
-    background: transparent;
-    height: auto;
-    margin-bottom: 2;
-    padding-bottom: 1;
-    border-bottom: solid #334155;
-}
-
-.last-panel {
-    border-bottom: none;
-}
-
-.panel-title {
-    color: #38bdf8;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-.status-item {
-    color: #94a3b8;
-    margin-bottom: 1;
-}
-
-.metric-row {
-    layout: horizontal;
-    height: 3;
-    margin-bottom: 1;
-}
-
-.metric-label {
-    width: 6;
-    content-align: left middle;
-    color: #94a3b8;
-    text-style: bold;
-}
-
-ProgressBar {
+#hero-banner {
     height: 1;
-}
-ProgressBar > .progress--bar {
-    color: #38bdf8;
-    background: #38bdf8;
-}
-ProgressBar > .progress--eta { display: none; }
-
-/* ── Workspace (Direita) ── */
-#workspace {
-    width: 1fr;
-    height: 100%;
-    background: #0f172a;
-    padding: 2 3;
+    width: 100%;
+    margin-bottom: 1;
 }
 
-#live_logs {
-    height: 1fr;
-    background: #0f172a;
-    border: solid #334155;
-    padding: 1;
-    color: #64748b;
-}
-
-#status-view {
-    padding: 0;
-}
-
-#channels_status {
-    background: #1e293b;
-    border: round #334155;
-    padding: 1 2;
-    height: 1fr;
-    color: #e2e8f0;
-}
-
-#channels-view, #playlists-view, #media-view, #settings-view {
-    height: 100%;
-    align: center middle;
-    background: #1e293b;
-    border: round #334155;
-}
-
-.placeholder-text {
-    color: #334155;
-    text-align: center;
+#hero-title {
+    width: 100%;
+    color: $secondary;
     text-style: bold;
+}
+
+/* ── System Metrics Grid (Tabela NOC) ── */
+#system-metrics-grid {
+    height: auto;
+    grid-size: 6 2; /* 6 colunas (3 métricas por linha) */
+    grid-columns: 10 1fr 10 1fr 10 1fr;
+    grid-rows: 1 1;
+    margin-top: 1;
+    background: transparent;
+}
+
+.m-label {
+    color: $text-muted;
+    text-style: bold;
+}
+
+.m-val {
+    color: $foreground;
+}
+
+.m-val.ok {
+    color: $secondary;
+    text-style: bold;
+}
+
+.m-val.warning {
+    color: $warning;
+    text-style: bold;
+}
+
+.m-val.error {
+    color: $error;
+    text-style: bold;
+}
+
+/* ── Section Labels ── */
+.section-label {
+    margin: 1 0 1 0;
+    color: $primary;
+    text-style: bold;
+}
+
+/* ── Card Grid System ── */
+.card-row {
+    height: auto;
+    width: 100%;
+    margin-bottom: 1;
+}
+
+.card {
+    width: 1fr;
+    height: auto;
+    background: $surface;
+    border: ascii $panel;
+    margin: 0 1;
+    padding: 1 2;
+}
+
+.card:hover {
+    border: ascii $primary;
+    background: $primary 5%;
+}
+
+.card-number {
+    width: 5;
+    height: 100%;
+    color: $secondary;
+    text-style: bold;
+    content-align: center top;
+    margin-right: 2;
+    border-right: ascii $panel;
+}
+
+.card-content {
+    width: 1fr;
+    height: auto;
+}
+
+.card-title {
+    color: $foreground;
+    text-style: bold;
+}
+
+.card-subtitle {
+    color: $secondary;
+    text-style: italic;
+    opacity: 0.8;
+}
+
+.card-desc {
+    color: $text-muted;
+    margin-top: 1;
 }
