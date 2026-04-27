@@ -55,9 +55,19 @@ class MainMenuView(VerticalScroll):
         if not widget: return
         target = widget
         while target:
-            if hasattr(target, "id") and target.id == "card-channels":
-                self.app.screen.query_one("ContentSwitcher").current = "channels-manager"
-                break
+            if hasattr(target, "id"):
+                if target.id == "card-channels":
+                    self.app.screen.query_one("ContentSwitcher").current = "channels-manager"
+                    break
+                elif target.id == "card-playlists":
+                    self.app.screen.query_one("ContentSwitcher").current = "playlists-manager"
+                    break
+                elif target.id == "card-media":
+                    # self.app.screen.query_one("ContentSwitcher").current = "media-manager"
+                    break
+                elif target.id == "card-motor":
+                    # self.app.screen.query_one("ContentSwitcher").current = "motor-manager"
+                    break
             target = target.parent
 
     def is_descendant_of(self, widget, target_id):

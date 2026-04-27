@@ -11,6 +11,8 @@ from textual.containers import Vertical, Horizontal, VerticalScroll, Grid
 from app.tui.views.main_menu import MainMenuView
 from app.tui.views.channels import ChannelsView
 from app.tui.views.channel_detail import ChannelDetailView
+from app.tui.views.playlists import PlaylistsView
+from app.tui.views.playlist_detail import PlaylistDetailView
 
 
 class HomeScreen(Screen):
@@ -61,6 +63,8 @@ class HomeScreen(Screen):
                 yield MainMenuView(id="home-menu")
                 yield ChannelsView(id="channels-manager")
                 yield ChannelDetailView(id="channel-detail")
+                yield PlaylistsView(id="playlists-manager")
+                yield PlaylistDetailView(id="playlist-detail")
 
         yield Footer()
 
@@ -99,10 +103,3 @@ class HomeScreen(Screen):
     def on_button_pressed(self, event) -> None:
         if event.button.id == "btn-back-home":
             self.query_one(ContentSwitcher).current = "home-menu"
-        elif event.button.id == "btn-detail-back":
-            self.query_one(ContentSwitcher).current = "channels-manager"
-
-    def switch_to_channel_detail(self, channel_id: int) -> None:
-        detail_view = self.query_one("#channel-detail", ChannelDetailView)
-        detail_view.load_channel(channel_id)
-        self.query_one(ContentSwitcher).current = "channel-detail"

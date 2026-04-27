@@ -58,7 +58,14 @@ class PlaylistsView(Vertical):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Abre detalhes ao pressionar ENTER ou clicar duas vezes."""
-        self.open_detail(int(event.row_key.value))
+        playlist_id = int(event.row_key.value)
+        from app.tui.views.playlist_detail import PlaylistDetailView
+        from textual.widgets import ContentSwitcher
+        
+        switcher = self.app.screen.query_one(ContentSwitcher)
+        detail_view = self.app.screen.query_one("#playlist-detail", PlaylistDetailView)
+        detail_view.load_playlist(playlist_id)
+        switcher.current = "playlist-detail"
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back-home":
@@ -70,20 +77,17 @@ class PlaylistsView(Vertical):
         elif event.button.id == "btn-delete-playlist":
             self.action_delete_playlist()
 
-    def open_detail(self, playlist_id: int) -> None:
-        from app.tui.views.playlist_detail import PlaylistDetailView
-        from textual.widgets import ContentSwitcher
-        
-        switcher = self.app.screen.query_one(ContentSwitcher)
-        detail_view = self.app.screen.query_one("#playlist-detail", PlaylistDetailView)
-        detail_view.load_playlist(playlist_id)
-        switcher.current = "playlist-detail"
-
     def action_detail_playlist(self) -> None:
         table = self.query_one(DataTable)
         try:
             playlist_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
-            self.open_detail(playlist_id)
+            from app.tui.views.playlist_detail import PlaylistDetailView
+            from textual.widgets import ContentSwitcher
+            
+            switcher = self.app.screen.query_one(ContentSwitcher)
+            detail_view = self.app.screen.query_one("#playlist-detail", PlaylistDetailView)
+            detail_view.load_playlist(playlist_id)
+            switcher.current = "playlist-detail"
         except Exception:
             pass
 

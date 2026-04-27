@@ -56,7 +56,13 @@ class ChannelsView(Vertical):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         channel_id = int(event.row_key.value)
-        self.screen.switch_to_channel_detail(channel_id)
+        from app.tui.views.channel_detail import ChannelDetailView
+        from textual.widgets import ContentSwitcher
+        
+        switcher = self.app.screen.query_one(ContentSwitcher)
+        detail_view = self.app.screen.query_one("#channel-detail", ChannelDetailView)
+        detail_view.load_channel(channel_id)
+        switcher.current = "channel-detail"
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-toggle-channel":
