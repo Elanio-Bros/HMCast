@@ -25,7 +25,7 @@ class HMCli(App):
     """Aplicativo Central - Orquestrador de Regras Globais."""
     
     ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = ["css/main.tcss", "css/channels.tcss", "css/modal.tcss"]
+    CSS_PATH = ["css/main.tcss", "css/channels.tcss", "css/playlists.tcss", "css/modal.tcss"]
     
     BINDINGS = [
         ("q", "quit", "Sair"),

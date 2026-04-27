@@ -1,12 +1,12 @@
-/* ── Módulo de Canais ── */
+/* ── Módulo de Playlists ── */
 
-#channels-manager, #channel-detail {
+#playlists-manager, #playlist-detail {
     width: 100%;
     height: 100%;
     layout: vertical;
 }
 
-#channels-content-area, #detail-content-area {
+#playlists-content-area, #playlist-detail-content-area {
     width: 100%;
     height: 1fr;
     padding: 1 2;
@@ -64,8 +64,8 @@ DataTable > .datatable--cell {
     border-right: ascii $panel;
 }
 
-/* Container de Detalhes do Canal */
-#detail-container {
+/* Container de Detalhes da Playlist */
+#playlist-detail-container {
     padding: 1 2;
     background: $surface;
     margin-bottom: 1;
@@ -73,7 +73,7 @@ DataTable > .datatable--cell {
     height: auto;
 }
 
-#detail-info-grid {
+#playlist-info-grid {
     grid-size: 2;
     grid-columns: 15 1fr;
     height: auto;
