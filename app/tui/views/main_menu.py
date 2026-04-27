@@ -14,6 +14,21 @@ class MainMenuView(VerticalScroll):
                     yield Static("Canais", classes="card-title")
                     yield Static("Broadcasting", classes="card-subtitle")
                     yield Static("Visualize e monitore todos os seus canais em tempo real.", classes="card-desc")
+
+            with Horizontal(classes="card", id="card-playlists"):
+                yield Static("3", classes="card-number")
+                with Vertical(classes="card-content"):
+                    yield Static("Playlists", classes="card-title")
+                    yield Static("Content", classes="card-subtitle")
+                    yield Static("Organize seus vídeos e programe sequências automáticas.", classes="card-desc")
+
+        with Horizontal(classes="card-row"):
+            with Horizontal(classes="card", id="card-media"):
+                yield Static("4", classes="card-number")
+                with Vertical(classes="card-content"):
+                    yield Static("Midias", classes="card-title")
+                    yield Static("Storage", classes="card-subtitle")
+                    yield Static("Gerencie seus arquivos de vídeo e metadados.", classes="card-desc")
             
             with Horizontal(classes="card", id="card-motor"):
                 yield Static("2", classes="card-number")
@@ -21,21 +36,6 @@ class MainMenuView(VerticalScroll):
                     yield Static("Motor de Fluxo", classes="card-title")
                     yield Static("Service Manager", classes="card-subtitle")
                     yield Static("Controle o estado dos processos FFmpeg e estabilidade.", classes="card-desc")
-
-        with Horizontal(classes="card-row"):
-            with Horizontal(classes="card", id="card-playlists"):
-                yield Static("3", classes="card-number")
-                with Vertical(classes="card-content"):
-                    yield Static("Playlists", classes="card-title")
-                    yield Static("Content", classes="card-subtitle")
-                    yield Static("Organize seus vídeos e programe sequências automáticas.", classes="card-desc")
-            
-            with Horizontal(classes="card", id="card-media"):
-                yield Static("4", classes="card-number")
-                with Vertical(classes="card-content"):
-                    yield Static("Midias", classes="card-title")
-                    yield Static("Storage", classes="card-subtitle")
-                    yield Static("Gerencie seus arquivos de vídeo e metadados.", classes="card-desc")
 
     def on_mount(self) -> None:
         """Habilita o foco nos cards."""
