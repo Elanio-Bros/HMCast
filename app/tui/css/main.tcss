@@ -4,6 +4,18 @@ Screen {
 }
 
 /* ── Hero Section (Cabeçalho Fixo) ── */
+#workspace {
+    width: 100%;
+    height: 1fr;
+    border: ascii $panel;
+    background: $surface;
+}
+
+#view-switcher {
+    width: 100%;
+    height: 1fr;
+}
+
 #hero-section {
     height: auto;
     width: 100%;
@@ -85,9 +97,9 @@ Screen {
     padding: 1 2;
 }
 
-.card:hover {
+.card:hover, .card:focus {
     border: ascii $primary;
-    background: $primary 5%;
+    background: $primary 10%;
 }
 
 .card-number {

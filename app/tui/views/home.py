@@ -7,7 +7,7 @@ from textual.screen import Screen
 from textual.widgets import Header, Footer, Static, ContentSwitcher
 from textual.containers import Vertical, Horizontal, VerticalScroll, Grid
 
-# Importamos todas as views isoladas
+# Importamos as views isoladas
 from app.tui.views.main_menu import MainMenuView
 from app.tui.views.channels import ChannelsView
 from app.tui.views.channel_detail import ChannelDetailView
@@ -16,7 +16,7 @@ from app.tui.views.channel_detail import ChannelDetailView
 class HomeScreen(Screen):
     """
     Tela Principal (Orquestradora).
-    Mantém o Hero Section fixo e gerencia a troca de conteúdo no Workspace.
+    Workspace agora é um Vertical simples, pois cada View interna gerencia seu próprio Scroll.
     """
     id = "home"
 
@@ -39,7 +39,7 @@ class HomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
 
-        # ── CABEÇALHO FIXO (Sempre Visível) ──
+        # ── CABEÇALHO FIXO ──
         with Vertical(id="hero-section"):
             with Grid(id="system-metrics-grid"):
                 yield Static("STATUS:", classes="m-label")
@@ -55,10 +55,9 @@ class HomeScreen(Screen):
                 yield Static("LOCAL IP:", classes="m-label")
                 yield Static(self.get_local_ip(), id="ip-val", classes="m-val ok")
 
-        # ── WORKSPACE (Container de Navegação) ──
-        with VerticalScroll(id="workspace"):
-            with ContentSwitcher(initial="home-menu"):
-                # Cada conteúdo agora é uma classe externa e independente
+        # ── WORKSPACE (Container Pai) ──
+        with Vertical(id="workspace"):
+            with ContentSwitcher(initial="home-menu", id="view-switcher"):
                 yield MainMenuView(id="home-menu")
                 yield ChannelsView(id="channels-manager")
                 yield ChannelDetailView(id="channel-detail")
@@ -97,17 +96,13 @@ class HomeScreen(Screen):
         except Exception:
             pass
 
-    # ── LOGICA DE NAVEGAÇÃO GLOBAL ──
-
     def on_button_pressed(self, event) -> None:
-        """Gerencia botões de navegação 'Voltar' presentes em qualquer view."""
         if event.button.id == "btn-back-home":
             self.query_one(ContentSwitcher).current = "home-menu"
         elif event.button.id == "btn-detail-back":
             self.query_one(ContentSwitcher).current = "channels-manager"
 
     def switch_to_channel_detail(self, channel_id: int) -> None:
-        """Chamado pela ChannelsView para carregar detalhes."""
         detail_view = self.query_one("#channel-detail", ChannelDetailView)
         detail_view.load_channel(channel_id)
         self.query_one(ContentSwitcher).current = "channel-detail"

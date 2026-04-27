@@ -1,45 +1,71 @@
-/* ── Estilo de Modais Flutuantes ── */
-
+/* Configuração Global do Modal */
 ModalScreen {
     align: center middle;
-    background: rgba(0, 0, 0, 0.7); /* Overlay escuro */
+    background: rgba(0, 0, 0, 0.4);
 }
 
 #modal-container {
     width: 60;
     height: auto;
     background: $surface;
-    border: ascii $primary;
-    padding: 1 2;
+    border: ascii $panel;
+    padding: 0 2; /* Reduzido padding vertical */
 }
 
 #modal-title {
     width: 100%;
+    height: 3;
     content-align: center middle;
     text-style: bold;
     color: $secondary;
-    margin-bottom: 1;
     border-bottom: ascii $panel;
-}
-
-.input-group {
-    height: auto;
-    margin-bottom: 1;
-}
-
-.input-group Label {
-    color: $text-muted;
     margin-bottom: 0;
 }
 
-.input-group Input, .input-group Select {
+.input-group {
+    height: 4; /* Altura fixa curta para grupos simples */
+    width: 100%;
+    margin-top: 1;
+}
+
+.input-group-row {
+    height: 4; /* Altura fixa curta para os horários lado a lado */
+    width: 100%;
+    margin-top: 1;
+}
+
+.col {
+    width: 1fr;
+    height: 4;
+}
+
+.error-text {
+    color: $error;
+    text-style: bold;
+    margin: 1 0;
+    width: 100%;
+    content-align: center middle;
+}
+
+/* Ajuste fino dos inputs para não pedirem espaço extra */
+Input {
+    height: 3;
     border: ascii $panel;
+    margin: 0;
+}
+
+Label {
+    height: 1;
+    color: $primary;
+    text-style: bold;
+    margin-bottom: 0;
 }
 
 #modal-actions {
     margin-top: 1;
-    height: 3;
+    margin-bottom: 1;
     align: right middle;
+    height: 3;
 }
 
 #modal-actions Button {

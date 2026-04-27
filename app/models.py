@@ -122,7 +122,39 @@ class ChannelSchedule(Base):
     end_time = Column(Time, nullable=False)
     weekdays = Column(JSON, nullable=True)
     month_days = Column(JSON, nullable=True)
+    specific_dates = Column(JSON, nullable=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
+
+    @staticmethod
+    def check_conflict(db, channel_id, start_t, end_t, weekdays=None, month_days=None, specific_dates=None):
+        """Verifica conflitos de horário no Core do sistema."""
+        existing = db.query(ChannelSchedule).filter_by(channel_id=channel_id).all()
+        for sch in existing:
+            if (start_t < sch.end_time) and (end_t > sch.start_time):
+                # Caso um seja 'Todo dia'
+                if not (weekdays or month_days or specific_dates) or \
+                   not (sch.weekdays or sch.month_days or sch.specific_dates):
+                    return f"Conflito com horário fixo ({sch.start_time.strftime('%H:%M')})"
+
+                # Cruzamento de listas
+                if weekdays and sch.weekdays:
+                    overlap = set(weekdays) & set(sch.weekdays)
+                    if overlap: return f"Conflito nos dias: {', '.join(overlap)}"
+                
+                if month_days and sch.month_days:
+                    overlap = set(month_days) & set(sch.month_days)
+                    if overlap: return f"Conflito no dia do mês: {', '.join(map(str, overlap))}"
+                
+                if specific_dates and sch.specific_dates:
+                    overlap = set(specific_dates) & set(sch.specific_dates)
+                    if overlap: return f"Conflito na data específica: {', '.join(overlap)}"
+
+                # Cruzamento entre tipos (Conflito preventivo)
+                if (weekdays and (sch.month_days or sch.specific_dates)) or \
+                   (month_days and (sch.weekdays or sch.specific_dates)) or \
+                   (specific_dates and (sch.weekdays or sch.month_days)):
+                    return "Possível sobreposição entre regras (Semana/Mês/Data)."
+        return None
 
 
 class Playlist(Base):

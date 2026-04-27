@@ -1,8 +1,16 @@
-/* ── View de Canais ── */
+/* ── Views do Workspace ── */
 
-#channels-view {
+#channels-manager, #channel-detail, #home-menu {
     width: 100%;
     height: 100%;
+    padding: 0;
+    layout: vertical;
+}
+
+/* Área Rolável Interna */
+#channels-content-area, #detail-content-area {
+    width: 100%;
+    height: 1fr;
     padding: 1 2;
 }
 
@@ -20,13 +28,14 @@
     margin-left: 1;
 }
 
-/* ── Tabela de Canais Estilizada ── */
+/* ── Tabelas Estilizadas ── */
 #channels-table, #schedules-table {
-    height: 1fr;
+    height: auto;
+    min-height: 5;
     border: ascii $panel;
     background: $background;
     color: $foreground;
-    scrollbar-gutter: stable;
+    margin-bottom: 1;
 }
 
 /* Cabeçalho - Centralizado */
@@ -49,6 +58,7 @@ DataTable > .datatable--cell {
     background: $surface;
     margin-bottom: 1;
     border: ascii $panel;
+    height: auto;
 }
 
 #detail-info-grid {
@@ -58,32 +68,31 @@ DataTable > .datatable--cell {
     margin-bottom: 1;
 }
 
-#detail-info-grid Label {
-    color: $text-muted;
-    text-style: bold;
-}
-
-#detail-info-grid Static {
-    color: $foreground;
-    background: $background;
-    padding: 0 1;
+.section-header {
+    height: 3;
+    width: 100%;
+    margin: 1 0;
+    align: left middle;
 }
 
 .section-label {
-    margin: 1 0;
     color: $primary;
     text-style: bold;
+    width: 1fr;
 }
 
-/* ── Barra de Ações ── */
+/* ── Barra de Ações (CORRIGIDA) ── */
 .action-bar {
-    height: 3;
+    height: 5; /* Aumentado de 3 para 5 para dar espaço aos botões e bordas */
     width: 100%;
-    margin-top: 1;
-    align: right middle; 
+    padding: 0 2;
+    align: right middle;
+    border-top: ascii $panel;
+    background: $surface;
 }
 
 .btn-action {
     margin-left: 1;
     min-width: 16;
+    height: 3;
 }

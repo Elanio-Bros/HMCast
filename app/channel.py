@@ -195,11 +195,14 @@ class ChannelRuntime:
     # ---------------- PLAYLIST / MEDIAS ----------------
 
     def get_active_schedule(self):
-        # Normaliza 'now' para UTC para comparação robusta
-        now_utc = datetime.now(timezone.utc)
-        now_time = now_utc.astimezone().time()
-        weekday = now_utc.astimezone().weekday()
-        month_day = now_utc.astimezone().day
+        #Busca o agendamento ativo respeitando a HIERARQUIA DE RELEVÂNCIA.
+        now_local = datetime.now().astimezone()
+        now_time = now_local.time()
+        
+        day_name = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now_local.weekday()]
+        month_day = now_local.day
+        date_dm = now_local.strftime("%d/%m")
+        date_dmy = now_local.strftime("%d/%m/%Y")
 
         with SessionLocal() as db:
             schedules = (
@@ -208,23 +211,54 @@ class ChannelRuntime:
                 .all()
             )
 
+        # 1. Filtra apenas quem está na janela de horário
+        candidates = []
         for sch in schedules:
-            st = sch.start_time
-            et = sch.end_time
-            # Intervalo padrão (mesmo dia)
-            in_window = (st <= now_time <= et)
-            # Intervalo overnight (cruza meia-noite): ex. 22:00 -> 02:00
-            if st > et:
-                in_window = (now_time >= st) or (now_time <= et)
+            st, et = sch.start_time, sch.end_time
+            in_window = (st <= now_time <= et) if st <= et else (now_time >= st or now_time <= et)
+            if in_window:
+                candidates.append(sch)
 
-            if not in_window:
-                continue
-            if sch.weekdays and weekday not in sch.weekdays:
-                continue
-            if sch.month_days and month_day not in sch.month_days:
-                continue
-            return sch
-        return None
+        if not candidates:
+            return None
+
+        # 2. Calcula "Score de Relevância" para cada candidato
+        # Prioridade: DD/MM/YYYY (4) > DD/MM (3) > Dia do Mês (2) > Dia da Semana (1) > Todo dia (0)
+        scored_candidates = []
+        for sch in candidates:
+            score = 0
+            match = False
+            
+            # Checa Data Única (DD/MM/YYYY)
+            if sch.specific_dates and date_dmy in sch.specific_dates:
+                score = 4
+                match = True
+            # Checa Data Anual (DD/MM)
+            elif sch.specific_dates and date_dm in sch.specific_dates:
+                score = 3
+                match = True
+            # Checa Dia do Mês (DD)
+            elif sch.month_days and month_day in sch.month_days:
+                score = 2
+                match = True
+            # Checa Dia da Semana
+            elif sch.weekdays and day_name in sch.weekdays:
+                score = 1
+                match = True
+            # Regra "Todo dia" (sem filtros)
+            elif not sch.weekdays and not sch.month_days and not sch.specific_dates:
+                score = 0
+                match = True
+            
+            if match:
+                scored_candidates.append((score, sch))
+
+        if not scored_candidates:
+            return None
+
+        # 3. Retorna o candidato com maior score (mais específico)
+        scored_candidates.sort(key=lambda x: x[0], reverse=True)
+        return scored_candidates[0][1]
 
     def resolve_playlist_items(self, playlist):
         with SessionLocal() as db:
