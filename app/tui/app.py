@@ -25,7 +25,7 @@ class HMCli(App):
     """Aplicativo Central - Orquestrador de Regras Globais."""
     
     ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = ["css/main.tcss", "css/channels.tcss", "css/playlists.tcss", "css/modal.tcss"]
+    CSS_PATH = ["css/main.tcss", "css/channels.tcss", "css/playlists.tcss", "css/media.tcss", "css/modal.tcss"]
     
     BINDINGS = [
         ("q", "quit", "Sair"),
@@ -94,6 +94,8 @@ class HMCli(App):
             if switcher.current == "channel-detail":
                 switcher.current = "channels-manager"
             elif switcher.current == "channels-manager":
+                switcher.current = "home-menu"
+            elif switcher.current == "media-manager":
                 switcher.current = "home-menu"
         except Exception:
             pass

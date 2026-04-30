@@ -123,94 +123,198 @@ class MediaUtils:
     def normalize_path(self, path: str) -> str:
         return os.path.normpath(path)
 
-    def scan_media_folder(self, root_path: str):
+    def get_or_create_folder(self, db, file_path: str, auto_scan: bool = False):
         """
-        Escaneia uma pasta recursivamente e registra os arquivos no banco em lotes com tratamento de erro robusto.
+        Busca a melhor pasta raiz cadastrada para o arquivo.
+        Se o arquivo estiver dentro de uma pasta já cadastrada, retorna ela.
+        Caso contrário, cria uma nova pasta raiz baseada no diretório pai.
         """
-        root_path = self.normalize_path(root_path)
+        abs_file_path = self.normalize_path(os.path.abspath(file_path))
+        file_dir = os.path.dirname(abs_file_path)
+        
+        # Busca todas as pastas e ordena pela maior string (melhor correspondência)
+        folders = db.query(MediaFolder).all()
+        best_match = None
+        
+        for folder in folders:
+            norm_folder_path = self.normalize_path(folder.path)
+            if abs_file_path.startswith(norm_folder_path):
+                if best_match is None or len(norm_folder_path) > len(best_match.path):
+                    best_match = folder
+        
+        if best_match:
+            return best_match
+            
+        # Se não achou nenhuma raiz, cria uma nova para o diretório pai
+        new_folder = MediaFolder(
+            path=file_dir,
+            name=os.path.basename(file_dir),
+            auto_scan=auto_scan
+        )
+        db.add(new_folder)
+        db.commit()
+        db.refresh(new_folder)
+        return new_folder
+
+    def scan_media_folder(self, root_path: str, progress_callback=None):
+        """
+        Escaneia uma pasta recursivamente com suporte a callback de progresso.
+        Garante a criação correta da hierarquia e evita erros de integridade.
+        """
+        root_path = self.normalize_path(os.path.abspath(root_path))
         
         with SessionLocal() as db:
             try:
-                folder = (
-                    db.query(MediaFolder)
-                    .filter(MediaFolder.path == root_path)
-                    .first()
-                )
-
-                if not folder:
-                    folder = MediaFolder(
+                # 1. Garante a pasta raiz (Sempre normalizada)
+                root_folder = db.query(MediaFolder).filter(MediaFolder.path == root_path).first()
+                if not root_folder:
+                    root_folder = MediaFolder(
                         path=root_path,
-                        name=os.path.basename(root_path)
+                        name=os.path.basename(root_path),
+                        auto_scan=True
                     )
-                    db.add(folder)
+                    db.add(root_folder)
                     db.commit()
-                    db.refresh(folder)
+                    db.refresh(root_folder)
 
-                BATCH_SIZE = 100
+                # 2. Contagem para o progresso
+                total_files = 0
+                if progress_callback:
+                    for _ in self.iter_media_files(root_path):
+                        total_files += 1
+                    progress_callback(0, total_files)
+
+                # 3. Cache de pastas (Chave sempre normalizada e minúscula para Windows)
+                folder_cache = { root_path.lower(): root_folder.id }
+                found_files = set()
+                processed_count = 0
+                BATCH_SIZE = 50
                 batch_count = 0
-                
+
                 print(f"[Scanner] Iniciando scan em: {root_path}")
-                
-                # V7: Cache de caminhos existentes em memória para evitar SELECT N+1
-                existing_files = {
-                    row[0] for row in db.query(MediaItem.file)
-                    .filter(MediaItem.folder_id == folder.id)
-                    .all()
-                }
-                
-                # Precisamos dos objetos completos apenas se quisermos atualizar duração
-                # Mas para novos arquivos, o set acima já resolve 99% da velocidade
-                # Para atualização da V5, pegamos os itens sob demanda ou em cache
-                items_by_file = {}
-                if existing_files:
-                    # Carrega apenas o necessário para atualização
-                    all_items = db.query(MediaItem).filter(MediaItem.folder_id == folder.id).all()
-                    items_by_file = {it.file: it for it in all_items}
 
-                for file_path in self.iter_media_files(root_path):
-                    try:
-                        file_path = self.normalize_path(file_path)
-                        existing_item = items_by_file.get(file_path)
+                for dirpath, dirnames, filenames in os.walk(root_path):
+                    dirpath = self.normalize_path(dirpath)
+                    dirpath_lower = dirpath.lower()
+                    
+                    # Garante que a pasta atual existe no banco e no cache
+                    current_folder_id = folder_cache.get(dirpath_lower)
+                    
+                    if not current_folder_id:
+                        # Se não está no cache, busca no banco
+                        folder = db.query(MediaFolder).filter(MediaFolder.path == dirpath).first()
+                        if not folder:
+                            # Se não existe no banco, cria. Busca o pai.
+                            parent_path = self.normalize_path(os.path.dirname(dirpath))
+                            parent_id = folder_cache.get(parent_path.lower())
+                            
+                            # Se o pai não está no cache, busca no banco
+                            if not parent_id:
+                                parent_folder = db.query(MediaFolder).filter(MediaFolder.path == parent_path).first()
+                                parent_id = parent_folder.id if parent_folder else root_folder.id
+                            
+                            folder = MediaFolder(
+                                path=dirpath, 
+                                name=os.path.basename(dirpath), 
+                                parent_id=parent_id, 
+                                auto_scan=root_folder.auto_scan
+                            )
+                            db.add(folder)
+                            db.commit()
+                            db.refresh(folder)
+                        
+                        current_folder_id = folder.id
+                        folder_cache[dirpath_lower] = current_folder_id
 
-                        duration = self.get_media_duration(file_path)
-                        if duration <= 0:
-                             print(f"[Scanner] Ignorando arquivo com duração 0/erro: {file_path}")
-                             continue
-
-                        if existing_item:
-                            # Sustentabilidade V5: Atualiza duração se o arquivo mudou no disco
-                            if existing_item.duration != duration:
-                                print(f"[Scanner] Atualizando duração de '{existing_item.name}': {existing_item.duration}s -> {duration}s")
-                                existing_item.duration = duration
-                                batch_count += 1
+                    # Processa arquivos
+                    for fname in filenames:
+                        if not fname.lower().endswith(self.SUPPORTED_EXTENSIONS):
                             continue
+                            
+                        file_path = self.normalize_path(os.path.join(dirpath, fname))
+                        found_files.add(file_path)
+                        
+                        # Verifica item existente
+                        item = db.query(MediaItem).filter(MediaItem.file == file_path).first()
+                        duration = self.get_media_duration(file_path)
+                        
+                        if duration > 0:
+                            if not item:
+                                item = MediaItem(
+                                    name=os.path.splitext(fname)[0], 
+                                    file=file_path, 
+                                    duration=duration, 
+                                    folder_id=current_folder_id
+                                )
+                                db.add(item)
+                                batch_count += 1
+                            else:
+                                # Atualiza se mudou de pasta ou duração
+                                if item.folder_id != current_folder_id or item.duration != duration:
+                                    item.folder_id = current_folder_id
+                                    item.duration = duration
+                                    batch_count += 1
 
-                        media = MediaItem(
-                            name=os.path.splitext(os.path.basename(file_path))[0],
-                            file=file_path,
-                            duration=duration,
-                            folder_id=folder.id
-                        )
-
-                        db.add(media)
-                        batch_count = int(batch_count) + 1
+                        processed_count += 1
+                        if progress_callback:
+                            progress_callback(processed_count, total_files)
 
                         if batch_count >= BATCH_SIZE:
                             db.commit()
-                            print(f"[Scanner] Commit parcial de {batch_count} itens...")
                             batch_count = 0
-                            
-                    except Exception as e:
-                        print(f"[Scanner] Erro ao processar {file_path}: {e}")
-                        db.rollback()
 
-                if batch_count > 0:
+                db.commit()
+
+                # 4. LIMPEZA (PURGE)
+                from .models import PlaylistItem
+                all_folders_ids = list(folder_cache.values())
+                missing_items = db.query(MediaItem).filter(
+                    MediaItem.folder_id.in_(all_folders_ids), 
+                    ~MediaItem.file.in_(found_files)
+                ).all()
+
+                if missing_items:
+                    m_ids = [m.id for m in missing_items]
+                    db.query(PlaylistItem).filter(PlaylistItem.media_id.in_(m_ids)).delete(synchronize_session=False)
+                    db.query(MediaItem).filter(MediaItem.id.in_(m_ids)).delete(synchronize_session=False)
                     db.commit()
-                    print(f"[Scanner] Commit final de {batch_count} itens.")
+
+            except Exception as e:
+                print(f"[Scanner] ERRO NO SCAN: {e}")
+                db.rollback()
+                raise e # Propaga o erro para o worker saber que falhou
+
+                # Remove pastas vazias ou que não existem mais (opcional, mas bom para manter limpo)
+                # (Apenas pastas que estão sob a root_path e não foram encontradas no walk)
+                # Nota: found_folders contém IDs. Precisamos dos IDs que NÃO estão lá.
+                # Mas para simplificar, vamos focar em remover mídias.
 
             except Exception as e:
                 print(f"[Scanner] Erro fatal no scan: {e}")
                 db.rollback()
+
+    def health_check_all_folders(self):
+        """
+        Verifica todos os MediaItems do banco. Se o arquivo físico não existir, remove do banco.
+        Útil para pastas com auto_scan=False que não entram no scan recursivo.
+        """
+        print("[Scanner] Iniciando Health Check global...")
+        with SessionLocal() as db:
+            from .models import PlaylistItem
+            all_items = db.query(MediaItem).all()
+            missing_ids = []
+            
+            for item in all_items:
+                if not os.path.exists(item.file):
+                    missing_ids.append(item.id)
+            
+            if missing_ids:
+                print(f"[Scanner] Health Check: Removendo {len(missing_ids)} itens órfãos...")
+                db.query(PlaylistItem).filter(PlaylistItem.media_id.in_(missing_ids)).delete(synchronize_session=False)
+                db.query(MediaItem).filter(MediaItem.id.in_(missing_ids)).delete(synchronize_session=False)
+                db.commit()
+            
+            print("[Scanner] Health Check concluído.")
 
     def check_dependencies(self) -> dict:
         """

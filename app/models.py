@@ -16,6 +16,10 @@ class MediaFolder(Base):
     id = Column(Integer, primary_key=True)
     path = Column(String, nullable=True, unique=True)
     name = Column(String, nullable=False)
+    auto_scan = Column(Boolean, default=True)
+    parent_id = Column(Integer, ForeignKey("media_folders.id"), nullable=True)
+    
+    subfolders = relationship("MediaFolder", backref="parent", remote_side=[id])
 
 
 class MediaItem(Base):

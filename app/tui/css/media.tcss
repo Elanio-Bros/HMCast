@@ -1,0 +1,128 @@
+MediaView {
+    width: 100%;
+    height: 100%;
+}
+
+MediaView #search-bar {
+    height: 3;
+    padding: 0 2;
+    margin-bottom: 1;
+}
+
+MediaView Input {
+    width: 1fr;
+    background: $background;
+    border: ascii $panel;
+    height: 3;
+}
+
+/* Novo Workspace Estilo File Manager */
+#media-workspace {
+    height: 1fr;
+    margin: 0 2;
+    border: ascii $panel;
+    layout: horizontal;
+}
+
+#folder-tree {
+    width: 30;
+    height: 100%;
+    border-right: ascii $panel;
+    background: $surface;
+}
+
+#scan-progress {
+    width: 100%;
+    height: 3;
+    background: $surface;
+    padding: 0 2;
+    margin: 1 0;
+}
+
+#scan-progress > .progress--bar {
+    color: $warning;
+    background: $surface-lighten-1;
+}
+
+#media-table {
+    width: 1fr;
+    height: 1fr;
+    border: none;
+    margin: 0;
+}
+
+.action-bar {
+    height: 5;
+    padding: 0 2;
+    background: $surface;
+    border-top: ascii $panel;
+}
+
+.btn-action {
+    margin-right: 1;
+}
+
+/* Modal de Scan / Manual */
+ScanFolderSelectModal, AddMediaManualModal, PromptModal {
+    align: center middle;
+}
+
+#scan-container {
+    width: 90%;
+    height: 90%;
+    background: $surface;
+    border: ascii $panel;
+    padding: 1 2;
+}
+
+#scan-title {
+    text-align: center;
+    text-style: bold;
+    color: $secondary;
+    margin-bottom: 1;
+}
+
+#scan-selection-list, #manual-selection-list {
+    height: 1fr;
+    border: solid $accent;
+    margin: 1 0;
+}
+
+.scan-footer {
+    height: 7;
+    border-top: ascii $panel;
+    padding: 1 2;
+    margin-bottom: 1;
+    layout: horizontal;
+}
+
+.scan-footer Button {
+    margin-right: 1;
+    min-width: 15;
+}
+
+/* Modal de Prompt (Renomear) */
+#prompt-container {
+    width: 60;
+    height: 13;
+    background: $surface;
+    border: ascii $panel;
+    padding: 1 2;
+}
+
+#prompt-title {
+    text-align: center;
+    text-style: bold;
+    color: $secondary;
+    margin-bottom: 1;
+}
+
+.prompt-footer {
+    height: 5;
+    content-align: center middle;
+    margin-top: 1;
+}
+
+.prompt-footer Button {
+    margin: 0 1;
+}

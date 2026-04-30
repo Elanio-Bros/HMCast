@@ -1,0 +1,269 @@
+from textual.app import ComposeResult
+from textual.widgets import Static, Button, DataTable, Input, Tree, ProgressBar
+from textual.containers import Vertical, Horizontal, VerticalScroll
+from textual.screen import Screen
+from app.database import SessionLocal
+from app.models import MediaItem, MediaFolder
+import os
+
+class MediaView(Vertical):
+    """View de Gestão de Mídias estilo Explorador de Arquivos."""
+    
+    selected_folder_id = None
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(classes="view-header"):
+            yield Static("GERENCIAMENTO DE MÍDIAS", classes="view-title")
+        
+        with Horizontal(id="search-bar"):
+            yield Input(placeholder="Buscar mídia por nome...", id="input-search-media")
+
+        yield ProgressBar(id="scan-progress", show_percentage=True, show_eta=True)
+
+        with Horizontal(id="media-workspace"):
+            # Árvore de Pastas (Esquerda)
+            yield Tree("BIBLIOTECAS", id="folder-tree")
+            # Tabela de Mídias (Direita)
+            yield DataTable(id="media-table")
+
+        with Horizontal(classes="action-bar"):
+            yield Button("Adicionar", variant="primary", id="btn-add-media", classes="btn-action")
+            yield Button("Scan Global", variant="warning", id="btn-scan-global", classes="btn-action")
+            yield Button("Auto-Scan ON/OFF", id="btn-toggle-scan", classes="btn-action")
+            yield Button("Renomear", id="btn-rename", classes="btn-action")
+            yield Button("Excluir", variant="error", id="btn-delete", classes="btn-action")
+            yield Button("Voltar", id="btn-back-home", classes="btn-action")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#media-table", DataTable)
+        table.add_columns("ID", "Nome", "Duração", "Arquivo")
+        table.zebra_stripes = True
+        table.cursor_type = "row"
+        
+        self.reload_folder_tree()
+        self.reload_data()
+        self.last_active_widget = self.query_one(Tree) # Começa com a árvore por padrão
+        self.query_one("#scan-progress").display = False # Escondido por padrão
+        self.query_one("#scan-progress").progress = 0
+
+    def on_descendant_focus(self, event) -> None:
+        """Sempre que um filho ganhar foco, lembramos dele se for Tree ou Table."""
+        if isinstance(event.control, (Tree, DataTable)):
+            self.last_active_widget = event.control
+
+    def reload_folder_tree(self) -> None:
+        """Carrega as pastas raízes do banco na árvore."""
+        tree = self.query_one("#folder-tree", Tree)
+        tree.clear()
+        root = tree.root
+        root.expand()
+        
+        with SessionLocal() as db:
+            # Pega apenas as pastas raízes (sem pai)
+            folders = db.query(MediaFolder).filter(MediaFolder.parent_id == None).all()
+            for f in folders:
+                label = f" {f.name}"
+                if f.auto_scan:
+                    label = f" [A] {f.name}"
+                
+                node = root.add(label, data=f.id)
+                self._add_subfolders_to_node(db, node, f.id)
+
+    def _add_subfolders_to_node(self, db, node, parent_id):
+        subfolders = db.query(MediaFolder).filter(MediaFolder.parent_id == parent_id).all()
+        for sf in subfolders:
+            label = f" {sf.name}"
+            if sf.auto_scan:
+                label = f" [A] {sf.name}"
+            subnode = node.add(label, data=sf.id)
+            self._add_subfolders_to_node(db, subnode, sf.id)
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Filtra a tabela ao selecionar uma pasta na árvore."""
+        self.selected_folder_id = event.node.data
+        self.reload_data()
+
+    def reload_data(self, search: str = "") -> None:
+        table = self.query_one("#media-table", DataTable)
+        table.clear()
+        
+        with SessionLocal() as db:
+            from app.models import MediaFolder
+            query = db.query(
+                MediaItem, 
+                MediaFolder.path.label("folder_path")
+            ).outerjoin(MediaFolder, MediaItem.folder_id == MediaFolder.id)
+            
+            if self.selected_folder_id:
+                # Pega o ID da pasta e de todas as subpastas dela recursivamente
+                all_ids = self._get_all_subfolder_ids(db, self.selected_folder_id)
+                query = query.filter(MediaItem.folder_id.in_(all_ids))
+            
+            if search:
+                query = query.filter(MediaItem.name.ilike(f"%{search}%"))
+            
+            items = query.order_by(MediaItem.id.desc()).limit(100).all()
+            
+            for item, folder_path in items:
+                duration_str = f"{item.duration // 60}:{item.duration % 60:02d}"
+                rel_path = os.path.relpath(item.file, folder_path) if folder_path else os.path.basename(item.file)
+
+                table.add_row(
+                    str(item.id),
+                    item.name,
+                    duration_str,
+                    rel_path,
+                    key=str(item.id)
+                )
+
+    def _get_all_subfolder_ids(self, db, parent_id) -> list[int]:
+        """Retorna uma lista com o ID pai e todos os IDs de subpastas recursivamente."""
+        ids = [parent_id]
+        subfolders = db.query(MediaFolder.id).filter(MediaFolder.parent_id == parent_id).all()
+        for (sf_id,) in subfolders:
+            ids.extend(self._get_all_subfolder_ids(db, sf_id))
+        return ids
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "input-search-media":
+            self.reload_data(event.value)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-add-media":
+            from app.tui.views.modals.add_media import AddMediaModal
+            def check_result(success: bool):
+                if success:
+                    self.reload_folder_tree()
+                    self.reload_data()
+            self.app.push_screen(AddMediaModal(), check_result)
+        
+        elif event.button.id == "btn-scan-global":
+            progress_bar = self.query_one("#scan-progress", ProgressBar)
+            progress_bar.display = True
+            progress_bar.progress = 0
+            
+            async def run_global_scan_task():
+                def update_progress(current, total):
+                    self.app.call_from_thread(progress_bar.update, total=total, progress=current)
+
+                with SessionLocal() as db:
+                    folders = db.query(MediaFolder).filter(MediaFolder.auto_scan == True).all()
+                    for f in folders:
+                        self.app.scanner.scan_media_folder(f.path, progress_callback=update_progress)
+                    
+                    self.app.scanner.health_check_all_folders()
+                
+                # Lógica de conclusão dentro do worker
+                def on_complete():
+                    self.reload_data()
+                    self.app.notify("Scan Global e Faxina concluídos!", severity="success")
+                    progress_bar.display = False
+                
+                self.app.call_from_thread(on_complete)
+
+            self.run_worker(run_global_scan_task(), thread=True)
+            self.app.notify("Iniciando Scan Global em background...")
+
+        elif event.button.id == "btn-toggle-scan":
+            self.action_toggle_auto_scan()
+
+        elif event.button.id == "btn-rename":
+            self.action_rename_selected()
+
+        elif event.button.id == "btn-delete":
+            self.action_delete_selected()
+
+    def action_toggle_auto_scan(self) -> None:
+        """Alterna o auto_scan da biblioteca selecionada."""
+        focused = getattr(self, "last_active_widget", None)
+        if isinstance(focused, Tree):
+            node = focused.cursor_node
+            if node and node.data:
+                folder_id = node.data
+                with SessionLocal() as db:
+                    folder = db.query(MediaFolder).get(folder_id)
+                    if folder:
+                        folder.auto_scan = not folder.auto_scan
+                        db.commit()
+                        self.reload_folder_tree()
+                        status = "ativado" if folder.auto_scan else "desativado"
+                        self.app.notify(f"Auto-Scan {status} para {folder.name}!")
+
+    def action_rename_selected(self) -> None:
+        """Ação para renomear o item focado (Pasta ou Mídia)."""
+        # Usamos o widget que estava ativo antes do clique no botão
+        focused = getattr(self, "last_active_widget", None)
+        
+        if isinstance(focused, Tree):
+            node = focused.cursor_node
+            if node and node.data:
+                folder_id = node.data
+                from app.tui.views.modals.prompt import PromptModal
+                
+                def do_rename(new_name: str):
+                    if new_name:
+                        with SessionLocal() as db:
+                            folder = db.query(MediaFolder).get(folder_id)
+                            if folder:
+                                folder.name = new_name
+                                db.commit()
+                                self.reload_folder_tree()
+                                self.app.notify("Biblioteca renomeada!")
+
+                self.app.push_screen(PromptModal("Novo nome da Biblioteca:", initial_value=str(node.label)), do_rename)
+
+        elif isinstance(focused, DataTable):
+            row_index = focused.cursor_row
+            if row_index is not None:
+                row_data = focused.get_row_at(row_index)
+                media_id = int(row_data[0])
+                from app.tui.views.modals.prompt import PromptModal
+
+                def do_rename_media(new_name: str):
+                    if new_name:
+                        with SessionLocal() as db:
+                            item = db.query(MediaItem).get(media_id)
+                            if item:
+                                item.name = new_name
+                                db.commit()
+                                self.reload_data()
+                                self.app.notify("Mídia renomeada!")
+
+                self.app.push_screen(PromptModal("Novo nome da Mídia:", initial_value=row_data[1]), do_rename_media)
+
+    def action_delete_selected(self) -> None:
+        """Ação para excluir o item focado."""
+        focused = getattr(self, "last_active_widget", None)
+
+        if isinstance(focused, Tree):
+            node = focused.cursor_node
+            if node and node.data:
+                folder_id = node.data
+                with SessionLocal() as db:
+                    folder = db.query(MediaFolder).get(folder_id)
+                    if folder:
+                        # Deleta mídias da pasta (e limpa playlists)
+                        from app.models import PlaylistItem
+                        media_ids = [m.id for m in db.query(MediaItem).filter(MediaItem.folder_id == folder_id).all()]
+                        if media_ids:
+                            db.query(PlaylistItem).filter(PlaylistItem.media_id.in_(media_ids)).delete(synchronize_session=False)
+                        db.query(MediaItem).filter(MediaItem.folder_id == folder_id).delete(synchronize_session=False)
+                        db.query(MediaFolder).filter(MediaFolder.id == folder_id).delete()
+                        db.commit()
+                        self.selected_folder_id = None
+                        self.reload_folder_tree()
+                        self.reload_data()
+                        self.app.notify("Biblioteca excluída!")
+
+        elif isinstance(focused, DataTable):
+            row_index = focused.cursor_row
+            if row_index is not None:
+                row_data = focused.get_row_at(row_index)
+                media_id = int(row_data[0])
+                with SessionLocal() as db:
+                    from app.models import PlaylistItem
+                    db.query(PlaylistItem).filter(PlaylistItem.media_id == media_id).delete()
+                    db.query(MediaItem).filter(MediaItem.id == media_id).delete()
+                    db.commit()
+                    self.reload_data()
+                    self.app.notify("Mídia excluída!")

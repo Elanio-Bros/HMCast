@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 db_path = os.getenv("DB_PATH", "./data/tv.db")
+db_dir = os.path.dirname(db_path)
+if db_dir and not os.path.exists(db_dir):
+    os.makedirs(db_dir, exist_ok=True)
+
 DATABASE_URL = f"sqlite:///{db_path}"
 
 engine = create_engine(

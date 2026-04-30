@@ -13,6 +13,7 @@ from app.tui.views.channels import ChannelsView
 from app.tui.views.channel_detail import ChannelDetailView
 from app.tui.views.playlists import PlaylistsView
 from app.tui.views.playlist_detail import PlaylistDetailView
+from app.tui.views.media import MediaView
 
 
 class HomeScreen(Screen):
@@ -65,6 +66,7 @@ class HomeScreen(Screen):
                 yield ChannelDetailView(id="channel-detail")
                 yield PlaylistsView(id="playlists-manager")
                 yield PlaylistDetailView(id="playlist-detail")
+                yield MediaView(id="media-manager")
 
         yield Footer()
 

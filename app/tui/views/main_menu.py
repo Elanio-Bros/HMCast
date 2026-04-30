@@ -63,7 +63,7 @@ class MainMenuView(VerticalScroll):
                     self.app.screen.query_one("ContentSwitcher").current = "playlists-manager"
                     break
                 elif target.id == "card-media":
-                    # self.app.screen.query_one("ContentSwitcher").current = "media-manager"
+                    self.app.screen.query_one("ContentSwitcher").current = "media-manager"
                     break
                 elif target.id == "card-motor":
                     # self.app.screen.query_one("ContentSwitcher").current = "motor-manager"
