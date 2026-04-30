@@ -1,6 +1,9 @@
 import os
 import subprocess
 import shutil
+import json
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from typing import Iterable
 from .database import SessionLocal
@@ -125,151 +128,102 @@ class MediaUtils:
 
     def get_or_create_folder(self, db, file_path: str, auto_scan: bool = False):
         """
-        Busca a melhor pasta raiz cadastrada para o arquivo.
-        Se o arquivo estiver dentro de uma pasta já cadastrada, retorna ela.
-        Caso contrário, cria uma nova pasta raiz baseada no diretório pai.
+        Busca a melhor pasta raiz e cria as subpastas necessárias para manter a hierarquia.
         """
         abs_file_path = self.normalize_path(os.path.abspath(file_path))
-        file_dir = os.path.dirname(abs_file_path)
+        target_dir = self.normalize_path(os.path.dirname(abs_file_path))
         
-        # Busca todas as pastas e ordena pela maior string (melhor correspondência)
+        # 1. Encontra a melhor raiz existente
         folders = db.query(MediaFolder).all()
-        best_match = None
-        
+        best_root = None
         for folder in folders:
-            norm_folder_path = self.normalize_path(folder.path)
-            if abs_file_path.startswith(norm_folder_path):
-                if best_match is None or len(norm_folder_path) > len(best_match.path):
-                    best_match = folder
+            norm_path = self.normalize_path(folder.path)
+            if abs_file_path.lower().startswith(norm_path.lower()):
+                if best_root is None or len(norm_path) > len(best_root.path):
+                    best_root = folder
+
+        # 2. Se não achou raiz nenhuma, cria a raiz baseada no diretório imediato do arquivo
+        if not best_root:
+            new_root = MediaFolder(
+                path=target_dir,
+                name=os.path.basename(target_dir),
+                auto_scan=auto_scan
+            )
+            db.add(new_root)
+            db.commit()
+            db.refresh(new_root)
+            return new_root
+
+        # 3. Se achou uma raiz, precisamos garantir que as subpastas até o arquivo existem
+        if self.normalize_path(best_root.path).lower() == target_dir.lower():
+            return best_root
+
+        # Caso o arquivo esteja em uma subpasta da raiz, vamos criar a hierarquia
+        # Ex: Raiz=D:\Filmes, Arquivo=D:\Filmes\Acao\2024\v.mp4
+        # Precisamos garantir 'Acao' e '2024'
+        rel_path = os.path.relpath(target_dir, best_root.path)
+        parts = rel_path.split(os.sep)
         
-        if best_match:
-            return best_match
+        current_parent_id = best_root.id
+        current_path = self.normalize_path(best_root.path)
+        
+        for part in parts:
+            if not part or part == ".": continue
+            current_path = self.normalize_path(os.path.join(current_path, part))
             
-        # Se não achou nenhuma raiz, cria uma nova para o diretório pai
-        new_folder = MediaFolder(
-            path=file_dir,
-            name=os.path.basename(file_dir),
-            auto_scan=auto_scan
-        )
-        db.add(new_folder)
-        db.commit()
-        db.refresh(new_folder)
-        return new_folder
+            # Busca ou cria a subpasta
+            subfolder = db.query(MediaFolder).filter(MediaFolder.path.ilike(current_path)).first()
+            if not subfolder:
+                subfolder = MediaFolder(
+                    path=current_path,
+                    name=part,
+                    parent_id=current_parent_id,
+                    auto_scan=best_root.auto_scan
+                )
+                db.add(subfolder)
+                db.commit()
+                db.refresh(subfolder)
+            
+            current_parent_id = subfolder.id
+            
+        return db.query(MediaFolder).get(current_parent_id)
 
     def scan_media_folder(self, root_path: str, progress_callback=None):
         """
-        Escaneia uma pasta recursivamente com suporte a callback de progresso.
-        Garante a criação correta da hierarquia e evita erros de integridade.
+        Porta de entrada para o scan. Prepara a raiz e inicia a recursão paralela.
         """
         root_path = self.normalize_path(os.path.abspath(root_path))
         
         with SessionLocal() as db:
             try:
-                # 1. Garante a pasta raiz (Sempre normalizada)
-                root_folder = db.query(MediaFolder).filter(MediaFolder.path == root_path).first()
+                # 1. Garante a pasta raiz
+                root_folder = db.query(MediaFolder).filter(MediaFolder.path.ilike(root_path)).first()
                 if not root_folder:
-                    root_folder = MediaFolder(
-                        path=root_path,
-                        name=os.path.basename(root_path),
-                        auto_scan=True
-                    )
+                    root_folder = MediaFolder(path=root_path, name=os.path.basename(root_path), auto_scan=True)
                     db.add(root_folder)
                     db.commit()
                     db.refresh(root_folder)
 
-                # 2. Contagem para o progresso
+                # 2. Contagem total para o progresso
                 total_files = 0
                 if progress_callback:
-                    for _ in self.iter_media_files(root_path):
-                        total_files += 1
+                    for _ in self.iter_media_files(root_path): total_files += 1
                     progress_callback(0, total_files)
 
-                # 3. Cache de pastas (Chave sempre normalizada e minúscula para Windows)
-                folder_cache = { root_path.lower(): root_folder.id }
+                # 3. Inicia a recursão com Pool de Threads
                 found_files = set()
-                processed_count = 0
-                BATCH_SIZE = 50
-                batch_count = 0
-
-                print(f"[Scanner] Iniciando scan em: {root_path}")
-
-                for dirpath, dirnames, filenames in os.walk(root_path):
-                    dirpath = self.normalize_path(dirpath)
-                    dirpath_lower = dirpath.lower()
-                    
-                    # Garante que a pasta atual existe no banco e no cache
-                    current_folder_id = folder_cache.get(dirpath_lower)
-                    
-                    if not current_folder_id:
-                        # Se não está no cache, busca no banco
-                        folder = db.query(MediaFolder).filter(MediaFolder.path == dirpath).first()
-                        if not folder:
-                            # Se não existe no banco, cria. Busca o pai.
-                            parent_path = self.normalize_path(os.path.dirname(dirpath))
-                            parent_id = folder_cache.get(parent_path.lower())
-                            
-                            # Se o pai não está no cache, busca no banco
-                            if not parent_id:
-                                parent_folder = db.query(MediaFolder).filter(MediaFolder.path == parent_path).first()
-                                parent_id = parent_folder.id if parent_folder else root_folder.id
-                            
-                            folder = MediaFolder(
-                                path=dirpath, 
-                                name=os.path.basename(dirpath), 
-                                parent_id=parent_id, 
-                                auto_scan=root_folder.auto_scan
-                            )
-                            db.add(folder)
-                            db.commit()
-                            db.refresh(folder)
-                        
-                        current_folder_id = folder.id
-                        folder_cache[dirpath_lower] = current_folder_id
-
-                    # Processa arquivos
-                    for fname in filenames:
-                        if not fname.lower().endswith(self.SUPPORTED_EXTENSIONS):
-                            continue
-                            
-                        file_path = self.normalize_path(os.path.join(dirpath, fname))
-                        found_files.add(file_path)
-                        
-                        # Verifica item existente
-                        item = db.query(MediaItem).filter(MediaItem.file == file_path).first()
-                        duration = self.get_media_duration(file_path)
-                        
-                        if duration > 0:
-                            if not item:
-                                item = MediaItem(
-                                    name=os.path.splitext(fname)[0], 
-                                    file=file_path, 
-                                    duration=duration, 
-                                    folder_id=current_folder_id
-                                )
-                                db.add(item)
-                                batch_count += 1
-                            else:
-                                # Atualiza se mudou de pasta ou duração
-                                if item.folder_id != current_folder_id or item.duration != duration:
-                                    item.folder_id = current_folder_id
-                                    item.duration = duration
-                                    batch_count += 1
-
-                        processed_count += 1
-                        if progress_callback:
-                            progress_callback(processed_count, total_files)
-
-                        if batch_count >= BATCH_SIZE:
-                            db.commit()
-                            batch_count = 0
-
+                stats = {"count": 0, "total": total_files}
+                
+                # Usamos um executor com um número balanceado de threads (ex: 4 a 8)
+                with ThreadPoolExecutor(max_workers=6) as executor:
+                    self._recursive_scan_worker(db, root_path, root_folder.id, found_files, stats, progress_callback, executor)
+                
                 db.commit()
 
                 # 4. LIMPEZA (PURGE)
                 from .models import PlaylistItem
-                all_folders_ids = list(folder_cache.values())
                 missing_items = db.query(MediaItem).filter(
-                    MediaItem.folder_id.in_(all_folders_ids), 
+                    MediaItem.file.ilike(f"{root_path}%"),
                     ~MediaItem.file.in_(found_files)
                 ).all()
 
@@ -280,18 +234,81 @@ class MediaUtils:
                     db.commit()
 
             except Exception as e:
-                print(f"[Scanner] ERRO NO SCAN: {e}")
+                print(f"[Scanner] ERRO NO SCAN PARALELO: {e}")
                 db.rollback()
-                raise e # Propaga o erro para o worker saber que falhou
+                raise e
 
-                # Remove pastas vazias ou que não existem mais (opcional, mas bom para manter limpo)
-                # (Apenas pastas que estão sob a root_path e não foram encontradas no walk)
-                # Nota: found_folders contém IDs. Precisamos dos IDs que NÃO estão lá.
-                # Mas para simplificar, vamos focar em remover mídias.
+    def _recursive_scan_worker(self, db, current_path, parent_id, found_files, stats, callback, executor):
+        """
+        O motor recursivo. Explora a fundo antes de focar nos arquivos.
+        """
+        current_path = self.normalize_path(current_path)
+        file_tasks = {}
 
-            except Exception as e:
-                print(f"[Scanner] Erro fatal no scan: {e}")
-                db.rollback()
+        try:
+            # 1. Lista tudo o que tem na pasta atual
+            with os.scandir(current_path) as it:
+                entries = list(it)
+
+            # 2. SEPARA E PROCESSA PASTAS (Mergulha primeiro)
+            for entry in entries:
+                if entry.is_dir():
+                    full_path = self.normalize_path(entry.path)
+                    
+                    # Garante a subpasta no banco
+                    subfolder = db.query(MediaFolder).filter(MediaFolder.path.ilike(full_path)).first()
+                    if not subfolder:
+                        subfolder = MediaFolder(
+                            path=full_path,
+                            name=entry.name,
+                            parent_id=parent_id,
+                            auto_scan=True # Herdado ou padrão
+                        )
+                        db.add(subfolder)
+                        db.commit()
+                        db.refresh(subfolder)
+                    
+                    # RECURSÃO: Mergulha na subpasta
+                    self._recursive_scan_worker(db, full_path, subfolder.id, found_files, stats, callback, executor)
+
+            # 3. PROCESSA ARQUIVOS DA PASTA ATUAL (Depois de ter mergulhado nas subpastas)
+            for entry in entries:
+                if entry.is_file() and entry.name.lower().endswith(self.SUPPORTED_EXTENSIONS):
+                    full_path = self.normalize_path(entry.path)
+                    # Adiciona ao pool de processamento
+                    future = executor.submit(self.get_media_duration, full_path)
+                    file_tasks[future] = (full_path, entry.name)
+
+            # 4. Coleta resultados dos arquivos
+            for future in as_completed(file_tasks):
+                f_path, f_name = file_tasks[future]
+                duration = future.result()
+                
+                if duration > 0:
+                    found_files.add(f_path)
+                    item = db.query(MediaItem).filter(MediaItem.file.ilike(f_path)).first()
+                    
+                    if not item:
+                        item = MediaItem(name=os.path.splitext(f_name)[0], file=f_path, duration=duration, folder_id=parent_id)
+                        db.add(item)
+                    else:
+                        if item.folder_id != parent_id or item.duration != duration:
+                            item.folder_id = parent_id
+                            item.duration = duration
+                    
+                    # Atualiza progresso
+                    stats["count"] += 1
+                    if callback:
+                        callback(stats["count"], stats["total"])
+                    
+                    # Commit em pequenos lotes
+                    if stats["count"] % 10 == 0:
+                        db.commit()
+
+        except PermissionError:
+            print(f"[Scanner] Sem permissão: {current_path}")
+        except Exception as e:
+            print(f"[Scanner] Erro em {current_path}: {e}")
 
     def health_check_all_folders(self):
         """

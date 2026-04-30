@@ -147,7 +147,11 @@ class MediaView(Vertical):
                     self.app.call_from_thread(progress_bar.update, total=total, progress=current)
 
                 with SessionLocal() as db:
-                    folders = db.query(MediaFolder).filter(MediaFolder.auto_scan == True).all()
+                    # Pega apenas as pastas RAIZ (parent_id is None) que estão com Auto-Scan
+                    folders = db.query(MediaFolder).filter(
+                        MediaFolder.auto_scan == True,
+                        MediaFolder.parent_id == None
+                    ).all()
                     for f in folders:
                         self.app.scanner.scan_media_folder(f.path, progress_callback=update_progress)
                     
@@ -238,22 +242,31 @@ class MediaView(Vertical):
         if isinstance(focused, Tree):
             node = focused.cursor_node
             if node and node.data:
-                folder_id = node.data
                 with SessionLocal() as db:
-                    folder = db.query(MediaFolder).get(folder_id)
+                    folder = db.query(MediaFolder).get(self.selected_folder_id)
                     if folder:
-                        # Deleta mídias da pasta (e limpa playlists)
-                        from app.models import PlaylistItem
-                        media_ids = [m.id for m in db.query(MediaItem).filter(MediaItem.folder_id == folder_id).all()]
-                        if media_ids:
-                            db.query(PlaylistItem).filter(PlaylistItem.media_id.in_(media_ids)).delete(synchronize_session=False)
-                        db.query(MediaItem).filter(MediaItem.folder_id == folder_id).delete(synchronize_session=False)
-                        db.query(MediaFolder).filter(MediaFolder.id == folder_id).delete()
+                        # 1. Coleta TODOS os IDs de pastas (a atual e todas as subpastas)
+                        all_folder_ids = self._get_all_subfolder_ids(db, folder.id)
+                        
+                        # 2. Busca TODAS as mídias vinculadas a essas pastas
+                        all_items = db.query(MediaItem).filter(MediaItem.folder_id.in_(all_folder_ids)).all()
+                        item_ids = [item.id for item in all_items]
+                        
+                        if item_ids:
+                            # Remove referências em Playlists
+                            from app.models import PlaylistItem
+                            db.query(PlaylistItem).filter(PlaylistItem.media_id.in_(item_ids)).delete(synchronize_session=False)
+                            # Remove as mídias
+                            db.query(MediaItem).filter(MediaItem.id.in_(item_ids)).delete(synchronize_session=False)
+                        
+                        # 3. Remove todas as subpastas e a pasta principal
+                        db.query(MediaFolder).filter(MediaFolder.id.in_(all_folder_ids)).delete(synchronize_session=False)
+                        
                         db.commit()
+                        self.app.notify(f"Pasta '{folder.name}' e todo seu conteúdo removidos.", severity="success")
                         self.selected_folder_id = None
                         self.reload_folder_tree()
                         self.reload_data()
-                        self.app.notify("Biblioteca excluída!")
 
         elif isinstance(focused, DataTable):
             row_index = focused.cursor_row
