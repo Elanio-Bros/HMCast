@@ -1,11 +1,12 @@
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
-from textual.widgets import Select, Button, Label, Static
+from textual.widgets import SelectionList, Button, Label, Static, Select
+from textual.widgets.selection_list import Selection
 from textual.containers import Vertical, Horizontal
 
 
 class AddMediaToPlaylistModal(ModalScreen[bool]):
-    """Modal para Adicionar Mídia a uma Playlist."""
+    """Modal para Adicionar Múltiplas Mídias a uma Playlist."""
 
     def __init__(self, playlist_id: int):
         super().__init__()
@@ -13,14 +14,14 @@ class AddMediaToPlaylistModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="modal-container"):
-            yield Static("ADICIONAR MÍDIA À PLAYLIST", id="modal-title")
+            yield Static("VINCULAR MÍDIAS À PLAYLIST", id="modal-title")
+            
+            yield Label("Selecione os vídeos (Use ESPAÇO para marcar):")
+            # SelectionList permite múltipla escolha
+            yield SelectionList[int](id="selection-media")
             
             with Vertical(classes="input-group"):
-                yield Label("Mídia (Arquivo):")
-                yield Select([], id="select-media", prompt="Selecione um vídeo...")
-            
-            with Vertical(classes="input-group"):
-                yield Label("Papel na Playlist:")
+                yield Label("Papel na Playlist (Para todos os selecionados):")
                 yield Select([
                     ("Conteúdo", "CONTENT"),
                     ("Abertura", "OPENING"),
@@ -30,50 +31,54 @@ class AddMediaToPlaylistModal(ModalScreen[bool]):
             yield Label("", id="m-pl-error-message", classes="error-text")
             
             with Horizontal(id="modal-actions"):
-                yield Button("Adicionar", variant="success", id="btn-m-pl-save")
+                yield Button("Adicionar Selecionados", variant="success", id="btn-m-pl-save")
                 yield Button("Cancelar", variant="error", id="btn-m-pl-cancel")
 
     def on_mount(self) -> None:
         from app.database import SessionLocal
         from app.models import MediaItem
         
-        select = self.query_one("#select-media", Select)
+        selection_list = self.query_one("#selection-media", SelectionList)
         with SessionLocal() as db:
             medias = db.query(MediaItem).order_by(MediaItem.name).all()
-            options = [(m.name, m.id) for m in medias]
-            select.set_options(options)
+            # Criamos a lista de seleções
+            options = [Selection(m.name, m.id) for m in medias]
+            selection_list.add_options(options)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-m-pl-cancel":
             self.dismiss(False)
         elif event.button.id == "btn-m-pl-save":
-            self.save_item()
+            self.save_items()
 
-    def save_item(self) -> None:
+    def save_items(self) -> None:
         from app.database import SessionLocal
         from app.models import PlaylistItem
         from sqlalchemy import func
         
-        media_id = self.query_one("#select-media", Select).value
+        selected_ids = self.query_one("#selection-media", SelectionList).selected
         role = self.query_one("#select-role", Select).value
         error_lab = self.query_one("#m-pl-error-message", Label)
         
-        if not media_id:
-            error_lab.update("Selecione uma mídia!")
+        if not selected_ids:
+            error_lab.update("Selecione ao menos uma mídia!")
             return
 
         with SessionLocal() as db:
-            # Calcula próxima posição
+            # Busca a última posição atual na playlist
             max_pos = db.query(func.max(PlaylistItem.position)).filter_by(playlist_id=self.playlist_id).scalar()
-            next_pos = (max_pos + 1) if max_pos is not None else 0
+            current_pos = (max_pos + 1) if max_pos is not None else 0
             
-            new_item = PlaylistItem(
-                playlist_id=self.playlist_id,
-                media_id=media_id,
-                position=next_pos,
-                role=role
-            )
-            db.add(new_item)
+            for media_id in selected_ids:
+                new_item = PlaylistItem(
+                    playlist_id=self.playlist_id,
+                    media_id=media_id,
+                    position=current_pos,
+                    role=role
+                )
+                db.add(new_item)
+                current_pos += 1 # Incrementa a posição para o próximo vídeo
+            
             db.commit()
             
         self.dismiss(True)

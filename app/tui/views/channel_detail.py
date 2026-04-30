@@ -13,8 +13,8 @@ class ChannelDetailView(Vertical):
             with Horizontal(classes="view-header"):
                 yield Static("DETALHES DO CANAL", classes="view-title", id="detail-title")
             
-            with Vertical(id="detail-container"):
-                with Grid(id="detail-info-grid"):
+            with Vertical(id="detail-container", classes="detail-container"):
+                with Grid(id="detail-info-grid", classes="info-grid"):
                     yield Label("ID:")
                     yield Static("-", id="lab-id")
                     yield Label("Código:")

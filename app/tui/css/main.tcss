@@ -132,3 +132,85 @@ Screen {
     color: $text-muted;
     margin-top: 1;
 }
+
+/* ── COMPONENTES UNIFICADOS (Padrão do Sistema) ── */
+
+.view-header {
+    height: 3;
+    width: 100%;
+    border-bottom: ascii $panel;
+    margin-bottom: 1;
+    content-align: left middle;
+}
+
+.view-title {
+    color: $secondary;
+    text-style: bold;
+    margin-left: 1;
+}
+
+.action-bar {
+    height: 5;
+    width: 100%;
+    padding: 0 2;
+    align: right middle;
+    border-top: ascii $panel;
+    background: $surface;
+}
+
+.btn-action {
+    margin-left: 1;
+    min-width: 16;
+    height: 3;
+}
+
+/* Tabelas ASCII +- com Fundo Contrastante */
+DataTable {
+    height: auto;
+    min-height: 5;
+    border: ascii $panel;
+    background: $background;
+    color: $foreground;
+    margin: 1 0;
+}
+
+DataTable > .datatable--header {
+    background: $surface;
+    color: $secondary;
+    text-style: bold;
+    text-align: center;
+}
+
+DataTable > .datatable--cell {
+    text-align: center;
+    border-right: ascii $panel;
+}
+
+/* Grids de Detalhes (Padrão 2 Colunas) */
+.info-grid {
+    grid-size: 2;
+    grid-columns: 15 1fr;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.detail-container {
+    padding: 1 2;
+    background: $surface;
+    margin-bottom: 1;
+    border: ascii $panel;
+    height: auto;
+}
+
+.section-header {
+    height: 3;
+    width: 100%;
+    margin: 1 0;
+    align: left middle;
+}
+
+.section-label {
+    color: $secondary;
+    text-style: bold;
+    width: 1fr;
+}

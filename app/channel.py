@@ -195,14 +195,24 @@ class ChannelRuntime:
     # ---------------- PLAYLIST / MEDIAS ----------------
 
     def get_active_schedule(self):
-        #Busca o agendamento ativo respeitando a HIERARQUIA DE RELEVÂNCIA.
+        # Busca o agendamento ativo respeitando a HIERARQUIA DE RELEVÂNCIA e suporte a Overnight.
+        from datetime import timedelta
         now_local = datetime.now().astimezone()
+        yesterday_local = now_local - timedelta(days=1)
+        
         now_time = now_local.time()
         
-        day_name = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now_local.weekday()]
-        month_day = now_local.day
-        date_dm = now_local.strftime("%d/%m")
-        date_dmy = now_local.strftime("%d/%m/%Y")
+        # Contextos para comparação
+        def get_ctx(dt):
+            return {
+                "day_name": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][dt.weekday()],
+                "month_day": dt.day,
+                "date_dm": dt.strftime("%d/%m"),
+                "date_dmy": dt.strftime("%d/%m/%Y")
+            }
+        
+        ctx_today = get_ctx(now_local)
+        ctx_yesterday = get_ctx(yesterday_local)
 
         with SessionLocal() as db:
             schedules = (
@@ -211,52 +221,44 @@ class ChannelRuntime:
                 .all()
             )
 
-        # 1. Filtra apenas quem está na janela de horário
-        candidates = []
+        scored_candidates = []
         for sch in schedules:
             st, et = sch.start_time, sch.end_time
-            in_window = (st <= now_time <= et) if st <= et else (now_time >= st or now_time <= et)
-            if in_window:
-                candidates.append(sch)
-
-        if not candidates:
-            return None
-
-        # 2. Calcula "Score de Relevância" para cada candidato
-        # Prioridade: DD/MM/YYYY (4) > DD/MM (3) > Dia do Mês (2) > Dia da Semana (1) > Todo dia (0)
-        scored_candidates = []
-        for sch in candidates:
-            score = 0
-            match = False
+            is_overnight = st > et
             
-            # Checa Data Única (DD/MM/YYYY)
-            if sch.specific_dates and date_dmy in sch.specific_dates:
+            # Determina qual contexto de data usar
+            target_ctx = None
+            
+            # Caso 1: Janela normal hoje ou início de janela overnight hoje
+            if (not is_overnight and st <= now_time <= et) or (is_overnight and now_time >= st):
+                target_ctx = ctx_today
+            # Caso 2: Fim de janela overnight hoje (começou ontem)
+            elif is_overnight and now_time <= et:
+                target_ctx = ctx_yesterday
+            
+            if not target_ctx:
+                continue
+
+            # Validação de Relevância baseada no contexto alvo
+            score = -1
+            if sch.specific_dates and target_ctx["date_dmy"] in sch.specific_dates:
                 score = 4
-                match = True
-            # Checa Data Anual (DD/MM)
-            elif sch.specific_dates and date_dm in sch.specific_dates:
+            elif sch.specific_dates and target_ctx["date_dm"] in sch.specific_dates:
                 score = 3
-                match = True
-            # Checa Dia do Mês (DD)
-            elif sch.month_days and month_day in sch.month_days:
+            elif sch.month_days and target_ctx["month_day"] in sch.month_days:
                 score = 2
-                match = True
-            # Checa Dia da Semana
-            elif sch.weekdays and day_name in sch.weekdays:
+            elif sch.weekdays and target_ctx["day_name"] in sch.weekdays:
                 score = 1
-                match = True
-            # Regra "Todo dia" (sem filtros)
             elif not sch.weekdays and not sch.month_days and not sch.specific_dates:
                 score = 0
-                match = True
             
-            if match:
+            if score >= 0:
                 scored_candidates.append((score, sch))
 
         if not scored_candidates:
             return None
 
-        # 3. Retorna o candidato com maior score (mais específico)
+        # Retorna o candidato com maior score (mais específico)
         scored_candidates.sort(key=lambda x: x[0], reverse=True)
         return scored_candidates[0][1]
 

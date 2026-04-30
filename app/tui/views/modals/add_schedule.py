@@ -2,12 +2,14 @@ from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Input, Select, Button, Label, Static
 from textual.containers import Vertical, Horizontal
-from datetime import time
+from app.database import SessionLocal
+from app.models import ChannelSchedule, Playlist, PlaylistItem, MediaItem
+from datetime import time, datetime, timedelta
 import re
 
 
 class AddScheduleModal(ModalScreen[bool]):
-    """Modal de Agendamento com Validação de Conflitos."""
+    """Modal de Agendamento com Validação de Conflitos e Cálculo Automático."""
     
     def __init__(self, channel_id: int):
         super().__init__()
@@ -26,8 +28,8 @@ class AddScheduleModal(ModalScreen[bool]):
                     yield Label("Início:")
                     yield Input(placeholder="00:00", id="start-time")
                 with Vertical(classes="col"):
-                    yield Label("Fim:")
-                    yield Input(placeholder="00:00", id="end-time")
+                    yield Label("Fim (Vazio = Auto):")
+                    yield Input(placeholder="Opcional", id="end-time")
             
             with Vertical(classes="input-group"):
                 yield Label("Data/Dias (ex: mon, 15, 15/04, 20/05/2025):")
@@ -41,9 +43,6 @@ class AddScheduleModal(ModalScreen[bool]):
                 yield Button("Cancelar", variant="error", id="btn-cancel")
 
     def on_mount(self) -> None:
-        from app.database import SessionLocal
-        from app.models import Playlist
-        
         select = self.query_one("#select-playlist", Select)
         with SessionLocal() as db:
             playlists = db.query(Playlist).all()
@@ -57,45 +56,56 @@ class AddScheduleModal(ModalScreen[bool]):
             self.save_schedule()
 
     def save_schedule(self) -> None:
-        from app.database import SessionLocal
-        from app.models import ChannelSchedule
-        
         playlist_id = self.query_one("#select-playlist", Select).value
-        start_str = self.query_one("#start-time", Input).value
-        end_str = self.query_one("#end-time", Input).value
+        start_str = self.query_one("#start-time", Input).value.strip()
+        end_str = self.query_one("#end-time", Input).value.strip()
         patterns_str = self.query_one("#date-patterns", Input).value.strip()
         error_lab = self.query_one("#error-message", Label)
         
-        if not playlist_id or not start_str or not end_str:
-            error_lab.update("Preencha todos os campos obrigatórios!")
+        if not playlist_id or not start_str:
+            error_lab.update("Playlist e Início são obrigatórios!")
             return
 
         try:
             sh, sm = map(int, start_str.split(':'))
-            eh, em = map(int, end_str.split(':'))
             start_t = time(sh, sm)
-            end_t = time(eh, em)
         except Exception:
-            error_lab.update("Formato de hora inválido (Use HH:MM)")
+            error_lab.update("Formato de Início inválido (Use HH:MM)")
             return
-            
-        # Lógica de Parsing Inteligente
-        weekdays = []
-        month_days = []
-        specific_dates = []
-        
-        if patterns_str:
-            parts = [p.strip().lower() for p in patterns_str.split(',')]
-            for p in parts:
-                if p in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
-                    weekdays.append(p)
-                elif p.isdigit():
-                    month_days.append(int(p))
-                elif re.match(r"^\d{1,2}/\d{1,2}(/\d{4})?$", p):
-                    specific_dates.append(p)
-        
+
         with SessionLocal() as db:
-            # VERIFICAÇÃO DE CONFLITO NO CORE
+            # Cálculo automático do fim se estiver vazio
+            if not end_str:
+                duration_sec = Playlist.calc_total_duration(db, playlist_id)
+                if duration_sec <= 0:
+                    error_lab.update("Playlist vazia ou sem duração válida!")
+                    return
+                
+                # Soma start_t + duration_sec
+                dummy_date = datetime.combine(datetime.today(), start_t)
+                end_dt = dummy_date + timedelta(seconds=duration_sec)
+                end_t = end_dt.time()
+            else:
+                try:
+                    eh, em = map(int, end_str.split(':'))
+                    end_t = time(eh, em)
+                except Exception:
+                    error_lab.update("Formato de Fim inválido (Use HH:MM)")
+                    return
+            
+            # Lógica de Parsing Inteligente de Datas
+            weekdays, month_days, specific_dates = [], [], []
+            if patterns_str:
+                parts = [p.strip().lower() for p in patterns_str.split(',')]
+                for p in parts:
+                    if p in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
+                        weekdays.append(p)
+                    elif p.isdigit():
+                        month_days.append(int(p))
+                    elif re.match(r"^\d{1,2}/\d{1,2}(/\d{4})?$", p):
+                        specific_dates.append(p)
+            
+            # VERIFICAÇÃO DE CONFLITO NO CORE (Suporta overnight agora)
             conflict = ChannelSchedule.check_conflict(
                 db, self.channel_id, start_t, end_t, 
                 weekdays, month_days, specific_dates

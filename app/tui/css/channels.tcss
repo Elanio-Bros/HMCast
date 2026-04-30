@@ -1,4 +1,4 @@
-/* ── Módulo de Canais ── */
+/* ── Módulo de Canais (Específico) ── */
 
 #channels-manager, #channel-detail {
     width: 100%;
@@ -12,70 +12,11 @@
     padding: 1 2;
 }
 
-/* ── Componentes de View (Isolados) ── */
-.view-header {
-    height: 3;
-    width: 100%;
-    border-bottom: ascii $panel;
-    margin-bottom: 1;
-    content-align: left middle;
-}
-
-.view-title {
-    color: $secondary;
-    text-style: bold;
-    margin-left: 1;
-}
-
-.action-bar {
-    height: 5;
-    width: 100%;
-    padding: 0 2;
-    align: right middle;
-    border-top: ascii $panel;
-    background: $surface;
-}
-
-.btn-action {
-    margin-left: 1;
-    min-width: 16;
-    height: 3;
-}
-
-/* ── Tabelas ASCII (Isoladas para este módulo) ── */
-DataTable {
-    height: auto;
-    min-height: 5;
-    border: ascii $panel;
-    background: $background;
-    color: $foreground;
-    margin: 1 0;
-}
-
-DataTable > .datatable--header {
-    background: $surface;
-    color: $secondary;
-    text-style: bold;
-    text-align: center;
-}
-
-DataTable > .datatable--cell {
-    text-align: center;
-    border-right: ascii $panel;
-}
-
-/* Container de Detalhes do Canal */
+/* IDs específicos para herdar Grid e Container do Main */
 #detail-container {
-    padding: 1 2;
-    background: $surface;
-    margin-bottom: 1;
-    border: ascii $panel;
     height: auto;
 }
 
 #detail-info-grid {
-    grid-size: 2;
-    grid-columns: 15 1fr;
     height: auto;
-    margin-bottom: 1;
 }

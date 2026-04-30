@@ -13,8 +13,8 @@ class PlaylistDetailView(Vertical):
             with Horizontal(classes="view-header"):
                 yield Static("DETALHES DA PLAYLIST", classes="view-title", id="playlist-detail-title")
             
-            with Vertical(id="playlist-detail-container"):
-                with Grid(id="playlist-info-grid"):
+            with Vertical(id="playlist-detail-container", classes="detail-container"):
+                with Grid(id="playlist-info-grid", classes="info-grid"):
                     yield Label("ID:")
                     yield Static("-", id="pl-lab-id")
                     yield Label("Nome:")
@@ -28,7 +28,8 @@ class PlaylistDetailView(Vertical):
                 yield DataTable(id="playlist-items-table")
 
         with Horizontal(classes="action-bar"):
-            yield Button("Adicionar Mídia", variant="success", id="btn-add-media", classes="btn-action")
+            yield Button("Vincular Mídia", variant="success", id="btn-add-media", classes="btn-action")
+            yield Button("Editar", variant="warning", id="btn-edit-playlist-detail", classes="btn-action")
             yield Button("Mover Subir", variant="primary", id="btn-move-up", classes="btn-action")
             yield Button("Mover Descer", variant="primary", id="btn-move-down", classes="btn-action")
             yield Button("Remover", variant="error", id="btn-remove-item", classes="btn-action")
@@ -78,12 +79,21 @@ class PlaylistDetailView(Vertical):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-pl-detail-back":
             self.app.screen.query_one("ContentSwitcher").current = "playlists-manager"
+        elif event.button.id == "btn-edit-playlist-detail":
+            self.action_edit_playlist()
         elif event.button.id == "btn-add-media":
             self.action_add_media()
         elif event.button.id == "btn-remove-item":
             self.action_remove_item()
         elif event.button.id in ["btn-move-up", "btn-move-down"]:
             self.action_reorder(event.button.id == "btn-move-up")
+
+    def action_edit_playlist(self) -> None:
+        from app.tui.views.modals.edit_playlist import EditPlaylistModal
+        def check_result(success: bool) -> None:
+            if success:
+                self.load_playlist(self.playlist_id)
+        self.app.push_screen(EditPlaylistModal(self.playlist_id), check_result)
 
     def action_add_media(self) -> None:
         from app.tui.views.modals.add_media_to_playlist import AddMediaToPlaylistModal

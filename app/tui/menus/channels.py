@@ -170,37 +170,6 @@ class ChannelsMenu(BaseMenu):
             elif opt == "e": self.edit_schedule(cid)
             elif opt == "d": self.delete_schedule(cid)
 
-    def _calc_playlist_duration(self, pid: int) -> int:
-        items = self.db.query(PlaylistItem).filter_by(playlist_id=pid).order_by(PlaylistItem.position).all()
-        total = 0
-        for i, item in enumerate(items):
-            media = self.db.get(MediaItem, item.media_id)
-            if not media: continue
-            
-            skips = media.skips or {}
-            duration = float(media.duration)
-            is_first = (i == 0)
-            is_last = (i == len(items) - 1)
-            
-            if "intro" in skips and not is_first:
-                st = media.hms_to_seconds(skips["intro"]["start"])
-                et = media.hms_to_seconds(skips["intro"]["end"])
-                duration -= max(0, et - st)
-            
-            if "finish" in skips and not is_last:
-                st = media.hms_to_seconds(skips["finish"]["start"])
-                et = float(media.duration)
-                duration -= max(0, et - st)
-                
-            if "cuts" in skips:
-                for cut in skips.get("cuts", []):
-                    st = media.hms_to_seconds(cut["start"])
-                    et = media.hms_to_seconds(cut["end"])
-                    duration -= max(0, et - st)
-                    
-            total += max(0, duration)
-        return int(total)
-
     def _parse_days(self, prompt_text: str):
         val = Prompt.ask(prompt_text, default="")
         if val.lower() in ["vazio", ""]: return None
@@ -241,8 +210,6 @@ class ChannelsMenu(BaseMenu):
             elif opt == "1":
                 console.print("\n[dim]Legenda Semana: 0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sáb, 6=Dom[/]")
                 res = self._parse_days("Digite os números (ex: 0,2,4) ou vazio para remover a regra")
-                # update strictly if not empty to allow canceling the sub-prompt, but wait: parsing empty returns None!
-                # so if they leave it empty, it resets 'wd' to None. That is logically sound!
                 wd = res
             elif opt == "2":
                 res = self._parse_days("Digite os dias do mês (1 a 31, ex: 10,20) ou vazio para remover")
@@ -314,7 +281,7 @@ class ChannelsMenu(BaseMenu):
             st = st_dt.time()
             
             if not end.strip():
-                duration_sec = self._calc_playlist_duration(pid)
+                duration_sec = Playlist.calc_total_duration(self.db, pid)
                 et_dt = st_dt + timedelta(seconds=duration_sec)
                 et = et_dt.time()
                 console.print(f"[cyan]Duração da playlist: {duration_sec}s | Fim calculado: {et.strftime('%H:%M')}[/]")

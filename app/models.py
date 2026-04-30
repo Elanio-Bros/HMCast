@@ -127,33 +127,77 @@ class ChannelSchedule(Base):
 
     @staticmethod
     def check_conflict(db, channel_id, start_t, end_t, weekdays=None, month_days=None, specific_dates=None):
-        """Verifica conflitos de horário no Core do sistema."""
+        """Verifica conflitos de horário no Core do sistema, considerando deslocamento de dia em overnight."""
+        from datetime import time, datetime, timedelta
         existing = db.query(ChannelSchedule).filter_by(channel_id=channel_id).all()
+        
+        def expand_sch(st, et, wds, mds, sds):
+            # Retorna lista de (tipo, valor, start, end)
+            slots = []
+            is_overnight = st > et
+            
+            # Dias da semana
+            if wds:
+                wd_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+                for wd in wds:
+                    if not is_overnight:
+                        slots.append(('WD', wd, st, et))
+                    else:
+                        slots.append(('WD', wd, st, time(23, 59, 59)))
+                        next_wd = wd_names[(wd_names.index(wd) + 1) % 7]
+                        slots.append(('WD', next_wd, time(0, 0, 0), et))
+            
+            # Dias do mês
+            if mds:
+                for md in mds:
+                    if not is_overnight:
+                        slots.append(('MD', md, st, et))
+                    else:
+                        slots.append(('MD', md, st, time(23, 59, 59)))
+                        # Simplificação: md + 1 (não checa virada de mês, mas cobre a maioria dos casos)
+                        slots.append(('MD', (md % 31) + 1, time(0, 0, 0), et))
+            
+            # Datas específicas
+            if sds:
+                for sd in sds:
+                    if not is_overnight:
+                        slots.append(('SD', sd, st, et))
+                    else:
+                        slots.append(('SD', sd, st, time(23, 59, 59)))
+                        try:
+                            # Tenta parsear a data para achar o dia seguinte
+                            fmt = "%d/%m/%Y" if len(sd) > 5 else "%d/%m"
+                            dt = datetime.strptime(sd, fmt)
+                            next_dt = dt + timedelta(days=1)
+                            slots.append(('SD', next_dt.strftime(fmt), time(0, 0, 0), et))
+                        except: pass
+            
+            # Diário (Todo dia)
+            if not (wds or mds or sds):
+                if not is_overnight:
+                    slots.append(('ALL', 'ALL', st, et))
+                else:
+                    # Overnight diário ocupa o fim e o início de TODOS os dias
+                    slots.append(('ALL', 'ALL', st, time(23, 59, 59)))
+                    slots.append(('ALL', 'ALL', time(0, 0, 0), et))
+            
+            return slots
+
+        new_slots = expand_sch(start_t, end_t, weekdays, month_days, specific_dates)
+        
         for sch in existing:
-            if (start_t < sch.end_time) and (end_t > sch.start_time):
-                # Caso um seja 'Todo dia'
-                if not (weekdays or month_days or specific_dates) or \
-                   not (sch.weekdays or sch.month_days or sch.specific_dates):
-                    return f"Conflito com horário fixo ({sch.start_time.strftime('%H:%M')})"
-
-                # Cruzamento de listas
-                if weekdays and sch.weekdays:
-                    overlap = set(weekdays) & set(sch.weekdays)
-                    if overlap: return f"Conflito nos dias: {', '.join(overlap)}"
-                
-                if month_days and sch.month_days:
-                    overlap = set(month_days) & set(sch.month_days)
-                    if overlap: return f"Conflito no dia do mês: {', '.join(map(str, overlap))}"
-                
-                if specific_dates and sch.specific_dates:
-                    overlap = set(specific_dates) & set(sch.specific_dates)
-                    if overlap: return f"Conflito na data específica: {', '.join(overlap)}"
-
-                # Cruzamento entre tipos (Conflito preventivo)
-                if (weekdays and (sch.month_days or sch.specific_dates)) or \
-                   (month_days and (sch.weekdays or sch.specific_dates)) or \
-                   (specific_dates and (sch.weekdays or sch.month_days)):
-                    return "Possível sobreposição entre regras (Semana/Mês/Data)."
+            sch_slots = expand_sch(sch.start_time, sch.end_time, sch.weekdays, sch.month_days, sch.specific_dates)
+            
+            for n_type, n_val, n_st, n_et in new_slots:
+                for s_type, s_val, s_st, s_et in sch_slots:
+                    # Só conflita se o "dia" bater ou um deles for 'ALL'
+                    day_match = (n_type == s_type and n_val == s_val) or (n_type == 'ALL' or s_type == 'ALL')
+                    
+                    if day_match:
+                        # Verifica sobreposição de tempo
+                        if (n_st < s_et) and (n_et > s_st):
+                            return f"Conflito no período {n_st.strftime('%H:%M')}-{n_et.strftime('%H:%M')} ({n_val})"
+        
         return None
 
 
@@ -163,6 +207,39 @@ class Playlist(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     shuffle = Column(Boolean, default=False)
+
+    @staticmethod
+    def calc_total_duration(db, playlist_id: int) -> int:
+        """Calcula a duração total da playlist considerando os cortes (skips)."""
+        from .models import PlaylistItem, MediaItem
+        items = db.query(PlaylistItem, MediaItem).join(MediaItem, MediaItem.id == PlaylistItem.media_id).filter(PlaylistItem.playlist_id == playlist_id).order_by(PlaylistItem.position).all()
+        total = 0
+        for i, (p_item, m_item) in enumerate(items):
+            duration = float(m_item.duration)
+            skips = m_item.skips or {}
+            is_first = (i == 0)
+            is_last = (i == len(items) - 1)
+            
+            # Se não for o primeiro item, ignora a intro
+            if "intro" in skips and not is_first:
+                st = m_item.hms_to_seconds(skips["intro"]["start"])
+                et = m_item.hms_to_seconds(skips["intro"]["end"])
+                duration -= max(0, et - st)
+            
+            # Se não for o último item, ignora o final
+            if "finish" in skips and not is_last:
+                st = m_item.hms_to_seconds(skips["finish"]["start"])
+                et = float(m_item.duration)
+                duration -= max(0, et - st)
+                
+            if "cuts" in skips:
+                for cut in skips.get("cuts", []):
+                    st = m_item.hms_to_seconds(cut["start"])
+                    et = m_item.hms_to_seconds(cut["end"])
+                    duration -= max(0, et - st)
+                    
+            total += max(0, duration)
+        return int(total)
 
 
 class PlaylistItem(Base):
