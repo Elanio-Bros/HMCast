@@ -2,9 +2,9 @@ from sqlalchemy import (
     Column, Integer, String, JSON, DateTime,
     Time, ForeignKey, Boolean
 )
-from sqlalchemy.orm import declarative_base, validates, reconstructor,relationship
+from sqlalchemy.orm import declarative_base, validates, reconstructor, relationship
 from datetime import datetime, timezone
-
+from .enums import PlaylistItemRole
 import re
 
 Base = declarative_base()
@@ -24,7 +24,6 @@ class MediaItem(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     file = Column(String, nullable=False)
-    # duração total do arquivo em segundos
     duration = Column(Integer, nullable=False)
     folder_id = Column(Integer, ForeignKey("media_folders.id"), nullable=True)
     sequence_id = Column(Integer, ForeignKey("media_item.id"), nullable=True)
@@ -56,12 +55,8 @@ class MediaItem(Base):
                 raise ValueError
             
             final_val = -val if is_negative else val
-            
-            # Resolução absoluta se for negativo
             if final_val < 0:
                 return max(0.0, float(self.duration) + final_val)
-            
-            # Caso especial: -00:00:00 significa "fim do arquivo"
             if is_negative and val == 0:
                 return float(self.duration)
 
@@ -69,18 +64,31 @@ class MediaItem(Base):
         except (ValueError, TypeError):
             return 0.0
 
-    def get_cut_times(self, is_first: bool, is_last: bool):
+    def get_cut_times(self, role: PlaylistItemRole, is_first: bool, is_last: bool):
         start = 0.0
         end = float(self.duration)
-
         skips = self.skips or {}
         intro = skips.get("intro")
         finish = skips.get("finish")
 
-        if intro and not is_first:
+        # Lógica de Abertura (Intro)
+        show_intro = False
+        if role == PlaylistItemRole.FULL or role == PlaylistItemRole.HEAD or role == PlaylistItemRole.OPENING:
+            show_intro = True
+        elif role == PlaylistItemRole.AUTO and is_first:
+            show_intro = True
+        
+        if intro and not show_intro:
             start = self.hms_to_seconds(intro["end"])
 
-        if finish and not is_last:
+        # Lógica de Encerramento (Finish)
+        show_finish = False
+        if role == PlaylistItemRole.FULL or role == PlaylistItemRole.TAIL or role == PlaylistItemRole.CLOSING:
+            show_finish = True
+        elif role == PlaylistItemRole.AUTO and is_last:
+            show_finish = True
+
+        if finish and not show_finish:
             end = self.hms_to_seconds(finish["start"])
 
         return start, end
@@ -90,7 +98,7 @@ class Channels(Base):
     __tablename__ = "channels"
 
     id = Column(Integer, primary_key=True)
-    identifier = Column(String, unique=True, nullable=True) # Código personalizado (slug)
+    identifier = Column(String, unique=True, nullable=True)
     name = Column(String, nullable=False)
     type = Column(String, nullable=False, default="TV")  # "TV" ou "RADIO"
     execution_mode = Column(String, nullable=False, default="ON_DEMAND") # "ALWAYS_ON", "ON_DEMAND", "PREDICTIVE"
@@ -124,21 +132,19 @@ class ChannelSchedule(Base):
     month_days = Column(JSON, nullable=True)
     specific_dates = Column(JSON, nullable=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
+    current_item_index = Column(Integer, default=0)
 
     @staticmethod
     def check_conflict(db, channel_id, start_t, end_t, weekdays=None, month_days=None, specific_dates=None):
-        """Verifica conflitos de horário no Core do sistema, considerando deslocamento de dia em overnight."""
         from datetime import time, datetime, timedelta
         existing = db.query(ChannelSchedule).filter_by(channel_id=channel_id).all()
         
         def expand_sch(st, et, wds, mds, sds):
-            # Retorna lista de (tipo, valor, start, end)
             slots = []
             is_overnight = st > et
-            
-            # Dias da semana
+            wd_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
             if wds:
-                wd_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
                 for wd in wds:
                     if not is_overnight:
                         slots.append(('WD', wd, st, et))
@@ -147,17 +153,14 @@ class ChannelSchedule(Base):
                         next_wd = wd_names[(wd_names.index(wd) + 1) % 7]
                         slots.append(('WD', next_wd, time(0, 0, 0), et))
             
-            # Dias do mês
             if mds:
                 for md in mds:
                     if not is_overnight:
                         slots.append(('MD', md, st, et))
                     else:
                         slots.append(('MD', md, st, time(23, 59, 59)))
-                        # Simplificação: md + 1 (não checa virada de mês, mas cobre a maioria dos casos)
                         slots.append(('MD', (md % 31) + 1, time(0, 0, 0), et))
             
-            # Datas específicas
             if sds:
                 for sd in sds:
                     if not is_overnight:
@@ -165,39 +168,29 @@ class ChannelSchedule(Base):
                     else:
                         slots.append(('SD', sd, st, time(23, 59, 59)))
                         try:
-                            # Tenta parsear a data para achar o dia seguinte
                             fmt = "%d/%m/%Y" if len(sd) > 5 else "%d/%m"
                             dt = datetime.strptime(sd, fmt)
                             next_dt = dt + timedelta(days=1)
                             slots.append(('SD', next_dt.strftime(fmt), time(0, 0, 0), et))
                         except: pass
             
-            # Diário (Todo dia)
             if not (wds or mds or sds):
                 if not is_overnight:
                     slots.append(('ALL', 'ALL', st, et))
                 else:
-                    # Overnight diário ocupa o fim e o início de TODOS os dias
                     slots.append(('ALL', 'ALL', st, time(23, 59, 59)))
                     slots.append(('ALL', 'ALL', time(0, 0, 0), et))
-            
             return slots
 
         new_slots = expand_sch(start_t, end_t, weekdays, month_days, specific_dates)
-        
         for sch in existing:
             sch_slots = expand_sch(sch.start_time, sch.end_time, sch.weekdays, sch.month_days, sch.specific_dates)
-            
             for n_type, n_val, n_st, n_et in new_slots:
                 for s_type, s_val, s_st, s_et in sch_slots:
-                    # Só conflita se o "dia" bater ou um deles for 'ALL'
                     day_match = (n_type == s_type and n_val == s_val) or (n_type == 'ALL' or s_type == 'ALL')
-                    
                     if day_match:
-                        # Verifica sobreposição de tempo
                         if (n_st < s_et) and (n_et > s_st):
                             return f"Conflito no período {n_st.strftime('%H:%M')}-{n_et.strftime('%H:%M')} ({n_val})"
-        
         return None
 
 
@@ -210,34 +203,31 @@ class Playlist(Base):
 
     @staticmethod
     def calc_total_duration(db, playlist_id: int) -> int:
-        """Calcula a duração total da playlist considerando os cortes (skips)."""
         from .models import PlaylistItem, MediaItem
+        from .enums import PlaylistItemRole
         items = db.query(PlaylistItem, MediaItem).join(MediaItem, MediaItem.id == PlaylistItem.media_id).filter(PlaylistItem.playlist_id == playlist_id).order_by(PlaylistItem.position).all()
         total = 0
         for i, (p_item, m_item) in enumerate(items):
-            duration = float(m_item.duration)
-            skips = m_item.skips or {}
+            try:
+                role_enum = PlaylistItemRole(p_item.role)
+            except:
+                role_enum = PlaylistItemRole.AUTO
+
             is_first = (i == 0)
             is_last = (i == len(items) - 1)
             
-            # Se não for o primeiro item, ignora a intro
-            if "intro" in skips and not is_first:
-                st = m_item.hms_to_seconds(skips["intro"]["start"])
-                et = m_item.hms_to_seconds(skips["intro"]["end"])
-                duration -= max(0, et - st)
-            
-            # Se não for o último item, ignora o final
-            if "finish" in skips and not is_last:
-                st = m_item.hms_to_seconds(skips["finish"]["start"])
-                et = float(m_item.duration)
-                duration -= max(0, et - st)
-                
+            start, end = m_item.get_cut_times(role_enum, is_first, is_last)
+            duration = end - start
+
+            skips = m_item.skips or {}
             if "cuts" in skips:
                 for cut in skips.get("cuts", []):
-                    st = m_item.hms_to_seconds(cut["start"])
-                    et = m_item.hms_to_seconds(cut["end"])
-                    duration -= max(0, et - st)
-                    
+                    c_start = m_item.hms_to_seconds(cut["start"])
+                    c_end = m_item.hms_to_seconds(cut["end"])
+                    actual_cut_start = max(start, c_start)
+                    actual_cut_end = min(end, c_end)
+                    if actual_cut_end > actual_cut_start:
+                        duration -= (actual_cut_end - actual_cut_start)
             total += max(0, duration)
         return int(total)
 
@@ -249,4 +239,4 @@ class PlaylistItem(Base):
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
     media_id = Column(Integer, ForeignKey("media_item.id"))
     position = Column(Integer, default=0)
-    role = Column(String, default="CONTENT")  # "OPENING", "CONTENT", "CLOSING"
+    role = Column(String, default=PlaylistItemRole.AUTO.value)

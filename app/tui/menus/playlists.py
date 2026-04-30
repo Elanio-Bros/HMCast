@@ -5,6 +5,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Prompt, IntPrompt
 from app.models import Playlist, MediaItem, PlaylistItem
+from app.enums import PlaylistItemRole
 from app.tui.base import BaseMenu, console
 
 class PlaylistsMenu(BaseMenu):
@@ -119,7 +120,17 @@ class PlaylistsMenu(BaseMenu):
             
             for item in items:
                 media = self.db.get(MediaItem, item.media_id)
-                role_style = "cyan" if item.role == "OPENING" else "yellow" if item.role == "CLOSING" else "white"
+                # Cores baseadas no papel
+                role_colors = {
+                    PlaylistItemRole.OPENING.value: "bold cyan",
+                    PlaylistItemRole.CLOSING.value: "bold magenta",
+                    PlaylistItemRole.AUTO.value: "white",
+                    PlaylistItemRole.FULL.value: "bold green",
+                    PlaylistItemRole.HEAD.value: "yellow",
+                    PlaylistItemRole.TAIL.value: "blue",
+                    PlaylistItemRole.BODY.value: "dim white"
+                }
+                role_style = role_colors.get(item.role, "white")
                 table.add_row(str(item.id), str(item.position), f"[{role_style}]{item.role}[/]", media.name if media else "N/A")
             
             console.print(table)
@@ -164,7 +175,8 @@ class PlaylistsMenu(BaseMenu):
                             time.sleep(1)
                             continue
                             
-                        role = Prompt.ask("Papel", choices=["OPENING", "CONTENT", "CLOSING"], default="CONTENT")
+                        role_choices = [r.value for r in PlaylistItemRole]
+                        role = Prompt.ask("Papel", choices=role_choices, default=PlaylistItemRole.AUTO.value)
                         
                         prompt_msg = "Ordem Inicial (Enter = final)" if len(valid_mids) > 1 else "Ordem (Enter = final)"
                         start_order_raw = self.prompt_int_or_cancel(prompt_msg, allow_zero=True, allow_empty=True)
@@ -227,7 +239,8 @@ class PlaylistsMenu(BaseMenu):
                                 continue
                             item.position = new_order
                             
-                        item.role = Prompt.ask("Novo Papel", choices=["OPENING", "CONTENT", "CLOSING"], default=item.role)
+                        role_choices = [r.value for r in PlaylistItemRole]
+                        item.role = Prompt.ask("Novo Papel", choices=role_choices, default=item.role)
                         self.db.commit()
                         console.print("[green]Item atualizado.[/]")
                         time.sleep(1.5)

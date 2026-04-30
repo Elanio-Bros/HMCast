@@ -3,6 +3,7 @@ from textual.screen import ModalScreen
 from textual.widgets import SelectionList, Button, Label, Static, Select
 from textual.widgets.selection_list import Selection
 from textual.containers import Vertical, Horizontal
+from app.enums import PlaylistItemRole
 
 
 class AddMediaToPlaylistModal(ModalScreen[bool]):
@@ -23,10 +24,14 @@ class AddMediaToPlaylistModal(ModalScreen[bool]):
             with Vertical(classes="input-group"):
                 yield Label("Papel na Playlist (Para todos os selecionados):")
                 yield Select([
-                    ("Conteúdo", "CONTENT"),
-                    ("Abertura", "OPENING"),
-                    ("Encerramento", "CLOSING")
-                ], id="select-role", value="CONTENT")
+                    ("Inteligente (AUTO)", PlaylistItemRole.AUTO.value),
+                    ("Completo (FULL)", PlaylistItemRole.FULL.value),
+                    ("Com Abertura (HEAD)", PlaylistItemRole.HEAD.value),
+                    ("Com Encerramento (TAIL)", PlaylistItemRole.TAIL.value),
+                    ("Apenas Conteúdo (BODY)", PlaylistItemRole.BODY.value),
+                    ("Abertura Fixa (OPENING)", PlaylistItemRole.OPENING.value),
+                    ("Encerramento Fixo (CLOSING)", PlaylistItemRole.CLOSING.value)
+                ], id="select-role", value=PlaylistItemRole.AUTO.value)
             
             yield Label("", id="m-pl-error-message", classes="error-text")
             

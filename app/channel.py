@@ -6,6 +6,7 @@ import random
 from datetime import datetime, timezone
 from .database import SessionLocal
 from .models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
+from .enums import PlaylistItemRole
 from .player import Player
 from .media_utils import MediaUtils
 
@@ -115,49 +116,36 @@ class ChannelRuntime:
 
     # ---------------- TIMELINE / SEGMENTS ----------------
 
-    def build_segments(self, media, is_first: bool, is_last: bool):
+    def build_segments(self, media, role: PlaylistItemRole, is_first: bool, is_last: bool):
+        # Obtém os tempos de corte baseados no papel (role)
+        start, end = media.get_cut_times(role, is_first, is_last)
         skips = media.skips or {}
-        # print(media)
-        duration = media.duration
         forbidden = []
 
-        # --- INTRO ---
-        intro = skips.get("intro")
-        if intro and not is_first:
-            forbidden.append((
-                media.hms_to_seconds(intro["start"]),
-                media.hms_to_seconds(intro["end"])
-            ))
-
-        # --- FINISH ---
-        finish = skips.get("finish")
-        if finish and not is_last:
-            forbidden.append((
-                media.hms_to_seconds(finish["start"]),
-                media.hms_to_seconds(finish["end"])
-            ))
-
-        # --- CUTS ---
+        # --- CUTS (Sempre proibidos) ---
         for cut in skips.get("cuts", []):
-            forbidden.append((
-                media.hms_to_seconds(cut["start"]),
-                media.hms_to_seconds(cut["end"])
-            ))
+            c_start = media.hms_to_seconds(cut["start"])
+            c_end = media.hms_to_seconds(cut["end"])
+            # Só considera cortes que estão dentro do intervalo visível (entre start e end)
+            actual_cut_start = max(start, c_start)
+            actual_cut_end = min(end, c_end)
+            if actual_cut_end > actual_cut_start:
+                forbidden.append((actual_cut_start, actual_cut_end))
 
-        # Ordena tudo
+        # Ordena tudo para construir os segmentos válidos
         forbidden.sort()
 
-        # Agora constrói os segmentos válidos
+        # Agora constrói os segmentos válidos dentro da janela [start, end]
         segments = []
-        cursor = 0.0
+        cursor = start
 
-        for start, end in forbidden:
-            if cursor < start:
-                segments.append((cursor, start))
-            cursor = max(cursor, end)
+        for f_start, f_end in forbidden:
+            if cursor < f_start:
+                segments.append((cursor, f_start))
+            cursor = max(cursor, f_end)
 
-        if cursor < duration:
-            segments.append((cursor, duration))
+        if cursor < end:
+            segments.append((cursor, end))
 
         return segments
 
@@ -195,24 +183,12 @@ class ChannelRuntime:
     # ---------------- PLAYLIST / MEDIAS ----------------
 
     def get_active_schedule(self):
-        # Busca o agendamento ativo respeitando a HIERARQUIA DE RELEVÂNCIA e suporte a Overnight.
+        """
+        Retorna o agendamento que deve estar no ar AGORA ou o próximo de HOJE.
+        """
         from datetime import timedelta
         now_local = datetime.now().astimezone()
-        yesterday_local = now_local - timedelta(days=1)
-        
-        now_time = now_local.time()
-        
-        # Contextos para comparação
-        def get_ctx(dt):
-            return {
-                "day_name": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][dt.weekday()],
-                "month_day": dt.day,
-                "date_dm": dt.strftime("%d/%m"),
-                "date_dmy": dt.strftime("%d/%m/%Y")
-            }
-        
-        ctx_today = get_ctx(now_local)
-        ctx_yesterday = get_ctx(yesterday_local)
+        today = now_local.date()
 
         with SessionLocal() as db:
             schedules = (
@@ -221,46 +197,59 @@ class ChannelRuntime:
                 .all()
             )
 
-        scored_candidates = []
+        def get_actual_start_end(sch, base_date):
+            st = datetime.combine(base_date, sch.start_time).replace(tzinfo=now_local.tzinfo)
+            et = datetime.combine(base_date, sch.end_time).replace(tzinfo=now_local.tzinfo)
+            if sch.start_time > sch.end_time: # Overnight
+                et += timedelta(days=1)
+            return st, et
+
+        def match_criteria(sch, dt):
+            day_name = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][dt.weekday()]
+            month_day = dt.day
+            date_dm = dt.strftime("%d/%m")
+            date_dmy = dt.strftime("%d/%m/%Y")
+            
+            if sch.specific_dates and date_dmy in sch.specific_dates: return 4
+            if sch.specific_dates and date_dm in sch.specific_dates: return 3
+            if sch.month_days and month_day in sch.month_days: return 2
+            if sch.weekdays and day_name in sch.weekdays: return 1
+            if not sch.weekdays and not sch.month_days and not sch.specific_dates: return 0
+            return -1
+
+        active_candidates = []
+        future_today_candidates = []
+
+        yesterday = today - timedelta(days=1)
+
         for sch in schedules:
-            st, et = sch.start_time, sch.end_time
-            is_overnight = st > et
-            
-            # Determina qual contexto de data usar
-            target_ctx = None
-            
-            # Caso 1: Janela normal hoje ou início de janela overnight hoje
-            if (not is_overnight and st <= now_time <= et) or (is_overnight and now_time >= st):
-                target_ctx = ctx_today
-            # Caso 2: Fim de janela overnight hoje (começou ontem)
-            elif is_overnight and now_time <= et:
-                target_ctx = ctx_yesterday
-            
-            if not target_ctx:
-                continue
+            # 1. Checa Ontem (para casos de virada de dia/overnight) e Hoje
+            for base_d in [yesterday, today]:
+                st_dt, et_dt = get_actual_start_end(sch, base_d)
+                score = match_criteria(sch, base_d)
+                
+                if score >= 0:
+                    # Caso A: Estamos dentro da janela (Ativo)
+                    if st_dt <= now_local <= et_dt:
+                        active_candidates.append((score, sch, st_dt))
+                    # Caso B: É um agendamento de HOJE que ainda vai acontecer
+                    elif now_local < st_dt and base_d == today:
+                        future_today_candidates.append((st_dt, sch))
 
-            # Validação de Relevância baseada no contexto alvo
-            score = -1
-            if sch.specific_dates and target_ctx["date_dmy"] in sch.specific_dates:
-                score = 4
-            elif sch.specific_dates and target_ctx["date_dm"] in sch.specific_dates:
-                score = 3
-            elif sch.month_days and target_ctx["month_day"] in sch.month_days:
-                score = 2
-            elif sch.weekdays and target_ctx["day_name"] in sch.weekdays:
-                score = 1
-            elif not sch.weekdays and not sch.month_days and not sch.specific_dates:
-                score = 0
-            
-            if score >= 0:
-                scored_candidates.append((score, sch))
+        # Se temos algo ativo agora, prioridade total (melhor score)
+        if active_candidates:
+            active_candidates.sort(key=lambda x: x[0], reverse=True)
+            best = active_candidates[0]
+            return best[1], best[2]
 
-        if not scored_candidates:
-            return None
+        # Se não tem nada ativo, mas tem algo para HOJE ainda, pegamos o primeiro (mais próximo)
+        if future_today_candidates:
+            future_today_candidates.sort(key=lambda x: x[0]) # Ordena pelo horário de início
+            next_sch = future_today_candidates[0]
+            print(f"[Channel {self.channel.id}] ⏩ Antecipando agendamento de hoje: {next_sch[1].start_time}")
+            return next_sch[1], next_sch[0]
 
-        # Retorna o candidato com maior score (mais específico)
-        scored_candidates.sort(key=lambda x: x[0], reverse=True)
-        return scored_candidates[0][1]
+        return None, None
 
     def resolve_playlist_items(self, playlist):
         with SessionLocal() as db:
@@ -272,25 +261,30 @@ class ChannelRuntime:
                 .all()
             )
             
-            # Agrupar por papel
             openings = []
             contents = []
             closings = []
             
             for p_item, m_item in items:
-                if p_item.role == "OPENING":
-                    openings.append(m_item)
-                elif p_item.role == "CLOSING":
-                    closings.append(m_item)
+                # Converte string para Enum
+                try: role_enum = PlaylistItemRole(p_item.role)
+                except: role_enum = PlaylistItemRole.AUTO
+                
+                data = {"media": m_item, "role": role_enum, "playlist_item_id": p_item.id}
+                
+                if role_enum == PlaylistItemRole.OPENING:
+                    openings.append(data)
+                elif role_enum == PlaylistItemRole.CLOSING:
+                    closings.append(data)
                 else:
-                    contents.append(m_item)
+                    contents.append(data)
 
             # Shuffle apenas o miolo (CONTEUDO)
             if playlist.shuffle and contents:
                 seed = f"{datetime.now().date()}_{playlist.id}_{self.channel.id}"
                 random.Random(seed).shuffle(contents)
 
-            return openings + contents + closings
+            return openings, contents, closings
 
     def cleanup_old_segments(self):
         def worker():
@@ -380,7 +374,7 @@ class ChannelRuntime:
 
     def run(self):
         while not self.stop_signal:
-            schedule = self.get_active_schedule()
+            schedule, st_dt = self.get_active_schedule()
             if not schedule:
                 time.sleep(5)
                 continue
@@ -391,174 +385,164 @@ class ChannelRuntime:
                 time.sleep(5)
                 continue
 
-            items = self.resolve_playlist_items(playlist)
-            if not items:
+            openings, contents, closings = self.resolve_playlist_items(playlist)
+            if not (openings or contents or closings):
                 time.sleep(5)
                 continue
-            # Calcula offset com base na criação do canal (persistência)
-            now = datetime.now(timezone.utc)
-            channel_offset = int(
-                (now - self.channel.created_at).total_seconds())
-            acc_duration = 0
+                
+            # Monta a Timeline da Sessão
+            session_items = []
+            for item in openings: session_items.append(item)
+            
+            # Conteúdo Sequencial (com memória)
+            if contents:
+                idx_saved = schedule.current_item_index % len(contents)
+                rotated_contents = contents[idx_saved:] + contents[:idx_saved]
+                for item in rotated_contents: session_items.append(item)
+                
+            for item in closings: session_items.append(item)
+
+            # Constrói a timeline física (com segmentos e cuts)
             timeline = []
-
-            for i, media in enumerate(items):
-                try:
-                    # Auditoria V4: Verifica se o arquivo existe fisicamente
-                    if not os.path.exists(media.file):
-                        print(f"[Channel {self.channel.id}] ⚠️ ARQUIVO NÃO ENCONTRADO (PULANDO): {media.file}")
-                        continue
-
-                    is_first = i == 0
-                    is_last = i == len(items) - 1
-                    segments = self.build_segments(media, is_first, is_last)
-                    duration = self.effective_duration(segments)
-                    if duration <= 0:
-                        # ignora itens efetivamente vazios
-                        continue
+            for i, item in enumerate(session_items):
+                media = item["media"]
+                role = item["role"]
+                
+                # Regra AUTO: Primeiro conteúdo da sessão é HEAD, último é TAIL
+                # Mas aqui, como temos openings/closings fixos, os conteúdos são intermediários
+                is_first = (i == 0)
+                is_last = (i == len(session_items) - 1)
+                
+                # Se houver openings, o primeiro conteúdo NÃO é o primeiro da sessão
+                # Então o build_segments cuidará disso via get_cut_times
+                
+                segments = self.build_segments(media, role, is_first, is_last)
+                duration = self.effective_duration(segments)
+                if duration > 0:
                     timeline.append({
                         "media": media,
+                        "playlist_item_id": item["playlist_item_id"],
                         "segments": segments,
                         "duration": duration,
+                        "role": role
                     })
-                    acc_duration = float(acc_duration) + duration
-                except Exception as e:
-                    print(f"[Channel {self.channel.id}] Erro ao montar segmentos para '{getattr(media, 'name', 'media')}', pulando: {e}")
-                    continue
 
-            if acc_duration == 0:
-                time.sleep(5)
-                continue
-            # Calcula o ponto de reprodução atual
-            pos = channel_offset % acc_duration
+            if not timeline:
+                time.sleep(5); continue
+
             idx = 0
-            elapsed = 0
-            for i, slot in enumerate(timeline):
-                if elapsed + slot["duration"] > pos:
-                    idx = i
-                    internal_offset = pos - elapsed
-                    break
-                elapsed += slot["duration"]
+            internal_offset = 0
+            
+            # Clock Sync inicial (Opcional, pode ser desativado para sempre começar do início)
+            now = datetime.now().astimezone()
+            if now > st_dt + timedelta(seconds=30):
+                # Se você quiser que o canal SEMPRE comece do início (Maratona pura), 
+                # basta ignorar o cálculo de offset inicial.
+                pass
 
-            # Loop contínuo
             while not self.stop_signal:
-                # Verificação de validade do agendamento (evita loop infinito na mesma playlist)
-                now_curr = datetime.now().astimezone().time()
-                st_curr = schedule.start_time
-                et_curr = schedule.end_time
-                
-                is_overnight = st_curr > et_curr
-                if is_overnight:
-                    in_window = (now_curr >= st_curr) or (now_curr <= et_curr)
-                else:
-                    in_window = (st_curr <= now_curr <= et_curr)
-                
-                if not in_window:
-                    print(f"[Channel {self.channel.id}] Agendamento expirou ({et_curr}), recarregando...")
+                # Verificação de validade do agendamento
+                current_sch, current_st = self.get_active_schedule()
+                if not current_sch or current_sch.id != schedule.id or current_st != st_dt:
                     break
 
                 slot = timeline[idx]
-                ep = slot["media"]
+                media = slot["media"]
+                role = slot["role"]
+                
+                # --- INTELIGÊNCIA DE TRANSIÇÃO FLEXÍVEL (CASCATA) ---
+                now = datetime.now().astimezone()
+                
+                # Se o horário já estourou...
+                if now >= end_dt:
+                    # ...e ainda não estamos nos encerramentos, pulamos para eles
+                    if role not in [PlaylistItemRole.OPENING, PlaylistItemRole.CLOSING]:
+                        found_closing = False
+                        for i, t in enumerate(timeline):
+                            if t["role"] == PlaylistItemRole.CLOSING:
+                                idx = i; found_closing = True; break
+                        
+                        if found_closing:
+                            slot = timeline[idx]
+                            media = slot["media"]
+                            role = slot["role"]
+                        else:
+                            # Se não tem encerramento fixo e o tempo acabou, encerra o bloco
+                            break
 
-                remaining_segments = self.resolve_offset(
-                    slot["segments"],
-                    internal_offset
-                )
+                # --- DECISÃO DE IS_LAST (Para regra AUTO) ---
+                is_last_item = (idx == len(timeline) - 1)
+                if not is_last_item and role not in [PlaylistItemRole.OPENING, PlaylistItemRole.CLOSING]:
+                    # Se este item terminar depois do horário de fim, ele é o "último" desta sessão
+                    if (now + timedelta(seconds=slot["duration"])) > end_dt:
+                        is_last_item = True
+                    else:
+                        # Ou se o próximo item for um CLOSING
+                        if timeline[idx+1]["role"] == PlaylistItemRole.CLOSING:
+                            is_last_item = True
 
-                # Se cálculo falhou ou lista vazia, pula item
-                if not remaining_segments:
-                    print(f"[Channel {self.channel.id}] Slot inválido; pulando item: {ep.name}")
-                    idx = int((idx + 1) % len(timeline))
-                    internal_offset = 0
-                    time.sleep(0.5)
+                # Recalcula segmentos se o status de is_last_item mudou
+                is_first_item = (idx == 0)
+                segments = self.build_segments(media, role, is_first_item, is_last_item)
+                
+                remaining = self.resolve_offset(segments, internal_offset)
+                if not remaining:
+                    idx = (idx + 1) % len(timeline); internal_offset = 0
                     continue
 
-                print(f"[Channel {self.channel.id}] Iniciando: {ep.name}")
-                # print(f"Segmentos: {remaining_segments}")
-                self.player.start(
-                    ep.file,
-                    self.channel_folder,
-                    remaining_segments,
-                    channel_type=getattr(self.channel, 'type', 'TV')
-                )
-
-                media_key = getattr(ep, 'id', ep.file)
-                if not self.player.process:
-                    # Falha ao iniciar FFmpeg
-                    if not os.path.exists(ep.file):
-                        # Falha permanente: arquivo não existe
-                        print(f"[Channel {self.channel.id}] Arquivo inexistente, pulando permanente: {ep.file}")
-                        # Zera contador (se houver)
-                        self.retry_counts.pop(media_key, None)
-                        # Avança para o próximo item
-                        idx = (idx + 1) % len(timeline)
-                        internal_offset = 0
-                        time.sleep(0.5)
-                        continue
-
-                    # Falha transitória: aplicar retries
-                    current_retry = int(self.retry_counts.get(media_key, 0)) + 1
-                    if current_retry <= self.MAX_RETRIES:
-                        self.retry_counts[media_key] = current_retry
-                        print(f"[Channel {self.channel.id}] FFmpeg falhou ao iniciar; retry {current_retry}/{self.MAX_RETRIES} em {self.RETRY_DELAY}s")
-                        time.sleep(self.RETRY_DELAY)
-                        # Tenta novamente a mesma mídia (sem avançar idx)
-                        continue
-                    else:
-                        print(f"[Channel {self.channel.id}] Excedido retry para mídia; pulando item: {ep.name}")
-                        self.retry_counts.pop(media_key, None)
-                        idx = (idx + 1) % len(timeline)
-                        internal_offset = 0
-                        time.sleep(0.5)
-                        continue
-
-                # Iniciou com sucesso: zera contadores
-                self.retry_counts.pop(media_key, None)
+                print(f"[Channel {self.channel.id}] Iniciando [{role.value}]: {media.name} (Last={is_last_item})")
                 
-                # MONITOR DE HANG: Loop de espera com check de progresso
+                # Padroniza para (start, duration) como o player espera
+                standard_segments = []
+                for seg in remaining:
+                    if isinstance(seg, tuple):
+                        standard_segments.append({"start": seg[0], "duration": seg[1] - seg[0]})
+                    else:
+                        standard_segments.append(seg)
+
+                self.player.start(media.file, self.channel_folder, standard_segments, channel_type=getattr(self.channel, 'type', 'TV'))
+                
+                # Monitor
+                log_path = os.path.join(self.channel_folder, "ffmpeg.log")
                 last_log_size = 0
                 hang_counter = 0
-                max_hang = 12  # 12 * 5s = 60s sem resposta = kill
                 
-                log_path = os.path.join(self.channel_folder, "ffmpeg.log")
-                
-                while not self.stop_signal and self.player.process.poll() is None:
+                while not self.stop_signal and self.player.process and self.player.process.poll() is None:
                     try:
                         self.player.process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
-                        # Verifica se o log está crescendo
                         if os.path.exists(log_path):
-                            current_size = os.path.getsize(log_path)
-                            if current_size > last_log_size:
-                                last_log_size = current_size
+                            curr_size = os.path.getsize(log_path)
+                            if curr_size > last_log_size:
+                                last_log_size = curr_size
                                 hang_counter = 0
                             else:
                                 hang_counter += 1
-                        else:
-                            hang_counter += 1
+                        else: hang_counter += 1
                         
-                        if hang_counter >= max_hang:
-                            print(f"[Channel {self.channel.id}] FFmpeg parou de responder (hang); reiniciando...")
-                            self.player.stop()
-                            break
-                    except Exception:
-                        break
+                        if hang_counter >= 12: self.player.stop(); break
+                    except: break
 
-                # Limpeza final de descritores neste ciclo
-                try:
-                    if self.player.err_fd:
-                        self.player.err_fd.close()
-                except Exception:
-                    pass
-                finally:
-                    self.player.err_fd = None
+                # Salva Progresso se for CONTENT
+                if slot["role"] not in [PlaylistItemRole.OPENING, PlaylistItemRole.CLOSING]:
+                    try:
+                        orig_idx = -1
+                        for i, c in enumerate(contents):
+                            if c["playlist_item_id"] == slot["playlist_item_id"]:
+                                orig_idx = i; break
+                        
+                        if orig_idx != -1:
+                            next_idx = (orig_idx + 1) % len(contents)
+                            with SessionLocal() as db_sync:
+                                sch_db = db_sync.get(ChannelSchedule, schedule.id)
+                                if sch_db:
+                                    sch_db.current_item_index = next_idx
+                                    db_sync.commit()
+                    except: pass
 
-                print(
-                    f"[Channel {self.channel.id}] Episódio finalizado: {ep.name}")
-                # Garante reset do contador ao concluir com sucesso
-                self.retry_counts.pop(media_key, None)
-                self.cleanup_old_segments()
-
-                # Próximo episódio
                 idx = (idx + 1) % len(timeline)
                 internal_offset = 0
+                
+                if idx == 0: break
+
+            self.cleanup_old_segments()
