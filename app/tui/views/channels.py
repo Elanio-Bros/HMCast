@@ -4,7 +4,12 @@ from textual.containers import Vertical, Horizontal, VerticalScroll
 
 
 class ChannelsView(Vertical):
-    """View de Canais com suporte a rolagem (VerticalScroll)."""
+    """View de Canais com suporte a rolagem e paginação."""
+    
+    current_offset = 0
+    page_size = 100
+    has_more = True
+    is_loading = False
     
     def compose(self) -> ComposeResult:
         with Horizontal(classes="view-header"):
@@ -32,27 +37,66 @@ class ChannelsView(Vertical):
         table.show_lines = True
         table.cursor_type = "row"
         self.refresh_channels()
+        self.set_interval(0.5, self.check_scroll_for_pagination)
+
+    def check_scroll_for_pagination(self) -> None:
+        if not self.has_more or self.is_loading:
+            return
+            
+        try:
+            table = self.query_one(DataTable)
+            at_bottom_scroll = table.scroll_y >= table.max_scroll_y - 10
+            at_bottom_cursor = (table.cursor_row is not None and table.cursor_row >= table.row_count - 10)
+            
+            if at_bottom_scroll or at_bottom_cursor:
+                self.load_page()
+        except Exception:
+            pass
 
     def refresh_channels(self) -> None:
-        from app.database import SessionLocal
-        from app.models import Channels
+        self.current_offset = 0
+        self.has_more = True
         
         table = self.query_one(DataTable)
         table.clear()
         
+        self.load_page()
+
+    def load_page(self) -> None:
+        if self.is_loading or not self.has_more:
+            return
+            
+        self.is_loading = True
+        from app.database import SessionLocal
+        from app.models import Channels
+        
+        table = self.query_one(DataTable)
+        
         with SessionLocal() as db:
-            channels = db.query(Channels).all()
+            channels = db.query(Channels).order_by(Channels.id.desc()).offset(self.current_offset).limit(self.page_size).all()
+            
+            if len(channels) < self.page_size:
+                self.has_more = False
+                
+            self.current_offset += len(channels)
+            
+            rows_to_add = []
             for ch in channels:
                 status_str = "[ON] ONLINE" if ch.active else "[OFF] OFFLINE"
-                table.add_row(
+                rows_to_add.append((
                     str(ch.id),
                     ch.identifier or "-",
                     status_str,
                     ch.name,
                     ch.type,
-                    ch.execution_mode,
-                    key=str(ch.id)
-                )
+                    ch.execution_mode
+                ))
+            try:
+                table.add_rows(rows_to_add)
+            except Exception:
+                pass
+                
+        self.is_loading = False
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         channel_id = int(event.row_key.value)

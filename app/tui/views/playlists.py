@@ -6,6 +6,11 @@ from textual.containers import Vertical, Horizontal, VerticalScroll
 class PlaylistsView(Vertical):
     """View de Listagem de Playlists (Padronizada com Canais)."""
     
+    current_offset = 0
+    page_size = 100
+    has_more = True
+    is_loading = False
+    
     def compose(self) -> ComposeResult:
         # ── ÁREA ROLÁVEL (Regra de Ouro 1) ──
         with VerticalScroll(id="playlists-content-area"):
@@ -33,28 +38,69 @@ class PlaylistsView(Vertical):
         table.add_column("Shuffle", width=15)
         
         self.refresh_playlists()
+        self.set_interval(0.5, self.check_scroll_for_pagination)
+
+    def check_scroll_for_pagination(self) -> None:
+        if not self.has_more or self.is_loading:
+            return
+            
+        try:
+            table = self.query_one(DataTable)
+            at_bottom_scroll = table.scroll_y >= table.max_scroll_y - 10
+            at_bottom_cursor = (table.cursor_row is not None and table.cursor_row >= table.row_count - 10)
+            
+            if at_bottom_scroll or at_bottom_cursor:
+                self.load_page()
+        except Exception:
+            pass
 
     def refresh_playlists(self) -> None:
+        self.current_offset = 0
+        self.has_more = True
+        
+        table = self.query_one(DataTable)
+        table.clear()
+        
+        self.load_page()
+
+    def load_page(self) -> None:
+        if self.is_loading or not self.has_more:
+            return
+            
+        self.is_loading = True
+        
         from app.database import SessionLocal
         from app.models import Playlist, PlaylistItem
         from sqlalchemy import func
         
         table = self.query_one(DataTable)
-        table.clear()
         
         with SessionLocal() as db:
-            playlists = db.query(Playlist).all()
+            playlists = db.query(Playlist).order_by(Playlist.id.desc()).offset(self.current_offset).limit(self.page_size).all()
+            
+            if len(playlists) < self.page_size:
+                self.has_more = False
+                
+            self.current_offset += len(playlists)
+            
+            rows_to_add = []
             for pl in playlists:
                 count = db.query(func.count(PlaylistItem.id)).filter_by(playlist_id=pl.id).scalar()
                 shuffle_str = "● ATIVO" if pl.shuffle else "○ INATIVO"
                 
-                table.add_row(
+                rows_to_add.append((
                     str(pl.id),
                     pl.name.upper(),
                     f"{count} mídias",
-                    shuffle_str,
-                    key=str(pl.id)
-                )
+                    shuffle_str
+                ))
+                
+            try:
+                table.add_rows(rows_to_add)
+            except Exception:
+                pass
+                
+        self.is_loading = False
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Abre detalhes ao pressionar ENTER ou clicar duas vezes."""

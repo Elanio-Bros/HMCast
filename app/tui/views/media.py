@@ -10,6 +10,13 @@ class MediaView(Vertical):
     """View de Gestão de Mídias estilo Explorador de Arquivos."""
     
     selected_folder_id = None
+    
+    # Estados da Paginação Real
+    current_search = ""
+    current_offset = 0
+    page_size = 100
+    has_more = True
+    is_loading = False
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="view-header"):
@@ -40,11 +47,33 @@ class MediaView(Vertical):
         table.zebra_stripes = True
         table.cursor_type = "row"
         
+        tree = self.query_one("#folder-tree", Tree)
+        tree.show_root = False  # Oculta a pasta virtual "BIBLIOTECAS"
+        
         self.reload_folder_tree()
         self.reload_data()
-        self.last_active_widget = self.query_one(Tree) # Começa com a árvore por padrão
+        self.last_active_widget = tree # Começa com a árvore por padrão
         self.query_one("#scan-progress").display = False # Escondido por padrão
         self.query_one("#scan-progress").progress = 0
+        
+        # Inicia o Radar de Paginação (verifica a cada 0.5s se chegou no fim)
+        self.set_interval(0.5, self.check_scroll_for_pagination)
+
+    def check_scroll_for_pagination(self) -> None:
+        """Verifica se o usuário rolou a tabela até o final para carregar mais dados."""
+        if not self.has_more or self.is_loading:
+            return
+            
+        try:
+            table = self.query_one("#media-table", DataTable)
+            # Verifica o scroll do mouse OU o cursor do teclado
+            at_bottom_scroll = table.scroll_y >= table.max_scroll_y - 10
+            at_bottom_cursor = (table.cursor_row is not None and table.cursor_row >= table.row_count - 10)
+            
+            if at_bottom_scroll or at_bottom_cursor:
+                self.load_page()
+        except Exception:
+            pass
 
     def on_descendant_focus(self, event) -> None:
         """Sempre que um filho ganhar foco, lembramos dele se for Tree ou Table."""
@@ -84,8 +113,23 @@ class MediaView(Vertical):
         self.reload_data()
 
     def reload_data(self, search: str = "") -> None:
+        """Limpa a tabela e reinicia a paginação do zero."""
+        self.current_search = search
+        self.current_offset = 0
+        self.has_more = True
+        
         table = self.query_one("#media-table", DataTable)
         table.clear()
+        
+        self.load_page()
+
+    def load_page(self) -> None:
+        """Carrega a próxima página (lote) de mídias e anexa na tabela."""
+        if self.is_loading or not self.has_more:
+            return
+            
+        self.is_loading = True
+        table = self.query_one("#media-table", DataTable)
         
         with SessionLocal() as db:
             from app.models import MediaFolder
@@ -98,12 +142,28 @@ class MediaView(Vertical):
                 # Pega o ID da pasta e de todas as subpastas dela recursivamente
                 all_ids = self._get_all_subfolder_ids(db, self.selected_folder_id)
                 query = query.filter(MediaItem.folder_id.in_(all_ids))
+            elif self.current_search:
+                # Se não tem pasta selecionada, mas tem busca, procura em todo o banco
+                query = query.filter(MediaItem.name.ilike(f"%{self.current_search}%"))
+            else:
+                # Sem pasta selecionada e sem busca: não mostra nada por padrão
+                self.is_loading = False
+                return
             
-            if search:
-                query = query.filter(MediaItem.name.ilike(f"%{search}%"))
+            if self.current_search and self.selected_folder_id:
+                # Se tem pasta E busca, aplica a busca dentro da pasta
+                query = query.filter(MediaItem.name.ilike(f"%{self.current_search}%"))
             
-            items = query.order_by(MediaItem.id.desc()).limit(100).all()
+            # Puxa o lote exato com LIMIT e OFFSET
+            items = query.order_by(MediaItem.id.desc()).offset(self.current_offset).limit(self.page_size).all()
             
+            # Se voltou menos itens que o tamanho da página, chegamos no fim definitivo
+            if len(items) < self.page_size:
+                self.has_more = False
+                
+            self.current_offset += len(items)
+            
+            rows_to_add = []
             for item, folder_path in items:
                 duration = item.duration or 0
                 duration_str = f"{duration // 60}:{duration % 60:02d}"
@@ -114,16 +174,19 @@ class MediaView(Vertical):
                     # Fallback para caso o arquivo e a pasta estejam em drives diferentes no Windows
                     rel_path = item.file
 
-                try:
-                    table.add_row(
-                        str(item.id),
-                        item.name,
-                        duration_str,
-                        rel_path,
-                        key=str(item.id)
-                    )
-                except Exception as e:
-                    self.app.log(f"Erro ao adicionar linha {item.id} na tabela: {e}")
+                rows_to_add.append((
+                    str(item.id),
+                    item.name,
+                    duration_str,
+                    rel_path
+                ))
+                
+            try:
+                table.add_rows(rows_to_add)
+            except Exception as e:
+                self.app.log(f"Erro ao adicionar linhas na tabela: {e}")
+                
+        self.is_loading = False
 
     def _get_all_subfolder_ids(self, db, parent_id) -> list[int]:
         """Retorna uma lista com o ID pai e todos os IDs de subpastas recursivamente."""
