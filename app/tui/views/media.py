@@ -105,16 +105,25 @@ class MediaView(Vertical):
             items = query.order_by(MediaItem.id.desc()).limit(100).all()
             
             for item, folder_path in items:
-                duration_str = f"{item.duration // 60}:{item.duration % 60:02d}"
-                rel_path = os.path.relpath(item.file, folder_path) if folder_path else os.path.basename(item.file)
+                duration = item.duration or 0
+                duration_str = f"{duration // 60}:{duration % 60:02d}"
+                
+                try:
+                    rel_path = os.path.relpath(item.file, folder_path) if folder_path else os.path.basename(item.file)
+                except ValueError:
+                    # Fallback para caso o arquivo e a pasta estejam em drives diferentes no Windows
+                    rel_path = item.file
 
-                table.add_row(
-                    str(item.id),
-                    item.name,
-                    duration_str,
-                    rel_path,
-                    key=str(item.id)
-                )
+                try:
+                    table.add_row(
+                        str(item.id),
+                        item.name,
+                        duration_str,
+                        rel_path,
+                        key=str(item.id)
+                    )
+                except Exception as e:
+                    self.app.log(f"Erro ao adicionar linha {item.id} na tabela: {e}")
 
     def _get_all_subfolder_ids(self, db, parent_id) -> list[int]:
         """Retorna uma lista com o ID pai e todos os IDs de subpastas recursivamente."""
@@ -135,7 +144,7 @@ class MediaView(Vertical):
                 if success:
                     self.reload_folder_tree()
                     self.reload_data()
-            self.app.push_screen(AddMediaModal(), check_result)
+            self.app.push_screen(AddMediaModal(media_view=self), check_result)
         
         elif event.button.id == "btn-scan-global":
             progress_bar = self.query_one("#scan-progress", ProgressBar)
@@ -279,4 +288,83 @@ class MediaView(Vertical):
                     db.query(MediaItem).filter(MediaItem.id == media_id).delete()
                     db.commit()
                     self.reload_data()
-                    self.app.notify("Mídia excluída!")
+    def start_folder_scan(self, path: str, m_progress=None):
+        """Inicia o scan gerenciado pela própria MediaView, atualizando barras gêmeas."""
+        progress_bar = self.query_one("#scan-progress", ProgressBar)
+        progress_bar.display = True
+        progress_bar.progress = 0
+        
+        def run_scan():
+            def update_progress(current, total):
+                self.app.call_from_thread(progress_bar.update, total=total, progress=current)
+                if m_progress:
+                    try:
+                        self.app.call_from_thread(m_progress.update, total=total, progress=current)
+                    except Exception: pass
+                
+            self.app.scanner.scan_media_folder(path, progress_callback=update_progress)
+            
+            def on_complete():
+                self.app.notify(f"Pasta {os.path.basename(path)} importada com sucesso!", severity="success")
+                try:
+                    progress_bar.display = False
+                    if m_progress:
+                        try: m_progress.display = False
+                        except Exception: pass
+                    self.reload_folder_tree()
+                    self.reload_data()
+                except Exception as e:
+                    self.app.notify(f"Erro ao atualizar view: {e}", severity="error")
+                    
+            self.app.call_from_thread(on_complete)
+            
+        self.run_worker(run_scan, thread=True)
+        self.app.notify("Iniciando importação da pasta em background...")
+
+    def start_manual_import(self, files: list[str], m_progress=None):
+        """Inicia a importação manual gerenciada pela própria MediaView."""
+        progress_bar = self.query_one("#scan-progress", ProgressBar)
+        progress_bar.display = True
+        progress_bar.progress = 0
+        
+        def run_import():
+            import_count = 0
+            with SessionLocal() as db:
+                total = len(files)
+                for i, f_path in enumerate(files):
+                    duration = self.app.scanner.get_media_duration(f_path)
+                    if duration > 0:
+                        folder = self.app.scanner.get_or_create_folder(db, f_path, auto_scan=False)
+                        new_item = MediaItem(
+                            name=os.path.splitext(os.path.basename(f_path))[0],
+                            file=f_path,
+                            duration=duration,
+                            folder_id=folder.id
+                        )
+                        db.add(new_item)
+                        import_count += 1
+                    
+                    # Atualiza progresso a cada arquivo
+                    self.app.call_from_thread(progress_bar.update, total=total, progress=i+1)
+                    if m_progress:
+                        try:
+                            self.app.call_from_thread(m_progress.update, total=total, progress=i+1)
+                        except Exception: pass
+                db.commit()
+            
+            def on_complete():
+                self.app.notify(f"Sucesso! {import_count} mídias adicionadas.", severity="success")
+                try:
+                    progress_bar.display = False
+                    if m_progress:
+                        try: m_progress.display = False
+                        except Exception: pass
+                    self.reload_folder_tree()
+                    self.reload_data()
+                except Exception as e:
+                    self.app.notify(f"Erro ao atualizar view: {e}", severity="error")
+                    
+            self.app.call_from_thread(on_complete)
+            
+        self.run_worker(run_import, thread=True)
+        self.app.notify("Importando arquivos em background...")

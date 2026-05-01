@@ -57,6 +57,10 @@ class FolderTree(Tree):
 class AddMediaModal(ModalScreen[bool]):
     """Modal unificado para adicionar mídias (Pasta Inteira ou Seleção Manual)."""
 
+    def __init__(self, media_view=None, **kwargs):
+        super().__init__(**kwargs)
+        self.media_view = media_view
+
     def compose(self) -> ComposeResult:
         with Vertical(id="scan-container"):
             yield Static("ADICIONAR MÍDIAS", id="scan-title")
@@ -99,50 +103,18 @@ class AddMediaModal(ModalScreen[bool]):
         path = getattr(self, "selected_path", None) or self.query_one("#input-path").value
         
         if event.button.id == "btn-finish-all":
-            self.dismiss(True)
+            self.dismiss(None)
         elif event.button.id == "btn-import-folder":
             if os.path.exists(path):
-                # Barra de progresso do Modal
                 m_progress = self.query_one("#modal-scan-progress", ProgressBar)
                 m_progress.display = True
                 m_progress.progress = 0
-
-                # Tenta pegar a barra de progresso da MediaView (ao fundo)
-                from app.tui.views.media import MediaView
+                
                 try:
-                    media_view = self.app.query_one(MediaView)
-                    v_progress = media_view.query_one("#scan-progress")
-                    v_progress.display = True
-                    v_progress.progress = 0
-                except:
-                    v_progress = None
-                    media_view = None
-
-                # Roda o scan em background usando Worker
-                async def background_scan():
-                    def update_progress(current, total):
-                        self.app.call_from_thread(m_progress.update, total=total, progress=current)
-                        if v_progress:
-                            self.app.call_from_thread(v_progress.update, total=total, progress=current)
-
-                    # Executa o scan real
-                    self.app.scanner.scan_media_folder(path, progress_callback=update_progress)
-                    
-                    # Lógica de conclusão movida para dentro do worker
-                    def on_complete():
-                        self.app.notify(f"Pasta {os.path.basename(path)} importada com sucesso!")
-                        m_progress.display = False
-                        if v_progress: v_progress.display = False
-                        if media_view:
-                            try:
-                                media_view.reload_folder_tree()
-                                media_view.reload_data()
-                            except: pass
-                    
-                    self.app.call_from_thread(on_complete)
-
-                self.run_worker(background_scan(), thread=True)
-                self.app.notify("Iniciando importação da pasta em background...")
+                    if self.media_view:
+                        self.media_view.start_folder_scan(path, m_progress=m_progress)
+                except Exception as e:
+                    self.app.notify(f"Erro ao iniciar scan: {e}", severity="error")
 
         elif event.button.id == "btn-list-files":
             if os.path.exists(path):
@@ -182,35 +154,14 @@ class AddMediaModal(ModalScreen[bool]):
         if not selected_files:
             self.app.notify("Selecione ao menos um arquivo!", severity="error")
             return
-
-        async def do_import():
-            import_count = 0
-            with SessionLocal() as db:
-                for f_path in selected_files:
-                    duration = self.app.scanner.get_media_duration(f_path)
-                    if duration > 0:
-                        folder = self.app.scanner.get_or_create_folder(db, f_path, auto_scan=False)
-                        new_item = MediaItem(
-                            name=os.path.splitext(os.path.basename(f_path))[0],
-                            file=f_path,
-                            duration=duration,
-                            folder_id=folder.id
-                        )
-                        db.add(new_item)
-                        import_count += 1
-                db.commit()
             
-            # Lógica de conclusão dentro do worker
-            def on_complete():
-                self.app.notify(f"Sucesso! {import_count} mídias adicionadas.", severity="success")
-                try:
-                    from app.tui.views.media import MediaView
-                    media_view = self.app.query_one(MediaView)
-                    media_view.reload_data()
-                except: pass
-            
-            self.app.call_from_thread(on_complete)
-
-        self.run_worker(do_import(), thread=True)
-        self.app.notify("Importando arquivos em background...")
-        self.query_one("#add-switcher").current = "step-select-folder"
+        m_progress = self.query_one("#modal-scan-progress", ProgressBar)
+        m_progress.display = True
+        m_progress.progress = 0
+        
+        try:
+            if self.media_view:
+                self.media_view.start_manual_import(selected_files, m_progress=m_progress)
+            self.query_one("#add-switcher").current = "step-select-folder"
+        except Exception as e:
+            self.app.notify(f"Erro ao iniciar importação manual: {e}", severity="error")
