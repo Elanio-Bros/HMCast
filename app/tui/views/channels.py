@@ -99,7 +99,9 @@ class ChannelsView(Vertical):
         self.is_loading = False
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        channel_id = int(event.row_key.value)
+        table = self.query_one(DataTable)
+        row_data = table.get_row_at(event.cursor_row)
+        channel_id = int(row_data[0])
         from app.tui.views.channel_detail import ChannelDetailView
         from textual.widgets import ContentSwitcher
         
@@ -130,7 +132,9 @@ class ChannelsView(Vertical):
         
         table = self.query_one(DataTable)
         try:
-            channel_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            channel_id = int(row_data[0])
             with SessionLocal() as db:
                 channel = db.query(Channels).get(channel_id)
                 if channel:
@@ -146,7 +150,9 @@ class ChannelsView(Vertical):
         
         table = self.query_one(DataTable)
         try:
-            channel_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            channel_id = int(row_data[0])
             with SessionLocal() as db:
                 channel = db.query(Channels).get(channel_id)
                 if channel:

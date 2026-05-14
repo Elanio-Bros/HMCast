@@ -104,7 +104,9 @@ class PlaylistsView(Vertical):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Abre detalhes ao pressionar ENTER ou clicar duas vezes."""
-        playlist_id = int(event.row_key.value)
+        table = self.query_one(DataTable)
+        row_data = table.get_row_at(event.cursor_row)
+        playlist_id = int(row_data[0])
         from app.tui.views.playlist_detail import PlaylistDetailView
         from textual.widgets import ContentSwitcher
         
@@ -126,7 +128,9 @@ class PlaylistsView(Vertical):
     def action_detail_playlist(self) -> None:
         table = self.query_one(DataTable)
         try:
-            playlist_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            playlist_id = int(row_data[0])
             from app.tui.views.playlist_detail import PlaylistDetailView
             from textual.widgets import ContentSwitcher
             
@@ -149,7 +153,9 @@ class PlaylistsView(Vertical):
         from app.models import Playlist, PlaylistItem
         table = self.query_one(DataTable)
         try:
-            playlist_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            playlist_id = int(row_data[0])
             with SessionLocal() as db:
                 db.query(PlaylistItem).filter_by(playlist_id=playlist_id).delete()
                 pl = db.query(Playlist).get(playlist_id)

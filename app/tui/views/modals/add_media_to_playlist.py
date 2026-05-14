@@ -1,6 +1,6 @@
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
-from textual.widgets import SelectionList, Button, Label, Static, Select
+from textual.widgets import SelectionList, Button, Label, Static, Select, Tree
 from textual.widgets.selection_list import Selection
 from textual.containers import Vertical, Horizontal
 from app.enums import PlaylistItemRole
@@ -17,9 +17,14 @@ class AddMediaToPlaylistModal(ModalScreen[bool]):
         with Vertical(id="modal-container"):
             yield Static("VINCULAR MÍDIAS À PLAYLIST", id="modal-title")
             
-            yield Label("Selecione os vídeos (Use ESPAÇO para marcar):")
-            # SelectionList permite múltipla escolha
-            yield SelectionList[int](id="selection-media")
+            with Horizontal(id="m-pl-workspace"):
+                with Vertical(classes="tree-column"):
+                    yield Label("Pastas:", classes="section-label")
+                    yield Tree("BIBLIOTECAS", id="pl-folder-tree")
+                
+                with Vertical(classes="list-column"):
+                    yield Label("Vídeos da Pasta (ESPAÇO para marcar):", classes="section-label")
+                    yield SelectionList[int](id="selection-media")
             
             with Vertical(classes="input-group"):
                 yield Label("Papel na Playlist (Para todos os selecionados):")
@@ -36,25 +41,84 @@ class AddMediaToPlaylistModal(ModalScreen[bool]):
             yield Label("", id="m-pl-error-message", classes="error-text")
             
             with Horizontal(id="modal-actions"):
+                yield Button("Selecionar Tudo", variant="primary", id="btn-m-pl-select-all")
                 yield Button("Adicionar Selecionados", variant="success", id="btn-m-pl-save")
                 yield Button("Cancelar", variant="error", id="btn-m-pl-cancel")
 
     def on_mount(self) -> None:
+        tree = self.query_one("#pl-folder-tree", Tree)
+        tree.show_root = False
+        self.reload_folder_tree()
+        self.query_one("#selection-media", SelectionList).clear_options()
+
+    def reload_folder_tree(self) -> None:
+        from app.database import SessionLocal
+        from app.models import MediaFolder
+        
+        tree = self.query_one("#pl-folder-tree", Tree)
+        tree.clear()
+        root = tree.root
+        root.expand()
+        
+        with SessionLocal() as db:
+            folders = db.query(MediaFolder).filter(MediaFolder.parent_id == None).all()
+            for f in folders:
+                node = root.add(f.name, data=f.id)
+                self._add_subfolders_to_node(db, node, f.id)
+
+    def _add_subfolders_to_node(self, db, node, parent_id):
+        from app.models import MediaFolder
+        subfolders = db.query(MediaFolder).filter(MediaFolder.parent_id == parent_id).all()
+        for sf in subfolders:
+            subnode = node.add(sf.name, data=sf.id)
+            self._add_subfolders_to_node(db, subnode, sf.id)
+
+    def _get_all_subfolder_ids(self, db, parent_id) -> list[int]:
+        from app.models import MediaFolder
+        ids = [parent_id]
+        subfolders = db.query(MediaFolder.id).filter(MediaFolder.parent_id == parent_id).all()
+        for (sf_id,) in subfolders:
+            ids.extend(self._get_all_subfolder_ids(db, sf_id))
+        return ids
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        folder_id = event.node.data
+        if not folder_id:
+            return
+            
+        selection_list = self.query_one("#selection-media", SelectionList)
+        selection_list.clear_options()
+        
         from app.database import SessionLocal
         from app.models import MediaItem
         
-        selection_list = self.query_one("#selection-media", SelectionList)
         with SessionLocal() as db:
-            medias = db.query(MediaItem).order_by(MediaItem.name).all()
-            # Criamos a lista de seleções
+            all_ids = self._get_all_subfolder_ids(db, folder_id)
+            medias = db.query(MediaItem).filter(MediaItem.folder_id.in_(all_ids)).order_by(MediaItem.name).all()
+            
             options = [Selection(m.name, m.id) for m in medias]
-            selection_list.add_options(options)
+            if not options:
+                self.app.notify("Nenhum vídeo nesta pasta.", severity="warning")
+            else:
+                selection_list.add_options(options)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-m-pl-cancel":
             self.dismiss(False)
         elif event.button.id == "btn-m-pl-save":
             self.save_items()
+        elif event.button.id == "btn-m-pl-select-all":
+            self.action_select_all()
+
+    def action_select_all(self) -> None:
+        selection_list = self.query_one("#selection-media", SelectionList)
+        if not selection_list.options:
+            return
+            
+        if len(selection_list.selected) == len(selection_list.options):
+            selection_list.deselect_all()
+        else:
+            selection_list.select_all()
 
     def save_items(self) -> None:
         from app.database import SessionLocal

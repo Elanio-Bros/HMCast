@@ -9,7 +9,7 @@ class PlaylistDetailView(Vertical):
     playlist_id = None
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(id="playlist-detail-content-area"):
+        with Vertical(id="playlist-detail-content-area"):
             with Horizontal(classes="view-header"):
                 yield Static("DETALHES DA PLAYLIST", classes="view-title", id="playlist-detail-title")
             
@@ -29,10 +29,8 @@ class PlaylistDetailView(Vertical):
 
         with Horizontal(classes="action-bar"):
             yield Button("Vincular Mídia", variant="success", id="btn-add-media", classes="btn-action")
-            yield Button("Editar", variant="warning", id="btn-edit-playlist-detail", classes="btn-action")
-            yield Button("Mover Subir", variant="primary", id="btn-move-up", classes="btn-action")
-            yield Button("Mover Descer", variant="primary", id="btn-move-down", classes="btn-action")
-            yield Button("Remover", variant="error", id="btn-remove-item", classes="btn-action")
+            yield Button("Gerenciar Grade", variant="primary", id="btn-manage-grid", classes="btn-action")
+            yield Button("Editar Playlist", variant="warning", id="btn-edit-playlist-detail", classes="btn-action")
             yield Button("Voltar", id="btn-pl-detail-back", classes="btn-action")
 
     def load_playlist(self, playlist_id: int) -> None:
@@ -83,10 +81,8 @@ class PlaylistDetailView(Vertical):
             self.action_edit_playlist()
         elif event.button.id == "btn-add-media":
             self.action_add_media()
-        elif event.button.id == "btn-remove-item":
-            self.action_remove_item()
-        elif event.button.id in ["btn-move-up", "btn-move-down"]:
-            self.action_reorder(event.button.id == "btn-move-up")
+        elif event.button.id == "btn-manage-grid":
+            self.action_manage_grid()
 
     def action_edit_playlist(self) -> None:
         from app.tui.views.modals.edit_playlist import EditPlaylistModal
@@ -102,45 +98,9 @@ class PlaylistDetailView(Vertical):
                 self.load_playlist(self.playlist_id)
         self.app.push_screen(AddMediaToPlaylistModal(self.playlist_id), check_result)
 
-    def action_remove_item(self) -> None:
-        from app.database import SessionLocal
-        from app.models import PlaylistItem
-        table = self.query_one(DataTable)
-        try:
-            item_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
-            with SessionLocal() as db:
-                item = db.query(PlaylistItem).get(item_id)
-                if item:
-                    db.delete(item)
-                    db.commit()
-                    self.load_playlist(self.playlist_id)
-        except Exception:
-            pass
-
-    def action_reorder(self, up: bool) -> None:
-        from app.database import SessionLocal
-        from app.models import PlaylistItem
-        table = self.query_one(DataTable)
-        try:
-            item_id = int(table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value)
-            with SessionLocal() as db:
-                current_item = db.query(PlaylistItem).get(item_id)
-                if not current_item: return
-                
-                new_pos = current_item.position - 1 if up else current_item.position + 1
-                if new_pos < 0: return
-                
-                # Troca posição com o vizinho
-                neighbor = db.query(PlaylistItem).filter_by(
-                    playlist_id=self.playlist_id, 
-                    position=new_pos
-                ).first()
-                
-                if neighbor:
-                    neighbor.position = current_item.position
-                
-                current_item.position = new_pos
-                db.commit()
+    def action_manage_grid(self) -> None:
+        from app.tui.views.modals.manage_playlist_items import ManagePlaylistItemsModal
+        def check_result(success: bool) -> None:
+            if success:
                 self.load_playlist(self.playlist_id)
-        except Exception:
-            pass
+        self.app.push_screen(ManagePlaylistItemsModal(self.playlist_id), check_result)

@@ -20,3 +20,88 @@
 #playlist-info-grid {
     height: auto;
 }
+
+#playlist-items-table {
+    height: 1fr;
+    margin-bottom: 1;
+}
+
+#manage-items-table {
+    height: 1fr;
+    margin-bottom: 1;
+}
+
+/* ── Modal AddMediaToPlaylist (Workspace Duplo) ── */
+#m-pl-workspace {
+    height: 1fr;
+    margin: 1 0;
+    border: ascii $panel;
+    layout: horizontal;
+}
+
+.tree-column {
+    width: 30%;
+    height: 100%;
+    border-right: ascii $panel;
+    padding: 0 1;
+}
+
+.list-column {
+    width: 70%;
+    height: 100%;
+    padding: 0 1;
+}
+
+#pl-folder-tree {
+    height: 1fr;
+    background: $surface;
+}
+
+#selection-media {
+    height: 1fr;
+    background: $surface;
+    border: none;
+}
+
+/* Override do modal-container apenas para essas telas */
+AddMediaToPlaylistModal > #modal-container {
+    width: 90%;
+    height: 90%;
+}
+
+ManagePlaylistItemsModal > #modal-container {
+    width: 60%;
+    height: 80%;
+}
+
+/* ── Modal AddMediaToPlaylist (Workspace Duplo) ── */
+#m-pl-workspace {
+    height: 1fr;
+    margin: 1 0;
+    border: ascii $panel;
+    layout: horizontal;
+}
+
+.tree-column {
+    width: 30%;
+    height: 100%;
+    border-right: ascii $panel;
+    padding: 0 1;
+}
+
+.list-column {
+    width: 70%;
+    height: 100%;
+    padding: 0 1;
+}
+
+#pl-folder-tree {
+    height: 1fr;
+    background: $surface;
+}
+
+#selection-media {
+    height: 1fr;
+    background: $surface;
+    border: none;
+}
