@@ -1,6 +1,6 @@
 from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable, Input, Tree, ProgressBar
-from textual.containers import Vertical, Horizontal, VerticalScroll
+from textual.containers import Vertical, Horizontal, VerticalScroll, ScrollableContainer
 from textual.screen import Screen
 from app.database import SessionLocal
 from app.models import MediaItem, MediaFolder
@@ -18,22 +18,9 @@ class MediaView(Vertical):
     has_more = True
     is_loading = False
 
-    # Marquee: painel de detalhes
-    _marquee_filename: str = ""
-    _marquee_dirpath: str = ""
-    _marquee_fn_offset: int = 0
-    _marquee_dp_offset: int = 0
-    _details_header_lines: list = []
-    _details_footer_lines: list = []
-
-    # Marquee: árvore de diretórios
-    _tree_marquee_node = None
-    _tree_marquee_text: str = ""
-    _tree_marquee_offset: int = 0
-    _tree_marquee_orig: str = ""
-
-    MARQUEE_PANEL_PREFIX: int = 9   # len("Arquivo: ")
-    MARQUEE_TREE_PADDING: int = 4    # margem/padding da árvore
+    # Estado para o painel de detalhes
+    _details_filename: str = ""
+    _details_dirpath: str = ""
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="view-header"):
@@ -50,9 +37,12 @@ class MediaView(Vertical):
             # Tabela de Mídias (Centro)
             yield DataTable(id="media-table")
             # Painel de Detalhes (Direita)
-            with VerticalScroll(id="details-panel"):
+            with ScrollableContainer(id="details-panel"):
                 yield Static("DETALHES", id="details-title")
-                yield Static("", id="details-content")
+                yield Static("", id="details-header-static")
+                yield Static("", id="details-filename-static")
+                yield Static("", id="details-filepath-static")
+                yield Static("", id="details-footer-static")
 
         with Horizontal(classes="action-bar"):
             yield Button("Adicionar", variant="primary", id="btn-add-media", classes="btn-action")
@@ -80,9 +70,7 @@ class MediaView(Vertical):
         
         # Inicia o Radar de Paginação (verifica a cada 0.5s se chegou no fim)
         self.set_interval(0.5, self.check_scroll_for_pagination)
-        # Timers de Marquee
-        self.set_interval(0.25, self._tick_marquee_details)
-        self.set_interval(0.3, self._tick_tree_marquee)
+
 
     def check_scroll_for_pagination(self) -> None:
         """Verifica se o usuário rolou a tabela até o final para carregar mais dados."""
@@ -115,106 +103,11 @@ class MediaView(Vertical):
             pass
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        """Inicia o marquee no nó da árvore que recebeu o destaque."""
-        node = event.node
-        if node is self._tree_marquee_node:
-            return
-        # Restaura o label anterior antes de trocar
-        if self._tree_marquee_node is not None:
-            try:
-                self._tree_marquee_node.set_label(self._tree_marquee_orig)
-            except Exception:
-                pass
-        self._tree_marquee_node = node
-        self._tree_marquee_orig = str(node.label)
-        self._tree_marquee_text = str(node.label).strip()
-        self._tree_marquee_offset = 0
-
-    # ── Helpers de Marquee ───────────────────────────────────────────────
-
-    def _marquee_slice(self, text: str, offset: int, width: int) -> str:
-        """Retorna uma janela de 'width' chars do texto, deslizando com offset."""
-        if len(text) <= width:
-            return text
-        padded = text + "   "  # gap entre as repetições
-        idx = offset % len(padded)
-        doubled = padded + padded
-        return doubled[idx: idx + width]
-
-    def _tick_marquee_details(self) -> None:
-        """Atualiza os campos Arquivo/Caminho no painel de detalhes a cada tick."""
-        if not self._marquee_filename and not self._marquee_dirpath:
-            return
-        self._marquee_fn_offset += 1
-        self._marquee_dp_offset += 1
-        # Calcula a largura disponível dinamicamente
-        try:
-            panel_w = self.query_one("#details-panel").size.width
-            w = max(8, panel_w - 2 - self.MARQUEE_PANEL_PREFIX)  # desconta padding + prefixo
-        except Exception:
-            w = 20
-        fn = self._marquee_slice(self._marquee_filename, self._marquee_fn_offset, w)
-        dp = self._marquee_slice(self._marquee_dirpath, self._marquee_dp_offset, w)
-        lines = list(self._details_header_lines)
-        lines.append(f"Arquivo: {fn}")
-        lines.append(f"Caminho: {dp}")
-        lines.append("")
-        lines.extend(self._details_footer_lines)
-        try:
-            self.query_one("#details-content", Static).update("\n".join(lines))
-        except Exception:
-            pass
-
-    def _tick_tree_marquee(self) -> None:
-        """Atualiza o label do nó destacado na árvore a cada tick."""
-        node = self._tree_marquee_node
-        if node is None:
-            return
-        
-        try:
-            tree = self.query_one("#folder-tree", Tree)
-            # Se o scroll horizontal estiver ativo (maior que 0), paramos o marquee imediatamente
-            if tree.scroll_x > 0:
-                try:
-                    if str(node.label) != self._tree_marquee_orig:
-                        node.set_label(self._tree_marquee_orig)
-                except Exception:
-                    self._tree_marquee_node = None
-                return
-
-            content_width = tree.content_region.width
-            
-            # Calcular profundidade para subtrair indentação
-            depth = 0
-            parent = node.parent
-            while parent and parent.parent:  # conta níveis até a raiz virtual "BIBLIOTECAS"
-                depth += 1
-                parent = parent.parent
-            indent = depth * 2 + 1  # 2 por nível + 1 para o marcador
-            available_width = max(6, content_width - indent)
-        except Exception:
-            available_width = 18
-
-        original_text = self._tree_marquee_text
-
-        # Se o texto cabe na largura disponível, paramos o marquee e restauramos o original
-        if len(original_text) <= available_width:
-            try:
-                if str(node.label) != self._tree_marquee_orig:
-                    node.set_label(self._tree_marquee_orig)
-            except Exception:
-                self._tree_marquee_node = None
-            return
-
-        self._tree_marquee_offset += 1
-        label = self._marquee_slice(original_text, self._tree_marquee_offset, available_width)
-        try:
-            node.set_label(label)
-        except Exception:
-            self._tree_marquee_node = None
+        """Apenas armazena o nó destacado (sem marquee)."""
+        pass
 
     def _update_details_panel(self, media_id: int) -> None:
-        """Busca os dados da mídia e armazena estado para o marquee renderizar."""
+        """Busca os dados da midia e atualiza os statics individuais do painel de detalhes."""
         with SessionLocal() as db:
             media = db.query(MediaItem).get(media_id)
             if not media:
@@ -229,47 +122,57 @@ class MediaView(Vertical):
 
             sep = "─" * 33
 
-            # Linhas estáticas (header)
-            self._details_header_lines = [
+            # Header estatico (nome, separador, duracao)
+            header_lines = [
                 media.name,
                 sep,
                 f"Duração: {dur_str}",
             ]
+            self.query_one("#details-header-static", Static).update("\n".join(header_lines))
 
-            # Guarda os valores completos para o marquee animar
-            self._marquee_filename = os.path.basename(media.file)
-            self._marquee_dirpath = os.path.dirname(media.file)
-            self._marquee_fn_offset = 0
-            self._marquee_dp_offset = 0
+            # Guarda caminhos completos
+            self._details_filename = os.path.basename(media.file)
+            self._details_dirpath = os.path.dirname(media.file)
 
-            # Linhas estáticas (footer: cortes)
-            footer = []
+            # Inicializa filename/path com width ajustado ao conteudo para nao quebrar
+            fn_text = f"Arquivo: {self._details_filename}"
+            dp_text = f"Caminho: {self._details_dirpath}"
+            fn_static = self.query_one("#details-filename-static", Static)
+            dp_static = self.query_one("#details-filepath-static", Static)
+            fn_static.styles.width = len(fn_text)
+            dp_static.styles.width = len(dp_text)
+            fn_static.update(fn_text)
+            dp_static.update(dp_text)
+
+            # Footer estatico (cortes)
+            footer_lines = []
             if skips:
-                footer.append(sep)
-                footer.append("CORTES")
-                footer.append("")
+                footer_lines.append(sep)
+                footer_lines.append("CORTES")
+                footer_lines.append("")
                 intro = skips.get("intro")
                 if intro:
-                    footer.append("Abertura")
-                    footer.append(f" Inicio: {intro.get('start', '?')}")
-                    footer.append(f" Fim:    {intro.get('end', '?')}")
-                    footer.append("")
+                    footer_lines.append("Abertura")
+                    footer_lines.append(f" Inicio: {intro.get('start', '?')}")
+                    footer_lines.append(f" Fim:    {intro.get('end', '?')}")
+                    footer_lines.append("")
                 finish = skips.get("finish")
                 if finish:
-                    footer.append("Créditos")
-                    footer.append(f" Inicio: {finish.get('start', '?')}")
-                    footer.append(f" Fim:    {finish.get('end', '?')}")
-                    footer.append("")
+                    footer_lines.append("Créditos")
+                    footer_lines.append(f" Inicio: {finish.get('start', '?')}")
+                    footer_lines.append(f" Fim:    {finish.get('end', '?')}")
+                    footer_lines.append("")
                 cuts = skips.get("cuts", [])
                 if cuts:
-                    footer.append(f"Outros ({len(cuts)})")
+                    footer_lines.append(f"Outros ({len(cuts)})")
                     for i, cut in enumerate(cuts, 1):
-                        footer.append(f"  [{i}] ▶ {cut.get('start','?')}")
-                        footer.append(f"       ◼ {cut.get('end','?')}")
+                        footer_lines.append(f"[{i}]")
+                        footer_lines.append(f" Inicio: {cut.get('start','?')}")
+                        footer_lines.append(f" Fim:  {cut.get('end','?')}")
             else:
-                footer.append(sep)
-                footer.append("Sem cortes cadastrados.")
-            self._details_footer_lines = footer
+                footer_lines.append(sep)
+                footer_lines.append("Sem cortes cadastrados.")
+            self.query_one("#details-footer-static", Static).update("\n".join(footer_lines))
 
 
     def reload_folder_tree(self) -> None:
@@ -629,3 +532,4 @@ class MediaView(Vertical):
             
         self.run_worker(run_import, thread=True)
         self.app.notify("Importando arquivos em background...")
+

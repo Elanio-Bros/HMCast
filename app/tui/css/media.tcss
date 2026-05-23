@@ -68,9 +68,15 @@ MediaView Input {
     border-bottom: ascii $panel;
 }
 
-#details-content {
+#details-header-static {
     color: $text;
     margin-top: 1;
+}
+
+#details-filename-static,
+#details-filepath-static {
+    color: $text;
+    overflow-x: auto;
 }
 
 .action-bar {
