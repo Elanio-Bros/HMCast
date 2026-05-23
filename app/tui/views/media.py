@@ -2,6 +2,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable, Input, Tree, ProgressBar
 from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.screen import Screen
+from textual.widgets import Markdown
 from app.database import SessionLocal
 from app.models import MediaItem, MediaFolder
 import os
@@ -30,11 +31,16 @@ class MediaView(Vertical):
         with Horizontal(id="media-workspace"):
             # Árvore de Pastas (Esquerda)
             yield Tree("BIBLIOTECAS", id="folder-tree")
-            # Tabela de Mídias (Direita)
+            # Tabela de Mídias (Centro)
             yield DataTable(id="media-table")
+            # Painel de Detalhes (Direita)
+            with VerticalScroll(id="details-panel"):
+                yield Static("DETALHES", id="details-title")
+                yield Static("", id="details-content")
 
         with Horizontal(classes="action-bar"):
             yield Button("Adicionar", variant="primary", id="btn-add-media", classes="btn-action")
+            yield Button("Info. Cutouts", variant="success", id="btn-manage-cutouts", classes="btn-action")
             yield Button("Scan Global", variant="warning", id="btn-scan-global", classes="btn-action")
             yield Button("Auto-Scan ON/OFF", id="btn-toggle-scan", classes="btn-action")
             yield Button("Renomear", id="btn-rename", classes="btn-action")
@@ -43,7 +49,7 @@ class MediaView(Vertical):
 
     def on_mount(self) -> None:
         table = self.query_one("#media-table", DataTable)
-        table.add_columns("ID", "Nome", "Duração", "Arquivo")
+        table.add_columns("ID", "Nome")
         table.zebra_stripes = True
         table.cursor_type = "row"
         
@@ -79,6 +85,73 @@ class MediaView(Vertical):
         """Sempre que um filho ganhar foco, lembramos dele se for Tree ou Table."""
         if isinstance(event.control, (Tree, DataTable)):
             self.last_active_widget = event.control
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Atualiza o painel de detalhes conforme o cursor navega pela tabela."""
+        try:
+            row_data = event.data_table.get_row_at(event.cursor_row)
+            media_id = int(row_data[0])
+            self._update_details_panel(media_id)
+        except Exception:
+            pass
+
+    def _update_details_panel(self, media_id: int) -> None:
+        """Busca os dados da mídia e renderiza o painel lateral."""
+        with SessionLocal() as db:
+            media = db.query(MediaItem).get(media_id)
+            if not media:
+                return
+
+            skips = media.skips or {}
+            duration = media.duration or 0
+            h = duration // 3600
+            m = (duration % 3600) // 60
+            s = duration % 60
+            dur_str = f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+            sep = "─" * 33
+            filename = os.path.basename(media.file)
+            dirpath = os.path.dirname(media.file)
+
+            lines = []
+            lines.append(media.name)
+            lines.append(sep)
+            lines.append(f"Duração: {dur_str}")
+            lines.append(f"Arquivo: {filename}")
+            lines.append(f"Caminho: {dirpath}")
+            lines.append("")
+
+            if skips:
+                lines.append(sep)
+                lines.append("CORTES")
+                lines.append("")
+
+                intro = skips.get("intro")
+                if intro:
+                    lines.append("Abertura")
+                    lines.append(f" Inicio: {intro.get('start', '?')}")
+                    lines.append(f" Fim: {intro.get('end', '?')}")
+                    lines.append("")
+
+                finish = skips.get("finish")
+                if finish:
+                    lines.append("Créditos")
+                    lines.append(f"  ▶ {finish.get('start', '?')}")
+                    lines.append(f"  ◼ {finish.get('end', '?')}")
+                    lines.append("")
+
+                cuts = skips.get("cuts", [])
+                if cuts:
+                    lines.append(f"Outros ({len(cuts)})")
+                    for i, cut in enumerate(cuts, 1):
+                        lines.append(f"  [{i}] ▶ {cut.get('start','?')}")
+                        lines.append(f"       ◼ {cut.get('end','?')}")
+            else:
+                lines.append(sep)
+                lines.append("Sem cortes cadastrados.")
+
+            self.query_one("#details-content", Static).update("\n".join(lines))
+
 
     def reload_folder_tree(self) -> None:
         """Carrega as pastas raízes do banco na árvore."""
@@ -165,22 +238,8 @@ class MediaView(Vertical):
             
             rows_to_add = []
             for item, folder_path in items:
-                duration = item.duration or 0
-                duration_str = f"{duration // 60}:{duration % 60:02d}"
-                
-                try:
-                    rel_path = os.path.relpath(item.file, folder_path) if folder_path else os.path.basename(item.file)
-                except ValueError:
-                    # Fallback para caso o arquivo e a pasta estejam em drives diferentes no Windows
-                    rel_path = item.file
+                rows_to_add.append((str(item.id), item.name))
 
-                rows_to_add.append((
-                    str(item.id),
-                    item.name,
-                    duration_str,
-                    rel_path
-                ))
-                
             try:
                 table.add_rows(rows_to_add)
             except Exception as e:
@@ -243,11 +302,31 @@ class MediaView(Vertical):
         elif event.button.id == "btn-toggle-scan":
             self.action_toggle_auto_scan()
 
+        elif event.button.id == "btn-manage-cutouts":
+            self.action_manage_cutouts()
+
         elif event.button.id == "btn-rename":
             self.action_rename_selected()
 
         elif event.button.id == "btn-delete":
             self.action_delete_selected()
+
+    def action_manage_cutouts(self) -> None:
+        focused = getattr(self, "last_active_widget", None)
+        if isinstance(focused, DataTable):
+            row_index = focused.cursor_row
+            if row_index is not None:
+                row_data = focused.get_row_at(row_index)
+                media_id = int(row_data[0])
+                from app.tui.views.modals.media_cutouts import MediaCutoutsModal
+                
+                def check_result(success: bool):
+                    if success:
+                        self.reload_data()
+                        
+                self.app.push_screen(MediaCutoutsModal(media_id=media_id), check_result)
+        else:
+            self.app.notify("Selecione um vídeo na tabela primeiro!", severity="warning")
 
     def action_toggle_auto_scan(self) -> None:
         """Alterna o auto_scan da biblioteca selecionada."""

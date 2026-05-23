@@ -4,6 +4,9 @@ from textual.widgets import SelectionList, Button, Label, Static, Select, Tree
 from textual.widgets.selection_list import Selection
 from textual.containers import Vertical, Horizontal
 from app.enums import PlaylistItemRole
+from app.database import SessionLocal
+from app.models import PlaylistItem
+from sqlalchemy import func
 
 
 class AddMediaToPlaylistModal(ModalScreen[bool]):
@@ -121,9 +124,6 @@ class AddMediaToPlaylistModal(ModalScreen[bool]):
             selection_list.select_all()
 
     def save_items(self) -> None:
-        from app.database import SessionLocal
-        from app.models import PlaylistItem
-        from sqlalchemy import func
         
         selected_ids = self.query_one("#selection-media", SelectionList).selected
         role = self.query_one("#select-role", Select).value

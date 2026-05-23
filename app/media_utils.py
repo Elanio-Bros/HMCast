@@ -109,9 +109,19 @@ class MediaUtils:
             
             return 0
         except Exception as e:
-            # Em caso de erro real, não apenas silenciamos
-            # Mas retornamos 0 para manter a lógica do scanner
             return 0
+
+    def get_media_info(self, file_path: str) -> tuple[int, dict]:
+        """Extrai duração e também faz a varredura assíncrona por metadados de cutouts."""
+        duration = self.get_media_duration(file_path)
+        skips = None
+        try:
+            from .services.cutouts import CutoutManager
+            manager = CutoutManager(ffprobe_bin=self.ffprobe)
+            skips = manager.extract_all(file_path)
+        except Exception as e:
+            print(f"[Scanner] Erro ao extrair metadados de cortes para {file_path}: {e}")
+        return duration, skips
 
     # ======================================================
     # FILESYSTEM / MEDIA SCAN
@@ -275,26 +285,27 @@ class MediaUtils:
             for entry in entries:
                 if entry.is_file() and entry.name.lower().endswith(self.SUPPORTED_EXTENSIONS):
                     full_path = self.normalize_path(entry.path)
-                    # Adiciona ao pool de processamento
-                    future = executor.submit(self.get_media_duration, full_path)
+                    future = executor.submit(self.get_media_info, full_path)
                     file_tasks[future] = (full_path, entry.name)
 
             # 4. Coleta resultados dos arquivos
             for future in as_completed(file_tasks):
                 f_path, f_name = file_tasks[future]
-                duration = future.result()
+                duration, skips = future.result()
                 
                 if duration > 0:
                     found_files.add(f_path)
                     item = db.query(MediaItem).filter(MediaItem.file.ilike(f_path)).first()
                     
                     if not item:
-                        item = MediaItem(name=os.path.splitext(f_name)[0], file=f_path, duration=duration, folder_id=parent_id)
+                        item = MediaItem(name=os.path.splitext(f_name)[0], file=f_path, duration=duration, folder_id=parent_id, skips=skips)
                         db.add(item)
                     else:
-                        if item.folder_id != parent_id or item.duration != duration:
+                        if item.folder_id != parent_id or item.duration != duration or item.skips != skips:
                             item.folder_id = parent_id
                             item.duration = duration
+                            if skips is not None:
+                                item.skips = skips
                     
                     # Atualiza progresso
                     stats["count"] += 1
