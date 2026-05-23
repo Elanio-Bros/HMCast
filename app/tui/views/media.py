@@ -170,14 +170,44 @@ class MediaView(Vertical):
         node = self._tree_marquee_node
         if node is None:
             return
-        self._tree_marquee_offset += 1
-        # Calcula a largura disponível dinamicamente
+        
         try:
-            tree_w = self.query_one("#folder-tree").size.width
-            w = max(6, tree_w - self.MARQUEE_TREE_PADDING)
+            tree = self.query_one("#folder-tree", Tree)
+            # Se o scroll horizontal estiver ativo (maior que 0), paramos o marquee imediatamente
+            if tree.scroll_x > 0:
+                try:
+                    if str(node.label) != self._tree_marquee_orig:
+                        node.set_label(self._tree_marquee_orig)
+                except Exception:
+                    self._tree_marquee_node = None
+                return
+
+            content_width = tree.content_region.width
+            
+            # Calcular profundidade para subtrair indentação
+            depth = 0
+            parent = node.parent
+            while parent and parent.parent:  # conta níveis até a raiz virtual "BIBLIOTECAS"
+                depth += 1
+                parent = parent.parent
+            indent = depth * 2 + 1  # 2 por nível + 1 para o marcador
+            available_width = max(6, content_width - indent)
         except Exception:
-            w = 18
-        label = self._marquee_slice(self._tree_marquee_text, self._tree_marquee_offset, w)
+            available_width = 18
+
+        original_text = self._tree_marquee_text
+
+        # Se o texto cabe na largura disponível, paramos o marquee e restauramos o original
+        if len(original_text) <= available_width:
+            try:
+                if str(node.label) != self._tree_marquee_orig:
+                    node.set_label(self._tree_marquee_orig)
+            except Exception:
+                self._tree_marquee_node = None
+            return
+
+        self._tree_marquee_offset += 1
+        label = self._marquee_slice(original_text, self._tree_marquee_offset, available_width)
         try:
             node.set_label(label)
         except Exception:
