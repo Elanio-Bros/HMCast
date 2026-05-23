@@ -2,7 +2,6 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable, Input, Tree, ProgressBar
 from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Markdown
 from app.database import SessionLocal
 from app.models import MediaItem, MediaFolder
 import os
@@ -18,6 +17,23 @@ class MediaView(Vertical):
     page_size = 100
     has_more = True
     is_loading = False
+
+    # Marquee: painel de detalhes
+    _marquee_filename: str = ""
+    _marquee_dirpath: str = ""
+    _marquee_fn_offset: int = 0
+    _marquee_dp_offset: int = 0
+    _details_header_lines: list = []
+    _details_footer_lines: list = []
+
+    # Marquee: árvore de diretórios
+    _tree_marquee_node = None
+    _tree_marquee_text: str = ""
+    _tree_marquee_offset: int = 0
+    _tree_marquee_orig: str = ""
+
+    MARQUEE_PANEL_PREFIX: int = 9   # len("Arquivo: ")
+    MARQUEE_TREE_PADDING: int = 4    # margem/padding da árvore
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="view-header"):
@@ -64,6 +80,9 @@ class MediaView(Vertical):
         
         # Inicia o Radar de Paginação (verifica a cada 0.5s se chegou no fim)
         self.set_interval(0.5, self.check_scroll_for_pagination)
+        # Timers de Marquee
+        self.set_interval(0.25, self._tick_marquee_details)
+        self.set_interval(0.3, self._tick_tree_marquee)
 
     def check_scroll_for_pagination(self) -> None:
         """Verifica se o usuário rolou a tabela até o final para carregar mais dados."""
@@ -95,8 +114,77 @@ class MediaView(Vertical):
         except Exception:
             pass
 
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        """Inicia o marquee no nó da árvore que recebeu o destaque."""
+        node = event.node
+        if node is self._tree_marquee_node:
+            return
+        # Restaura o label anterior antes de trocar
+        if self._tree_marquee_node is not None:
+            try:
+                self._tree_marquee_node.set_label(self._tree_marquee_orig)
+            except Exception:
+                pass
+        self._tree_marquee_node = node
+        self._tree_marquee_orig = str(node.label)
+        self._tree_marquee_text = str(node.label).strip()
+        self._tree_marquee_offset = 0
+
+    # ── Helpers de Marquee ───────────────────────────────────────────────
+
+    def _marquee_slice(self, text: str, offset: int, width: int) -> str:
+        """Retorna uma janela de 'width' chars do texto, deslizando com offset."""
+        if len(text) <= width:
+            return text
+        padded = text + "   "  # gap entre as repetições
+        idx = offset % len(padded)
+        doubled = padded + padded
+        return doubled[idx: idx + width]
+
+    def _tick_marquee_details(self) -> None:
+        """Atualiza os campos Arquivo/Caminho no painel de detalhes a cada tick."""
+        if not self._marquee_filename and not self._marquee_dirpath:
+            return
+        self._marquee_fn_offset += 1
+        self._marquee_dp_offset += 1
+        # Calcula a largura disponível dinamicamente
+        try:
+            panel_w = self.query_one("#details-panel").size.width
+            w = max(8, panel_w - 2 - self.MARQUEE_PANEL_PREFIX)  # desconta padding + prefixo
+        except Exception:
+            w = 20
+        fn = self._marquee_slice(self._marquee_filename, self._marquee_fn_offset, w)
+        dp = self._marquee_slice(self._marquee_dirpath, self._marquee_dp_offset, w)
+        lines = list(self._details_header_lines)
+        lines.append(f"Arquivo: {fn}")
+        lines.append(f"Caminho: {dp}")
+        lines.append("")
+        lines.extend(self._details_footer_lines)
+        try:
+            self.query_one("#details-content", Static).update("\n".join(lines))
+        except Exception:
+            pass
+
+    def _tick_tree_marquee(self) -> None:
+        """Atualiza o label do nó destacado na árvore a cada tick."""
+        node = self._tree_marquee_node
+        if node is None:
+            return
+        self._tree_marquee_offset += 1
+        # Calcula a largura disponível dinamicamente
+        try:
+            tree_w = self.query_one("#folder-tree").size.width
+            w = max(6, tree_w - self.MARQUEE_TREE_PADDING)
+        except Exception:
+            w = 18
+        label = self._marquee_slice(self._tree_marquee_text, self._tree_marquee_offset, w)
+        try:
+            node.set_label(label)
+        except Exception:
+            self._tree_marquee_node = None
+
     def _update_details_panel(self, media_id: int) -> None:
-        """Busca os dados da mídia e renderiza o painel lateral."""
+        """Busca os dados da mídia e armazena estado para o marquee renderizar."""
         with SessionLocal() as db:
             media = db.query(MediaItem).get(media_id)
             if not media:
@@ -110,47 +198,48 @@ class MediaView(Vertical):
             dur_str = f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
             sep = "─" * 33
-            filename = os.path.basename(media.file)
-            dirpath = os.path.dirname(media.file)
 
-            lines = []
-            lines.append(media.name)
-            lines.append(sep)
-            lines.append(f"Duração: {dur_str}")
-            lines.append(f"Arquivo: {filename}")
-            lines.append(f"Caminho: {dirpath}")
-            lines.append("")
+            # Linhas estáticas (header)
+            self._details_header_lines = [
+                media.name,
+                sep,
+                f"Duração: {dur_str}",
+            ]
 
+            # Guarda os valores completos para o marquee animar
+            self._marquee_filename = os.path.basename(media.file)
+            self._marquee_dirpath = os.path.dirname(media.file)
+            self._marquee_fn_offset = 0
+            self._marquee_dp_offset = 0
+
+            # Linhas estáticas (footer: cortes)
+            footer = []
             if skips:
-                lines.append(sep)
-                lines.append("CORTES")
-                lines.append("")
-
+                footer.append(sep)
+                footer.append("CORTES")
+                footer.append("")
                 intro = skips.get("intro")
                 if intro:
-                    lines.append("Abertura")
-                    lines.append(f" Inicio: {intro.get('start', '?')}")
-                    lines.append(f" Fim: {intro.get('end', '?')}")
-                    lines.append("")
-
+                    footer.append("Abertura")
+                    footer.append(f" Inicio: {intro.get('start', '?')}")
+                    footer.append(f" Fim:    {intro.get('end', '?')}")
+                    footer.append("")
                 finish = skips.get("finish")
                 if finish:
-                    lines.append("Créditos")
-                    lines.append(f"  ▶ {finish.get('start', '?')}")
-                    lines.append(f"  ◼ {finish.get('end', '?')}")
-                    lines.append("")
-
+                    footer.append("Créditos")
+                    footer.append(f" Inicio: {finish.get('start', '?')}")
+                    footer.append(f" Fim:    {finish.get('end', '?')}")
+                    footer.append("")
                 cuts = skips.get("cuts", [])
                 if cuts:
-                    lines.append(f"Outros ({len(cuts)})")
+                    footer.append(f"Outros ({len(cuts)})")
                     for i, cut in enumerate(cuts, 1):
-                        lines.append(f"  [{i}] ▶ {cut.get('start','?')}")
-                        lines.append(f"       ◼ {cut.get('end','?')}")
+                        footer.append(f"  [{i}] ▶ {cut.get('start','?')}")
+                        footer.append(f"       ◼ {cut.get('end','?')}")
             else:
-                lines.append(sep)
-                lines.append("Sem cortes cadastrados.")
-
-            self.query_one("#details-content", Static).update("\n".join(lines))
+                footer.append(sep)
+                footer.append("Sem cortes cadastrados.")
+            self._details_footer_lines = footer
 
 
     def reload_folder_tree(self) -> None:

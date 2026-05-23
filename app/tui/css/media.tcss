@@ -52,7 +52,7 @@ MediaView Input {
 }
 
 #details-panel {
-    width: 80;
+    width: 35%;
     height: 100%;
     border-left: ascii $panel;
     background: $surface;
