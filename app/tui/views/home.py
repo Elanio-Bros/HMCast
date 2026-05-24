@@ -106,4 +106,4 @@ class HomeScreen(Screen):
 
     def on_button_pressed(self, event) -> None:
         if event.button.id == "btn-back-home":
-            self.query_one(ContentSwitcher).current = "home-menu"
+            self.app.action_focus_view("home-menu")

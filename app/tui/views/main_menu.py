@@ -57,16 +57,16 @@ class MainMenuView(VerticalScroll):
         while target:
             if hasattr(target, "id"):
                 if target.id == "card-channels":
-                    self.app.screen.query_one("ContentSwitcher").current = "channels-manager"
+                    self.app.action_focus_view("channels-manager")
                     break
                 elif target.id == "card-playlists":
-                    self.app.screen.query_one("ContentSwitcher").current = "playlists-manager"
+                    self.app.action_focus_view("playlists-manager")
                     break
                 elif target.id == "card-media":
-                    self.app.screen.query_one("ContentSwitcher").current = "media-manager"
+                    self.app.action_focus_view("media-manager")
                     break
                 elif target.id == "card-settings":
-                    self.app.screen.query_one("ContentSwitcher").current = "settings-manager"
+                    self.app.action_focus_view("settings-manager")
                     break
             target = target.parent
 

@@ -84,7 +84,7 @@ class ChannelDetailView(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-detail-back":
-            self.app.screen.query_one("ContentSwitcher").current = "channels-manager"
+            self.app.action_focus_view("channels-manager")
         elif event.button.id == "btn-detail-edit":
             self.action_edit_channel()
         elif event.button.id == "btn-cd-add-schedule":

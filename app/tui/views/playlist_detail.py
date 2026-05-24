@@ -76,7 +76,7 @@ class PlaylistDetailView(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-pl-detail-back":
-            self.app.screen.query_one("ContentSwitcher").current = "playlists-manager"
+            self.app.action_focus_view("playlists-manager")
         elif event.button.id == "btn-edit-playlist-detail":
             self.action_edit_playlist()
         elif event.button.id == "btn-pd-add-media":

@@ -160,7 +160,7 @@ class SettingsView(Vertical):
         btn_id = event.button.id
 
         if btn_id == "btn-back-home":
-            self.app.screen.query_one("ContentSwitcher").current = "home-menu"
+            self.app.action_focus_view("home-menu")
 
         elif btn_id == "btn-srv-start":
             self._action_start_server()

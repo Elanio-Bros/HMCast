@@ -86,16 +86,14 @@ class PlaylistsView(PaginationMixin, Vertical):
         row_data = table.get_row_at(event.cursor_row)
         playlist_id = int(row_data[0])
         from app.tui.views.playlist_detail import PlaylistDetailView
-        from textual.widgets import ContentSwitcher
         
-        switcher = self.app.screen.query_one(ContentSwitcher)
         detail_view = self.app.screen.query_one("#playlist-detail", PlaylistDetailView)
         detail_view.load_playlist(playlist_id)
-        switcher.current = "playlist-detail"
+        self.app.action_focus_view("playlist-detail")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back-home":
-            self.app.screen.query_one("ContentSwitcher").current = "home-menu"
+            self.app.action_focus_view("home-menu")
         elif event.button.id == "btn-add-playlist":
             self.action_add_playlist()
         elif event.button.id == "btn-detail-playlist":

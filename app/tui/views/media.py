@@ -290,7 +290,9 @@ class MediaView(PaginationMixin, Vertical):
             self.reload_data(event.value)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-add-media":
+        if event.button.id == "btn-back-home":
+            self.app.action_focus_view("home-menu")
+        elif event.button.id == "btn-add-media":
             from app.tui.views.modals.add_media import AddMediaModal
             def check_result(success: bool):
                 if success:

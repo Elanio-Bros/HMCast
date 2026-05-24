@@ -22,6 +22,16 @@ BROADCAST_THEME = Theme(
     dark=True,
 )
 
+# Mapa de navegação: view_atual -> view_anterior (para ESC voltar)
+_VIEW_BACK_STACK = {
+    "channel-detail":    "channels-manager",
+    "channels-manager":  "home-menu",
+    "playlist-detail":   "playlists-manager",
+    "playlists-manager": "home-menu",
+    "media-manager":     "home-menu",
+    "settings-manager":  "home-menu",
+}
+
 class HMCli(App):
     """Aplicativo Central - Orquestrador de Regras Globais."""
     
@@ -49,56 +59,116 @@ class HMCli(App):
         self.push_screen("home")
 
     def on_key(self, event) -> None:
-        """TERCEIRA REGRA: Navegação por setas ADICIONAL ao TAB."""
-        key = event.key
-        focused = self.focused
+        """Navegação por teclado.
         
-        # PRIORIDADE MÁXIMA: ESC (Garante a Regra 2 em Modais e Telas)
+        - ESC: Fecha modal ou volta view anterior (Regra de Ouro).
+        - Setas VERTICAIS (up/down): navegam entre campos, exceto em
+          DataTable, Select, OptionList, ListView, Tree (que têm navegação própria).
+        - Setas HORIZONTAIS (left/right): navegam entre widgets, exceto em
+          Input, DataTable, Select, Tree, SelectionList (cursor/colunas/expansão).
+        """
+        key = event.key
+        
+        # ═══════════════════════════════════════════
+        #  PRIORIDADE ABSOLUTA: ESC
+        # ═══════════════════════════════════════════
         if key == "escape":
             self.action_back()
-            event.stop()            # Impede que o binding do App dispare de novo
-            event.prevent_default() # Garante que o widget focado não use a tecla
+            event.stop()
+            event.prevent_default()
             return
-
-        # Widgets que possuem comportamento interno próprio para as setas
-        from textual.widgets import Input, DataTable, Select, OptionList, ListView
         
-        if key == "down":
-            # Se não for uma lista/tabela, a seta para baixo pula para o próximo campo
-            if not isinstance(focused, (DataTable, Select, OptionList, ListView)):
-                self.action_focus_next()
-        elif key == "up":
-            # Seta para cima volta o foco
-            if not isinstance(focused, (DataTable, Select, OptionList, ListView)):
-                self.action_focus_previous()
-        elif key == "right":
-            # Seta direita avança o foco (exceto em texto/tabela)
-            if not isinstance(focused, (Input, DataTable, OptionList)):
-                self.action_focus_next()
-        elif key == "left":
-            # Seta esquerda retrocede o foco (exceto em texto/tabela)
-            if not isinstance(focused, (Input, DataTable, OptionList)):
-                self.action_focus_previous()
+        from textual.widgets import Input, DataTable, Select, OptionList, ListView, Tree
+        from textual.widgets import SelectionList
+        
+        focused = self.focused
+        
+        # ――― Widgets com navegação VERTICAL interna ―――
+        _vertical = (DataTable, Select, OptionList, ListView, Tree)
+        
+        if key == "down" and not isinstance(focused, _vertical):
+            self.action_focus_next()
+            event.stop()
+            return
+        
+        if key == "up" and not isinstance(focused, _vertical):
+            self.action_focus_previous()
+            event.stop()
+            return
+        
+        # ――― Widgets com navegação HORIZONTAL interna ―――
+        _horizontal = (Input, DataTable, Select, Tree, SelectionList)
+        
+        if key == "right" and not isinstance(focused, _horizontal):
+            self.action_focus_next()
+            event.stop()
+            return
+        
+        if key == "left" and not isinstance(focused, _horizontal):
+            self.action_focus_previous()
+            event.stop()
+            return
 
     def action_back(self) -> None:
-        """REGRA DE OURO 2: ESC é Voltar em qualquer lugar."""
-        # Se houver mais de 2 telas (Default + Home + Modal), fecha o modal
-        if len(self.screen_stack) > 2:
+        """REGRA DE OURO: ESC é Voltar em qualquer lugar.
+        
+        Prioridades:
+        1. Se há um ModalScreen aberto (ex: AddChannelModal), fecha o modal.
+        2. Se está numa view detalhada, volta para a view anterior.
+        3. Se está no menu principal, não faz nada.
+        """
+        # 1. Fechar modal — verifica pelo tipo da tela atual
+        from textual.screen import ModalScreen
+        if isinstance(self.screen, ModalScreen):
             self.pop_screen()
             return
-            
-        # Se estiver na HomeScreen, volta a navegação interna
-        from textual.widgets import ContentSwitcher
+        
+        # 2. Navegação interna no ContentSwitcher
         try:
-            # Procuramos o switcher na tela ativa
+            from textual.widgets import ContentSwitcher
             switcher = self.screen.query_one(ContentSwitcher)
-            if switcher.current == "channel-detail":
-                switcher.current = "channels-manager"
-            elif switcher.current == "channels-manager":
-                switcher.current = "home-menu"
-            elif switcher.current == "media-manager":
-                switcher.current = "home-menu"
-            elif switcher.current == "settings-manager":
-                switcher.current = "home-menu"
+            current = switcher.current
+            
+            if current in _VIEW_BACK_STACK:
+                switcher.current = _VIEW_BACK_STACK[current]
+                # Foca automaticamente no primeiro card se voltou ao menu
+                if _VIEW_BACK_STACK[current] == "home-menu":
+                    self._focus_first_card()
+        except Exception:
+            pass
+
+    def _focus_first_card(self) -> None:
+        """Foca no primeiro card do menu principal."""
+        try:
+            card = self.screen.query_one("#card-channels")
+            if card:
+                card.focus()
+        except Exception:
+            pass
+
+    def action_focus_view(self, view_id: str) -> None:
+        """Ação auxiliar para views navegarem entre si via botões."""
+        try:
+            from textual.widgets import ContentSwitcher
+            switcher = self.screen.query_one(ContentSwitcher)
+            switcher.current = view_id
+            self._auto_focus_view(view_id)
+        except Exception:
+            pass
+
+    def _auto_focus_view(self, view_id: str) -> None:
+        """Auto-foco inteligente ao entrar numa view."""
+        try:
+            container = self.screen.query_one(f"#{view_id}")
+            # Tenta focar no primeiro DataTable
+            table = container.query(DataTable).first()
+            if table:
+                table.focus()
+                return
+            # Tenta focar no primeiro botão de ação
+            from textual.widgets import Button
+            btn = container.query(Button).first()
+            if btn:
+                btn.focus()
         except Exception:
             pass
