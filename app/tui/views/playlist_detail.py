@@ -28,7 +28,7 @@ class PlaylistDetailView(Vertical):
                 yield DataTable(id="playlist-items-table")
 
         with Horizontal(classes="action-bar"):
-            yield Button("Vincular Mídia", variant="success", id="btn-add-media", classes="btn-action")
+            yield Button("Vincular Mídia", variant="success", id="btn-pd-add-media", classes="btn-action")
             yield Button("Gerenciar Grade", variant="primary", id="btn-manage-grid", classes="btn-action")
             yield Button("Editar Playlist", variant="warning", id="btn-edit-playlist-detail", classes="btn-action")
             yield Button("Voltar", id="btn-pl-detail-back", classes="btn-action")
@@ -79,7 +79,7 @@ class PlaylistDetailView(Vertical):
             self.app.screen.query_one("ContentSwitcher").current = "playlists-manager"
         elif event.button.id == "btn-edit-playlist-detail":
             self.action_edit_playlist()
-        elif event.button.id == "btn-add-media":
+        elif event.button.id == "btn-pd-add-media":
             self.action_add_media()
         elif event.button.id == "btn-manage-grid":
             self.action_manage_grid()

@@ -1,12 +1,14 @@
+import os
+
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, SelectionList, Label, Input, ContentSwitcher, Tree, ProgressBar
 from textual.widgets.tree import TreeNode
 from textual.widgets.selection_list import Selection
 from textual.containers import Vertical, Horizontal
+
 from app.database import SessionLocal
 from app.models import MediaItem, MediaFolder
-import os
 
 class FolderTree(Tree):
     """Uma árvore customizada que lista APENAS pastas, de forma garantida."""

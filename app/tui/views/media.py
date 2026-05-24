@@ -1,22 +1,19 @@
-from textual.app import ComposeResult
-from textual.widgets import Static, Button, DataTable, Input, Tree, ProgressBar
-from textual.containers import Vertical, Horizontal, VerticalScroll, ScrollableContainer
-from textual.screen import Screen
-from app.database import SessionLocal
-from app.models import MediaItem, MediaFolder
 import os
 
-class MediaView(Vertical):
+from textual.app import ComposeResult
+from textual.widgets import Static, Button, DataTable, Input, Tree, ProgressBar
+from textual.containers import Vertical, Horizontal, ScrollableContainer
+
+from app.database import SessionLocal
+from app.models import MediaItem, MediaFolder
+from app.tui.mixins import PaginationMixin
+
+
+class MediaView(PaginationMixin, Vertical):
     """View de Gestão de Mídias estilo Explorador de Arquivos."""
     
     selected_folder_id = None
-    
-    # Estados da Paginação Real
     current_search = ""
-    current_offset = 0
-    page_size = 100
-    has_more = True
-    is_loading = False
 
     # Estado para o painel de detalhes
     _details_filename: str = ""
@@ -49,8 +46,8 @@ class MediaView(Vertical):
             yield Button("Info. Cutouts", variant="success", id="btn-manage-cutouts", classes="btn-action")
             yield Button("Scan Global", variant="warning", id="btn-scan-global", classes="btn-action")
             yield Button("Auto-Scan ON/OFF", id="btn-toggle-scan", classes="btn-action")
-            yield Button("Renomear", id="btn-rename", classes="btn-action")
-            yield Button("Excluir", variant="error", id="btn-delete", classes="btn-action")
+            yield Button("Renomear", id="btn-md-rename", classes="btn-action")
+            yield Button("Excluir", variant="error", id="btn-md-delete", classes="btn-action")
             yield Button("Voltar", id="btn-back-home", classes="btn-action")
 
     def on_mount(self) -> None:
@@ -74,22 +71,6 @@ class MediaView(Vertical):
         # Estado inicial dos botões contextuais
         self._update_button_visibility()
 
-
-    def check_scroll_for_pagination(self) -> None:
-        """Verifica se o usuário rolou a tabela até o final para carregar mais dados."""
-        if not self.has_more or self.is_loading:
-            return
-            
-        try:
-            table = self.query_one("#media-table", DataTable)
-            # Verifica o scroll do mouse OU o cursor do teclado
-            at_bottom_scroll = table.scroll_y >= table.max_scroll_y - 10
-            at_bottom_cursor = (table.cursor_row is not None and table.cursor_row >= table.row_count - 10)
-            
-            if at_bottom_scroll or at_bottom_cursor:
-                self.load_page()
-        except Exception:
-            pass
 
     def on_descendant_focus(self, event) -> None:
         """Sempre que um filho ganhar foco, lembramos dele e atualizamos botões."""
@@ -168,13 +149,11 @@ class MediaView(Vertical):
             self._details_filename = os.path.basename(media.file)
             self._details_dirpath = os.path.dirname(media.file)
 
-            # Inicializa filename/path com width ajustado ao conteudo para nao quebrar
+            # Painel de detalhes com scroll horizontal automático (CSS overflow-x: auto)
             fn_text = f"Arquivo: {self._details_filename}"
             dp_text = f"Caminho: {self._details_dirpath}"
             fn_static = self.query_one("#details-filename-static", Static)
             dp_static = self.query_one("#details-filepath-static", Static)
-            fn_static.styles.width = len(fn_text)
-            dp_static.styles.width = len(dp_text)
             fn_static.update(fn_text)
             dp_static.update(dp_text)
 
@@ -244,19 +223,14 @@ class MediaView(Vertical):
     def reload_data(self, search: str = "") -> None:
         """Limpa a tabela e reinicia a paginação do zero."""
         self.current_search = search
-        self.current_offset = 0
-        self.has_more = True
-        
-        table = self.query_one("#media-table", DataTable)
-        table.clear()
-        
+        self.reset_pagination()
         self.load_page()
 
     def load_page(self) -> None:
         """Carrega a próxima página (lote) de mídias e anexa na tabela."""
         if self.is_loading or not self.has_more:
             return
-            
+
         self.is_loading = True
         table = self.query_one("#media-table", DataTable)
         
@@ -361,10 +335,10 @@ class MediaView(Vertical):
         elif event.button.id == "btn-manage-cutouts":
             self.action_manage_cutouts()
 
-        elif event.button.id == "btn-rename":
+        elif event.button.id == "btn-md-rename":
             self.action_rename_selected()
 
-        elif event.button.id == "btn-delete":
+        elif event.button.id == "btn-md-delete":
             self.action_delete_selected()
 
     def action_manage_cutouts(self) -> None:

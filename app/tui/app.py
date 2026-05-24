@@ -1,5 +1,6 @@
 from textual.app import App
 from textual.theme import Theme
+
 from app.database import SessionLocal
 from app.media_utils import MediaUtils
 from app.service_manager import ServiceManager

@@ -32,7 +32,7 @@ class ChannelDetailView(Vertical):
                 yield DataTable(id="schedules-table")
 
         with Horizontal(classes="action-bar"):
-            yield Button("Vincular Playlist", variant="success", id="btn-add-schedule", classes="btn-action")
+            yield Button("Vincular Playlist", variant="success", id="btn-cd-add-schedule", classes="btn-action")
             yield Button("Editar", variant="warning", id="btn-detail-edit", classes="btn-action")
             yield Button("Voltar", id="btn-detail-back", classes="btn-action")
 
@@ -87,7 +87,7 @@ class ChannelDetailView(Vertical):
             self.app.screen.query_one("ContentSwitcher").current = "channels-manager"
         elif event.button.id == "btn-detail-edit":
             self.action_edit_channel()
-        elif event.button.id == "btn-add-schedule":
+        elif event.button.id == "btn-cd-add-schedule":
             self.action_add_schedule()
 
     def action_edit_channel(self) -> None:

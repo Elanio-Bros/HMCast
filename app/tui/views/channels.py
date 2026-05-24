@@ -2,14 +2,11 @@ from textual.app import ComposeResult
 from textual.widgets import Static, DataTable, Button
 from textual.containers import Vertical, Horizontal, VerticalScroll
 
+from app.tui.mixins import PaginationMixin
 
-class ChannelsView(Vertical):
+
+class ChannelsView(PaginationMixin, Vertical):
     """View de Canais com suporte a rolagem e paginação."""
-    
-    current_offset = 0
-    page_size = 100
-    has_more = True
-    is_loading = False
     
     def compose(self) -> ComposeResult:
         with Horizontal(classes="view-header"):
@@ -39,33 +36,14 @@ class ChannelsView(Vertical):
         self.refresh_channels()
         self.set_interval(0.5, self.check_scroll_for_pagination)
 
-    def check_scroll_for_pagination(self) -> None:
-        if not self.has_more or self.is_loading:
-            return
-            
-        try:
-            table = self.query_one(DataTable)
-            at_bottom_scroll = table.scroll_y >= table.max_scroll_y - 10
-            at_bottom_cursor = (table.cursor_row is not None and table.cursor_row >= table.row_count - 10)
-            
-            if at_bottom_scroll or at_bottom_cursor:
-                self.load_page()
-        except Exception:
-            pass
-
     def refresh_channels(self) -> None:
-        self.current_offset = 0
-        self.has_more = True
-        
-        table = self.query_one(DataTable)
-        table.clear()
-        
+        self.reset_pagination()
         self.load_page()
 
     def load_page(self) -> None:
         if self.is_loading or not self.has_more:
             return
-            
+
         self.is_loading = True
         from app.database import SessionLocal
         from app.models import Channels

@@ -2,11 +2,13 @@ import os
 import time
 import shutil
 from datetime import datetime
+
 from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable, Label
 from textual.containers import Vertical, Horizontal, VerticalScroll, Grid
+
 from app.database import SessionLocal
-from app.models import Channels, MediaFolder
+from app.models import Channels
 from app.engine import channel_runtimes
 from app.migrations import DatabaseMigrator
 
