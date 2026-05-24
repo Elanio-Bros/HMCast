@@ -71,6 +71,9 @@ class MediaView(Vertical):
         # Inicia o Radar de Paginação (verifica a cada 0.5s se chegou no fim)
         self.set_interval(0.5, self.check_scroll_for_pagination)
 
+        # Estado inicial dos botões contextuais
+        self._update_button_visibility()
+
 
     def check_scroll_for_pagination(self) -> None:
         """Verifica se o usuário rolou a tabela até o final para carregar mais dados."""
@@ -89,22 +92,53 @@ class MediaView(Vertical):
             pass
 
     def on_descendant_focus(self, event) -> None:
-        """Sempre que um filho ganhar foco, lembramos dele se for Tree ou Table."""
+        """Sempre que um filho ganhar foco, lembramos dele e atualizamos botões."""
         if isinstance(event.control, (Tree, DataTable)):
             self.last_active_widget = event.control
+            self._update_button_visibility()
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        """Atualiza o painel de detalhes conforme o cursor navega pela tabela."""
+        """Atualiza o painel de detalhes e visibilidade dos botões conforme o cursor navega pela tabela."""
         try:
             row_data = event.data_table.get_row_at(event.cursor_row)
             media_id = int(row_data[0])
             self._update_details_panel(media_id)
         except Exception:
             pass
+        self._update_button_visibility()
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        """Apenas armazena o nó destacado (sem marquee)."""
-        pass
+        """Atualiza a visibilidade dos botões conforme o nó destacado na árvore."""
+        self._update_button_visibility()
+
+    def _update_button_visibility(self) -> None:
+        """Mostra/esconde botões de contexto conforme foco e seleção.
+
+        - Pasta (Tree):   Scan Global + Auto-Scan
+        - Arquivo (Table): Info. Cutouts
+        - Sempre:          Adicionar, Renomear, Excluir, Voltar
+        """
+        focused = getattr(self, "last_active_widget", None)
+
+        btn_manage = self.query_one("#btn-manage-cutouts")
+        btn_scan = self.query_one("#btn-scan-global")
+        btn_toggle = self.query_one("#btn-toggle-scan")
+
+        if isinstance(focused, DataTable) and focused.cursor_row is not None:
+            # ── ARQUIVO selecionado na tabela ──
+            btn_manage.display = True
+            btn_scan.display = False
+            btn_toggle.display = False
+        elif isinstance(focused, Tree) and focused.cursor_node and focused.cursor_node.data is not None:
+            # ── PASTA selecionada na árvore ──
+            btn_manage.display = False
+            btn_scan.display = True
+            btn_toggle.display = True
+        else:
+            # ── NADA selecionado ──
+            btn_manage.display = False
+            btn_scan.display = False
+            btn_toggle.display = False
 
     def _update_details_panel(self, media_id: int) -> None:
         """Busca os dados da midia e atualiza os statics individuais do painel de detalhes."""

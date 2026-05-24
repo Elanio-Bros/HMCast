@@ -90,6 +90,16 @@ MediaView Input {
     margin-right: 1;
 }
 
+/* ── Botões de contexto (escondidos até haver seleção adequada) ── */
+#btn-manage-cutouts {
+    display: none;
+}
+
+#btn-scan-global,
+#btn-toggle-scan {
+    display: none;
+}
+
 /* Modal de Scan / Manual */
 ScanFolderSelectModal, AddMediaManualModal, PromptModal {
     align: center middle;

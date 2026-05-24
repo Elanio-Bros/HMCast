@@ -30,12 +30,12 @@ class MainMenuView(VerticalScroll):
                     yield Static("Storage", classes="card-subtitle")
                     yield Static("Gerencie seus arquivos de vídeo e metadados.", classes="card-desc")
             
-            with Horizontal(classes="card", id="card-motor"):
+            with Horizontal(classes="card", id="card-settings"):
                 yield Static("2", classes="card-number")
                 with Vertical(classes="card-content"):
-                    yield Static("Motor de Fluxo", classes="card-title")
-                    yield Static("Service Manager", classes="card-subtitle")
-                    yield Static("Controle o estado dos processos FFmpeg e estabilidade.", classes="card-desc")
+                    yield Static("Configurações", classes="card-title")
+                    yield Static("System Admin", classes="card-subtitle")
+                    yield Static("Gerencie servidor, diagnósticos e ferramentas de manutenção.", classes="card-desc")
 
     def on_mount(self) -> None:
         """Habilita o foco nos cards."""
@@ -65,8 +65,8 @@ class MainMenuView(VerticalScroll):
                 elif target.id == "card-media":
                     self.app.screen.query_one("ContentSwitcher").current = "media-manager"
                     break
-                elif target.id == "card-motor":
-                    # self.app.screen.query_one("ContentSwitcher").current = "motor-manager"
+                elif target.id == "card-settings":
+                    self.app.screen.query_one("ContentSwitcher").current = "settings-manager"
                     break
             target = target.parent
 

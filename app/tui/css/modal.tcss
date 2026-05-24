@@ -71,3 +71,28 @@ Label {
 #modal-actions Button {
     margin-left: 1;
 }
+
+/* ── LINHA DE EXPORTAÇÃO ── */
+#modal-export-row {
+    margin-top: 1;
+    height: 4;
+    align: left middle;
+}
+
+.export-label {
+    height: 1;
+    width: auto;
+    margin-right: 1;
+    color: $secondary;
+    text-style: bold;
+}
+
+#export-format-select {
+    width: 22;
+    height: 3;
+    margin-right: 1;
+}
+
+#btn-export-cutouts {
+    height: 3;
+}

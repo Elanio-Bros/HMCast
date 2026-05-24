@@ -1,0 +1,102 @@
+/* ── Tela de Configurações ── */
+
+#settings-content-area {
+    width: 100%;
+    height: 1fr;
+    padding: 1 2;
+}
+
+/* ── Seções ── */
+.settings-section {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+    border: ascii $panel;
+    padding: 0 1;
+    background: $background;
+}
+
+.settings-badge {
+    width: auto;
+    height: 3;
+    padding: 0 1;
+    text-style: bold;
+    margin-left: 1;
+}
+
+.settings-badge.ok {
+    color: $success;
+    background: $success 15%;
+    border: ascii $success;
+}
+
+.settings-badge.error {
+    color: $error;
+    background: $error 15%;
+    border: ascii $error;
+}
+
+/* ── Grids de Informação ── */
+.settings-info-grid {
+    grid-size: 2;
+    grid-columns: 16 1fr;
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+.settings-label {
+    color: $text-muted;
+    text-style: bold;
+    padding: 0 1;
+}
+
+.settings-val {
+    color: $foreground;
+    padding: 0 1;
+}
+
+/* ── Ações do Servidor ── */
+.settings-actions {
+    height: auto;
+    width: 100%;
+    align: left middle;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+.settings-actions > .btn-action {
+    margin-right: 1;
+    min-width: 16;
+}
+
+/* ── Tabela de Canais ── */
+#settings-channels-table {
+    height: auto;
+    min-height: 3;
+    max-height: 10;
+    margin-bottom: 1;
+}
+
+/* ── Log Box ── */
+#log-section {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+    border: ascii $panel;
+    padding: 0 1;
+    background: $surface;
+    display: none;
+}
+
+.settings-log-box {
+    width: 100%;
+    height: auto;
+    max-height: 20;
+    padding: 1;
+    background: $background;
+    color: $foreground;
+    margin-bottom: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+}
