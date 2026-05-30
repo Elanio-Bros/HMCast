@@ -3,7 +3,7 @@ import time
 import threading
 import subprocess
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from .database import SessionLocal
 from .models import Channels, ChannelSchedule, Playlist, PlaylistItem, MediaItem
 from .enums import PlaylistItemRole
@@ -378,6 +378,11 @@ class ChannelRuntime:
             if not schedule:
                 time.sleep(5)
                 continue
+                
+            # Calcula o end_dt
+            end_dt = datetime.combine(st_dt.date(), schedule.end_time).replace(tzinfo=st_dt.tzinfo)
+            if schedule.start_time > schedule.end_time:
+                end_dt += timedelta(days=1)
 
             with SessionLocal() as db:
                 playlist = db.get(Playlist, schedule.playlist_id)
@@ -492,13 +497,8 @@ class ChannelRuntime:
 
                 print(f"[Channel {self.channel.id}] Iniciando [{role.value}]: {media.name} (Last={is_last_item})")
                 
-                # Padroniza para (start, duration) como o player espera
-                standard_segments = []
-                for seg in remaining:
-                    if isinstance(seg, tuple):
-                        standard_segments.append({"start": seg[0], "duration": seg[1] - seg[0]})
-                    else:
-                        standard_segments.append(seg)
+                # Passa a lista de segmentos diretamente, pois 'remaining' já é uma lista de tuplas (start, duration)
+                standard_segments = remaining
 
                 self.player.start(media.file, self.channel_folder, standard_segments, channel_type=getattr(self.channel, 'type', 'TV'))
                 

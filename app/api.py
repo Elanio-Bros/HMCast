@@ -25,6 +25,20 @@ async def app_shutdown():
 # Registro atexit redundante para segurança extra no Windows
 atexit.register(engine.shutdown_logic)
 
+@app.get("/channels/status")
+async def all_channels_status():
+    status_list = []
+    for cid, runtime in channel_runtimes.items():
+        proc = runtime.player.process
+        ffmpeg_alive = bool(proc and proc.poll() is None)
+        status_list.append({
+            "id": cid,
+            "name": runtime.channel.name if hasattr(runtime, 'channel') else f"Canal {cid}",
+            "running": runtime.running,
+            "ffmpeg_alive": ffmpeg_alive
+        })
+    return status_list
+
 @app.get("/channel/{channel_id}")
 async def serve_channel(channel_id: int):
     ensure_channel_running(channel_id)

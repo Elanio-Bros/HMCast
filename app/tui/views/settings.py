@@ -11,6 +11,8 @@ from app.database import SessionLocal
 from app.models import Channels
 from app.engine import channel_runtimes
 from app.migrations import DatabaseMigrator
+import urllib.request
+import json
 
 
 class SettingsView(Vertical):
@@ -94,13 +96,12 @@ class SettingsView(Vertical):
         table.cursor_type = "row"
 
         self._update_server_status()
-        self._update_channels_table()
         self.set_interval(2.0, self._tick_status)
 
-    def _tick_status(self) -> None:
+    async def _tick_status(self) -> None:
         """Atualização periódica dos status (servidor + canais)."""
         self._update_server_status()
-        self._update_channels_table()
+        await self._update_channels_table()
 
     # ──────────────────────────────────────────────
     #  SERVIDOR
@@ -132,20 +133,35 @@ class SettingsView(Vertical):
     #  CANAIS
     # ──────────────────────────────────────────────
 
-    def _update_channels_table(self) -> None:
-        """Atualiza a tabela de canais com o runtime atual do engine."""
+    async def _update_channels_table(self) -> None:
+        """Atualiza a tabela de canais assincronamente com o runtime atual do engine."""
+        import urllib.request
+        import json
+        import asyncio
+
+        def fetch_status():
+            try:
+                req = urllib.request.Request("http://localhost:8000/channels/status")
+                with urllib.request.urlopen(req, timeout=1.0) as response:
+                    return json.loads(response.read().decode())
+            except Exception:
+                return None
+
+        # Executa o I/O bloqueante em outra thread para não travar a TUI
+        channels_data = await asyncio.to_thread(fetch_status)
+
         table = self.query_one("#settings-channels-table", DataTable)
         table.clear()
 
-        if not channel_runtimes:
-            table.add_rows([("-", "-", "[dim]Nenhum canal rodando[/]", "-")])
+        if not channels_data:
+            table.add_rows([("-", "-", "[dim]Nenhum canal rodando ou servidor offline[/]", "-")])
             return
 
         rows = []
-        for cid, runtime in channel_runtimes.items():
-            status = "[green]ATIVO[/]" if runtime.running else "[red]PARADO[/]"
-            proc = "[green]FFMPEG[/]" if (runtime.player.process and runtime.player.process.poll() is None) else "[dim]OFFLINE[/]"
-            rows.append((str(cid), runtime.channel.name if hasattr(runtime, 'channel') else f"Canal {cid}", status, proc))
+        for ch in channels_data:
+            status = "[green]ATIVO[/]" if ch["running"] else "[red]PARADO[/]"
+            proc = "[green]FFMPEG[/]" if ch["ffmpeg_alive"] else "[dim]OFFLINE[/]"
+            rows.append((str(ch["id"]), ch["name"], status, proc))
 
         try:
             table.add_rows(rows)

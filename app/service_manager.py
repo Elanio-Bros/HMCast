@@ -45,9 +45,13 @@ class ServiceManager:
             "--port", "8000"
         ]
 
+        # Configura o ambiente para forçar UTF-8 nos logs do subprocesso
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
         # Abre os arquivos de log
-        out_log = open(self.log_file, "a")
-        err_log = open(self.error_log, "a")
+        out_log = open(self.log_file, "a", encoding="utf-8")
+        err_log = open(self.error_log, "a", encoding="utf-8")
 
         # Configurações de criação de processo (Windows vs Linux)
         creation_flags = 0
@@ -61,7 +65,8 @@ class ServiceManager:
                 stdout=out_log,
                 stderr=err_log,
                 creationflags=creation_flags,
-                close_fds=True if os.name != "nt" else False
+                close_fds=True if os.name != "nt" else False,
+                env=env
             )
 
             # Salva o PID
@@ -112,7 +117,7 @@ class ServiceManager:
             return "Nenhum log encontrado."
         
         try:
-            with open(self.log_file, "r") as f:
+            with open(self.log_file, "r", encoding="utf-8") as f:
                 content = f.readlines()
                 return "".join(content[-lines:])
         except Exception as e:

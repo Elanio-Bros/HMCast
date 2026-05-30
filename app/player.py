@@ -42,7 +42,8 @@ class Player:
         # Log de erro por canal/saída
         ffmpeg_log = os.path.join(output_dir, "ffmpeg.log")
         try:
-            self.err_fd = open(ffmpeg_log, "wb", buffering=0)
+            self.err_fd = open(ffmpeg_log, "ab", buffering=0)
+            self.err_fd.write(f"\n\n{'='*50}\n[Player] INICIANDO NOVO ARQUIVO: {input_file}\n{'='*50}\n\n".encode("utf-8"))
             err_dest = self.err_fd
         except Exception as e:
             print(f"[Player] Não foi possível abrir o log {ffmpeg_log}: {e}")
@@ -74,7 +75,7 @@ class Player:
 
         # Filtros Complexos para multi-segmento e TV/Radio Mode
         f_parts = []
-        v_label_in = "0:v"
+        v_label_in = "[0:v]"
         a_label_in = "0:a:0?"
 
         if len(segments) > 1:
@@ -158,7 +159,7 @@ class Player:
                 "-hls_allow_cache", "0",
                 "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%03d.ts"),
                 "-master_pl_name", "master.m3u8",
-                "-var_stream_map", "v:0,a:0,name:1080p v:1,a:0,name:720p v:2,a:0,name:480p",
+                "-var_stream_map", "v:0,a:0,name:1080p v:1,a:1,name:720p v:2,a:2,name:480p",
                 os.path.join(output_dir, "v%v.m3u8")
             ]
 
