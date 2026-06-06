@@ -73,9 +73,36 @@ class EditScheduleModal(ModalScreen[bool]):
             sch = db.query(ChannelSchedule).get(self.schedule_id)
             if sch:
                 self.channel_id = sch.channel_id
+                start_time_input = self.query_one("#start-time", Input)
+                end_time_input = self.query_one("#end-time", Input)
+
+                # 1. Preencher start_time
+                if sch.start_time:
+                    start_time_input.value = sch.start_time.strftime("%H:%M")
+                else:
+                    now = datetime.now()
+                    last_schedule_for_channel = (
+                        db.query(ChannelSchedule)
+                        .filter(ChannelSchedule.channel_id == self.channel_id)
+                        .filter(ChannelSchedule.id != self.schedule_id) # Excluir o agendamento atual
+                        .order_by(ChannelSchedule.end_time.desc())
+                        .first()
+                    )
+                    
+                    if last_schedule_for_channel and last_schedule_for_channel.end_time:
+                        dummy_date = datetime.combine(now.date(), last_schedule_for_channel.end_time)
+                        new_start_dt = dummy_date + timedelta(minutes=1)
+                        start_time_input.value = new_start_dt.strftime("%H:%M")
+                    else:
+                        new_start_dt = now + timedelta(minutes=10)
+                        start_time_input.value = new_start_dt.strftime("%H:%M")
+                
+                # 2. Preencher end_time
+                if sch.end_time:
+                    end_time_input.value = sch.end_time.strftime("%H:%M")
+
+                # 3. Preencher select.value (fará o evento disparar, mas agora já temos start_time e end_time preenchidos!)
                 select.value = sch.playlist_id
-                self.query_one("#start-time", Input).value = sch.start_time.strftime("%H:%M")
-                self.query_one("#end-time", Input).value = sch.end_time.strftime("%H:%M")
                 
                 # Checkboxes dos dias da semana
                 if sch.weekdays:
@@ -204,3 +231,62 @@ class EditScheduleModal(ModalScreen[bool]):
                 db.commit()
             
         self.dismiss(True)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.control.id == "select-playlist":
+            playlist_id = event.value
+            start_time_input = self.query_one("#start-time", Input)
+            end_time_input = self.query_one("#end-time", Input)
+            error_lab = self.query_one("#error-message", Label)
+
+            if playlist_id is None: # Nenhuma playlist selecionada
+                return
+
+            # Se o Início estiver apagado/vazio, calcula automaticamente
+            if not start_time_input.value.strip():
+                now = datetime.now()
+                with SessionLocal() as db:
+                    last_schedule_for_channel = (
+                        db.query(ChannelSchedule)
+                        .filter(ChannelSchedule.channel_id == self.channel_id)
+                        .filter(ChannelSchedule.id != self.schedule_id) # Exclui o próprio agendamento
+                        .order_by(ChannelSchedule.end_time.desc())
+                        .first()
+                    )
+                    if last_schedule_for_channel and last_schedule_for_channel.end_time:
+                        dummy_date = datetime.combine(now.date(), last_schedule_for_channel.end_time)
+                        new_start_dt = dummy_date + timedelta(minutes=1)
+                        start_time_input.value = new_start_dt.strftime("%H:%M")
+                    else:
+                        new_start_dt = now + timedelta(minutes=10)
+                        start_time_input.value = new_start_dt.strftime("%H:%M")
+
+            start_str = start_time_input.value.strip()
+            if not start_str:
+                error_lab.update("Preencha o horário de Início para calcular o Fim.")
+                end_time_input.value = ""
+                return
+
+            try:
+                sh, sm = map(int, start_str.split(':'))
+                start_t = time(sh, sm)
+            except Exception:
+                error_lab.update("Formato de Início inválido (Use HH:MM)")
+                end_time_input.value = ""
+                return
+
+            # Se o Fim estiver apagado/vazio ou a playlist foi trocada, recalculamos o Fim automaticamente
+            # Nota: O usuário pediu para fazer o mesmo "se os campos de inputs de começo e fim forem apagados".
+            # Então, se o fim estiver vazio/apagado (ou mesmo se quisermos recalcular sempre que a playlist mudar e o campo Fim estiver vazio), fazemos:
+            if not end_time_input.value.strip() or True: # Sempre calcula se a playlist mudar para manter coerência
+                with SessionLocal() as db:
+                    duration_sec = Playlist.calc_total_duration(db, playlist_id)
+                    if duration_sec <= 0:
+                        error_lab.update("Playlist vazia ou sem duração válida!")
+                        end_time_input.value = ""
+                        return
+                    
+                    dummy_date = datetime.combine(datetime.today(), start_t)
+                    end_dt = dummy_date + timedelta(seconds=duration_sec)
+                    end_time_input.value = end_dt.strftime("%H:%M")
+                    error_lab.update("") # Limpa a mensagem de erro se o cálculo for bem-sucedido

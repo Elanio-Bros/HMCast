@@ -69,6 +69,30 @@ class AddScheduleModal(ModalScreen[bool]):
             playlists = db.query(Playlist).all()
             options = [(p.name, p.id) for p in playlists]
             select.set_options(options)
+    
+            # --- NOVA LÓGICA DE INICIALIZAÇÃO DO START_TIME ---
+            start_time_input = self.query_one("#start-time", Input)
+            now = datetime.now()
+            
+            with SessionLocal() as db:
+                last_schedule = (
+                    db.query(ChannelSchedule)
+                    .filter(ChannelSchedule.channel_id == self.channel_id)
+                    .order_by(ChannelSchedule.end_time.desc()) # Ordena para pegar o último
+                    .first()
+                )
+    
+            if last_schedule and last_schedule.end_time:
+                # Pega o último end_time e adiciona 1 minuto
+                dummy_date = datetime.combine(now.date(), last_schedule.end_time)
+                new_start_dt = dummy_date + timedelta(minutes=1)
+                start_time_input.value = new_start_dt.strftime("%H:%M")
+            else:
+                # Canal sem playlist vinculada, adiciona 10 minutos à hora atual
+                new_start_dt = now + timedelta(minutes=10)
+                start_time_input.value = new_start_dt.strftime("%H:%M")
+            # --- FIM NOVA LÓGICA DE INICIALIZAÇÃO DO START_TIME ---
+
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -187,3 +211,40 @@ class AddScheduleModal(ModalScreen[bool]):
             db.commit()
             
         self.dismiss(True)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.control.id == "select-playlist":
+            playlist_id = event.value
+            start_time_input = self.query_one("#start-time", Input)
+            end_time_input = self.query_one("#end-time", Input)
+            error_lab = self.query_one("#error-message", Label)
+
+            if playlist_id is None: # Nenhuma playlist selecionada
+                end_time_input.value = ""
+                return
+
+            start_str = start_time_input.value.strip()
+            if not start_str:
+                error_lab.update("Preencha o horário de Início para calcular o Fim.")
+                end_time_input.value = ""
+                return
+
+            try:
+                sh, sm = map(int, start_str.split(':'))
+                start_t = time(sh, sm)
+            except Exception:
+                error_lab.update("Formato de Início inválido (Use HH:MM)")
+                end_time_input.value = ""
+                return
+
+            with SessionLocal() as db:
+                duration_sec = Playlist.calc_total_duration(db, playlist_id)
+                if duration_sec <= 0:
+                    error_lab.update("Playlist vazia ou sem duração válida!")
+                    end_time_input.value = ""
+                    return
+                
+                dummy_date = datetime.combine(datetime.today(), start_t)
+                end_dt = dummy_date + timedelta(seconds=duration_sec)
+                end_time_input.value = end_dt.strftime("%H:%M")
+                error_lab.update("") # Limpa a mensagem de erro se o cálculo for bem-sucedido
