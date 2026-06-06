@@ -139,9 +139,12 @@ class ChannelSchedule(Base):
     current_item_index = Column(Integer, default=0)
 
     @staticmethod
-    def check_conflict(db, channel_id, start_t, end_t, weekdays=None, month_days=None, specific_dates=None):
+    def check_conflict(db, channel_id, start_t, end_t, weekdays=None, month_days=None, specific_dates=None, exclude_id=None):
         from datetime import time, datetime, timedelta
-        existing = db.query(ChannelSchedule).filter_by(channel_id=channel_id).all()
+        query = db.query(ChannelSchedule).filter_by(channel_id=channel_id)
+        if exclude_id is not None:
+            query = query.filter(ChannelSchedule.id != exclude_id)
+        existing = query.all()
         
         def expand_sch(st, et, wds, mds, sds):
             slots = []
@@ -178,12 +181,6 @@ class ChannelSchedule(Base):
                             slots.append(('SD', next_dt.strftime(fmt), time(0, 0, 0), et))
                         except: pass
             
-            if not (wds or mds or sds):
-                if not is_overnight:
-                    slots.append(('ALL', 'ALL', st, et))
-                else:
-                    slots.append(('ALL', 'ALL', st, time(23, 59, 59)))
-                    slots.append(('ALL', 'ALL', time(0, 0, 0), et))
             return slots
 
         new_slots = expand_sch(start_t, end_t, weekdays, month_days, specific_dates)

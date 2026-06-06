@@ -96,3 +96,51 @@ Label {
 #btn-export-cutouts {
     height: 3;
 }
+
+/* ── MODAIS DE AGENDAMENTO (SCHEDULE) ── */
+#schedule-modal-container {
+    width: 120;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: ascii $panel;
+    padding: 1 2;
+}
+
+.auto-group {
+    height: auto;
+    margin-top: 1;
+}
+
+.checkbox-row {
+    height: 4;
+    margin-bottom: 1;
+    align: left middle;
+}
+
+.checkbox-row Checkbox {
+    min-width: 6;
+    padding: 0 1;
+}
+
+.checkbox-row Button {
+    margin-right: 2;
+}
+
+.dates-input-row {
+    height: 4;
+    margin-bottom: 1;
+    align: left middle;
+}
+
+.dates-input-row Input {
+    width: 1fr;
+}
+
+.dates-input-row Button {
+    margin-left: 1;
+}
+
+#dates-table {
+    height: 10;
+}

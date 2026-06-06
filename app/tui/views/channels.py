@@ -16,6 +16,7 @@ class ChannelsView(PaginationMixin, Vertical):
         
         with Horizontal(classes="action-bar"):
             yield Button("Adicionar", variant="success", id="btn-add-channel", classes="btn-action")
+            yield Button("Detalhes", variant="primary", id="btn-detail-channel", classes="btn-action")
             yield Button("Ligar/Desligar", variant="warning", id="btn-toggle-channel", classes="btn-action")
             yield Button("Excluir", variant="error", id="btn-delete-channel", classes="btn-action")
             yield Button("Voltar", id="btn-back-home", classes="btn-action")
@@ -93,6 +94,8 @@ class ChannelsView(PaginationMixin, Vertical):
             self.action_toggle_channel()
         elif event.button.id == "btn-add-channel":
             self.action_add_channel()
+        elif event.button.id == "btn-detail-channel":
+            self.action_detail_channel()
         elif event.button.id == "btn-delete-channel":
             self.action_delete_channel()
 
@@ -102,6 +105,19 @@ class ChannelsView(PaginationMixin, Vertical):
             if success:
                 self.refresh_channels()
         self.app.push_screen(AddChannelModal(), check_result)
+
+    def action_detail_channel(self) -> None:
+        table = self.query_one(DataTable)
+        try:
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            channel_id = int(row_data[0])
+            from app.tui.views.channel_detail import ChannelDetailView
+            detail_view = self.app.screen.query_one("#channel-detail", ChannelDetailView)
+            detail_view.load_channel(channel_id)
+            self.app.action_focus_view("channel-detail")
+        except Exception:
+            pass
 
     def action_delete_channel(self) -> None:
         """Exclui o canal selecionado."""

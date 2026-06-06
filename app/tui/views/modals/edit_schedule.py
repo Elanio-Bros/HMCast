@@ -8,16 +8,17 @@ from datetime import time, datetime, timedelta
 import re
 
 
-class AddScheduleModal(ModalScreen[bool]):
-    """Modal de Agendamento com Validação de Conflitos e Cálculo Automático."""
+class EditScheduleModal(ModalScreen[bool]):
+    """Modal de Edição de Agendamento."""
     
-    def __init__(self, channel_id: int):
+    def __init__(self, schedule_id: int):
         super().__init__()
-        self.channel_id = channel_id
+        self.schedule_id = schedule_id
+        self.channel_id = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="schedule-modal-container"):
-            yield Static("VINCULAR PLAYLIST (AGENDAMENTO)", id="modal-title")
+            yield Static("EDITAR AGENDAMENTO", id="modal-title")
             
             with Vertical(classes="input-group"):
                 yield Label("Playlist:")
@@ -51,11 +52,10 @@ class AddScheduleModal(ModalScreen[bool]):
                     yield Button("Remover", id="btn-remove-date", variant="error")
                 yield DataTable(id="dates-table")
             
-            # Label para mensagens de erro
             yield Label("", id="error-message", classes="error-text")
             
             with Horizontal(id="modal-actions"):
-                yield Button("Vincular", variant="success", id="btn-save")
+                yield Button("Salvar", variant="success", id="btn-save")
                 yield Button("Cancelar", variant="error", id="btn-cancel")
 
     def on_mount(self) -> None:
@@ -69,6 +69,31 @@ class AddScheduleModal(ModalScreen[bool]):
             playlists = db.query(Playlist).all()
             options = [(p.name, p.id) for p in playlists]
             select.set_options(options)
+            
+            sch = db.query(ChannelSchedule).get(self.schedule_id)
+            if sch:
+                self.channel_id = sch.channel_id
+                select.value = sch.playlist_id
+                self.query_one("#start-time", Input).value = sch.start_time.strftime("%H:%M")
+                self.query_one("#end-time", Input).value = sch.end_time.strftime("%H:%M")
+                
+                # Checkboxes dos dias da semana
+                if sch.weekdays:
+                    days_map = {
+                        "mon": "#chk-mon", "tue": "#chk-tue", "wed": "#chk-wed",
+                        "thu": "#chk-thu", "fri": "#chk-fri", "sat": "#chk-sat", "sun": "#chk-sun"
+                    }
+                    for day_code in sch.weekdays:
+                        if day_code in days_map:
+                            self.query_one(days_map[day_code], Checkbox).value = True
+                
+                # Popula tabela
+                if sch.month_days:
+                    for md in sch.month_days:
+                        table.add_row(str(md))
+                if sch.specific_dates:
+                    for sd in sch.specific_dates:
+                        table.add_row(sd)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -84,7 +109,6 @@ class AddScheduleModal(ModalScreen[bool]):
 
     def action_check_all(self) -> None:
         ids = ["#chk-mon", "#chk-tue", "#chk-wed", "#chk-thu", "#chk-fri", "#chk-sat", "#chk-sun"]
-        # Inverte o estado atual do primeiro para fazer toggle em todos
         first_state = self.query_one(ids[0], Checkbox).value
         new_state = not first_state
         for cid in ids:
@@ -123,14 +147,11 @@ class AddScheduleModal(ModalScreen[bool]):
             return
 
         with SessionLocal() as db:
-            # Cálculo automático do fim se estiver vazio
             if not end_str:
                 duration_sec = Playlist.calc_total_duration(db, playlist_id)
                 if duration_sec <= 0:
                     error_lab.update("Playlist vazia ou sem duração válida!")
                     return
-                
-                # Soma start_t + duration_sec
                 dummy_date = datetime.combine(datetime.today(), start_t)
                 end_dt = dummy_date + timedelta(seconds=duration_sec)
                 end_t = end_dt.time()
@@ -163,27 +184,23 @@ class AddScheduleModal(ModalScreen[bool]):
                 elif re.match(r"^\d{1,2}/\d{1,2}(/\d{4})?$", val):
                     specific_dates.append(val)
             
-            # VERIFICAÇÃO DE CONFLITO NO CORE
             conflict = ChannelSchedule.check_conflict(
                 db, self.channel_id, start_t, end_t, 
-                weekdays, month_days, specific_dates
+                weekdays, month_days, specific_dates, exclude_id=self.schedule_id
             )
             
             if conflict:
                 error_lab.update(conflict)
                 return
             
-            # SALVAMENTO
-            new_sch = ChannelSchedule(
-                channel_id=self.channel_id,
-                playlist_id=playlist_id,
-                start_time=start_t,
-                end_time=end_t,
-                weekdays=weekdays if weekdays else None,
-                month_days=month_days if month_days else None,
-                specific_dates=specific_dates if specific_dates else None
-            )
-            db.add(new_sch)
-            db.commit()
+            sch = db.query(ChannelSchedule).get(self.schedule_id)
+            if sch:
+                sch.playlist_id = playlist_id
+                sch.start_time = start_t
+                sch.end_time = end_t
+                sch.weekdays = weekdays if weekdays else None
+                sch.month_days = month_days if month_days else None
+                sch.specific_dates = specific_dates if specific_dates else None
+                db.commit()
             
         self.dismiss(True)

@@ -33,7 +33,9 @@ class ChannelDetailView(Vertical):
 
         with Horizontal(classes="action-bar"):
             yield Button("Vincular Playlist", variant="success", id="btn-cd-add-schedule", classes="btn-action")
-            yield Button("Editar", variant="warning", id="btn-detail-edit", classes="btn-action")
+            yield Button("Editar Agenda", variant="primary", id="btn-cd-edit-schedule", classes="btn-action")
+            yield Button("Excluir Agenda", variant="error", id="btn-cd-delete-schedule", classes="btn-action")
+            yield Button("Editar Canal", variant="warning", id="btn-detail-edit", classes="btn-action")
             yield Button("Voltar", id="btn-detail-back", classes="btn-action")
 
     def load_channel(self, channel_id: int) -> None:
@@ -58,10 +60,11 @@ class ChannelDetailView(Vertical):
             
             # Carrega horários
             table = self.query_one("#schedules-table", DataTable)
+            table.cursor_type = "row"
             table.zebra_stripes = True
             table.show_vertical_lines = True
             table.clear(columns=True)
-            table.add_columns("Playlist", "Início", "Fim", "Data/Dias")
+            table.add_columns("ID", "Playlist", "Início", "Fim", "Data/Dias")
             
             schedules = db.query(ChannelSchedule).filter_by(channel_id=channel_id).all()
             for sch in schedules:
@@ -69,13 +72,26 @@ class ChannelDetailView(Vertical):
                 
                 # Consolida as informações de data/dias para exibição
                 patterns = []
-                if sch.weekdays: patterns.extend(sch.weekdays)
-                if sch.month_days: patterns.extend([str(d) for d in sch.month_days])
-                if sch.specific_dates: patterns.extend(sch.specific_dates)
+                weekdays = sch.weekdays or []
+                all_days = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
                 
-                display_dates = ", ".join(patterns) if patterns else "Todo dia"
+                if set(weekdays) == all_days:
+                    # Todos os 7 dias marcados = "Todo dia"
+                    display_dates = "Todo dia"
+                else:
+                    if weekdays: patterns.extend(weekdays)
+                    if sch.month_days:
+                        patterns.extend([f"Todo dia {d}" for d in sch.month_days])
+                    if sch.specific_dates:
+                        for sd in sch.specific_dates:
+                            if len(sd.split('/')) == 2: # DD/MM
+                                patterns.append(f"Todo ano {sd}")
+                            else: # DD/MM/YYYY
+                                patterns.append(sd)
+                    display_dates = ", ".join(patterns) if patterns else "Sem agendamento"
                 
                 table.add_row(
+                    str(sch.id),
                     playlist_name,
                     sch.start_time.strftime("%H:%M"),
                     sch.end_time.strftime("%H:%M"),
@@ -89,6 +105,10 @@ class ChannelDetailView(Vertical):
             self.action_edit_channel()
         elif event.button.id == "btn-cd-add-schedule":
             self.action_add_schedule()
+        elif event.button.id == "btn-cd-edit-schedule":
+            self.action_edit_schedule()
+        elif event.button.id == "btn-cd-delete-schedule":
+            self.action_delete_schedule()
 
     def action_edit_channel(self) -> None:
         from app.tui.views.modals.edit_channel import EditChannelModal
@@ -103,3 +123,34 @@ class ChannelDetailView(Vertical):
             if success:
                 self.load_channel(self.channel_id)
         self.app.push_screen(AddScheduleModal(self.channel_id), check_result)
+
+    def action_edit_schedule(self) -> None:
+        table = self.query_one("#schedules-table", DataTable)
+        try:
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            schedule_id = int(row_data[0])
+            from app.tui.views.modals.edit_schedule import EditScheduleModal
+            def check_result(success: bool) -> None:
+                if success:
+                    self.load_channel(self.channel_id)
+            self.app.push_screen(EditScheduleModal(schedule_id), check_result)
+        except Exception:
+            pass
+
+    def action_delete_schedule(self) -> None:
+        table = self.query_one("#schedules-table", DataTable)
+        try:
+            row_index = table.cursor_row
+            row_data = table.get_row_at(row_index)
+            schedule_id = int(row_data[0])
+            from app.database import SessionLocal
+            from app.models import ChannelSchedule
+            with SessionLocal() as db:
+                sch = db.query(ChannelSchedule).get(schedule_id)
+                if sch:
+                    db.delete(sch)
+                    db.commit()
+                    self.load_channel(self.channel_id)
+        except Exception:
+            pass

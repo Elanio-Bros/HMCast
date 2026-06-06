@@ -214,7 +214,7 @@ class ChannelRuntime:
             if sch.specific_dates and date_dm in sch.specific_dates: return 3
             if sch.month_days and month_day in sch.month_days: return 2
             if sch.weekdays and day_name in sch.weekdays: return 1
-            if not sch.weekdays and not sch.month_days and not sch.specific_dates: return 0
+            if not sch.weekdays and not sch.month_days and not sch.specific_dates: return -1
             return -1
 
         active_candidates = []
