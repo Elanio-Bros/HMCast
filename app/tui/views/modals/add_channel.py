@@ -42,6 +42,9 @@ class AddChannelModal(ModalScreen[bool]):
             with Horizontal(id="modal-actions"):
                 yield Button("Salvar", variant="success", id="btn-save")
                 yield Button("Cancelar", variant="error", id="btn-cancel")
+            
+            # Label para mensagens de erro
+            yield Label("", id="ch-error-message", classes="error-text")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -52,21 +55,21 @@ class AddChannelModal(ModalScreen[bool]):
     def save_channel(self) -> None:
         from app.database import SessionLocal
         from app.models import Channels
-        
+
         identifier = self.query_one("#channel-identifier", Input).value.strip()
         name = self.query_one("#channel-name", Input).value.strip()
         ch_type = self.query_one("#channel-type", Select).value
         mode = self.query_one("#channel-mode", Select).value
-        
+        error_lab = self.query_one("#ch-error-message", Label)
+
         if not name or not identifier:
-            # Notificar usuário se campos obrigatórios faltarem
+            error_lab.update("Nome e Identificador são obrigatórios!")
             return
-            
+
         with SessionLocal() as db:
-            # Verifica se o identificador já existe
             existing = db.query(Channels).filter_by(identifier=identifier).first()
             if existing:
-                # Aqui poderíamos mostrar um erro no modal
+                error_lab.update(f"Identificador '{identifier}' já está em uso!")
                 return
 
             new_channel = Channels(
@@ -78,5 +81,5 @@ class AddChannelModal(ModalScreen[bool]):
             )
             db.add(new_channel)
             db.commit()
-            
+
         self.dismiss(True)

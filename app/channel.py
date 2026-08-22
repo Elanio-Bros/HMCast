@@ -37,6 +37,19 @@ class ChannelRuntime:
         """Atualiza última atividade"""
         self.last_access = time.time()
 
+    def _get_next_start_number(self):
+        import re
+        max_num = -1
+        if os.path.exists(self.channel_folder):
+            for f in os.listdir(self.channel_folder):
+                if f.endswith(".ts"):
+                    match = re.search(r'seg_(\d+)\.ts$', f)
+                    if match:
+                        num = int(match.group(1))
+                        if num > max_num:
+                            max_num = num
+        return max_num + 1
+
     # -------------------------------------------------
 
     def start(self):
@@ -286,6 +299,44 @@ class ChannelRuntime:
 
             return openings, contents, closings
 
+    def build_session_timeline(self, openings, contents, closings, current_item_index: int):
+        session_items = []
+        for item in openings: session_items.append(item)
+        
+        if contents:
+            idx_saved = current_item_index % len(contents)
+            rotated_contents = contents[idx_saved:] + contents[:idx_saved]
+            for item in rotated_contents: session_items.append(item)
+            
+        for item in closings: session_items.append(item)
+
+        timeline = []
+        for i, item in enumerate(session_items):
+            media = item["media"]
+            role = item["role"]
+            is_first = (i == 0)
+            is_last = (i == len(session_items) - 1)
+            
+            segments = self.build_segments(media, role, is_first, is_last)
+            duration = self.effective_duration(segments)
+            if duration > 0:
+                timeline.append({
+                    "media": media,
+                    "playlist_item_id": item["playlist_item_id"],
+                    "segments": segments,
+                    "duration": duration,
+                    "role": role
+                })
+        return timeline
+
+    def calculate_clock_sync(self, timeline: list, elapsed_seconds: float) -> tuple[int, float]:
+        acc = 0.0
+        for i, t in enumerate(timeline):
+            if elapsed_seconds < acc + t["duration"]:
+                return i, elapsed_seconds - acc
+            acc += t["duration"]
+        return 0, 0.0
+
     def cleanup_old_segments(self):
         def worker():
             with self._cleanup_lock:
@@ -376,7 +427,31 @@ class ChannelRuntime:
         while not self.stop_signal:
             schedule, st_dt = self.get_active_schedule()
             if not schedule:
-                time.sleep(5)
+                # --- STANDBY MODE ---
+                print(f"[Channel {self.channel.id}] Sem agendamento ativo. Entrando em Standby...")
+                os.makedirs(self.channel_folder, exist_ok=True)
+                standby_file = os.path.join(self.channel_folder, "standby.mp4")
+                if not os.path.exists(standby_file):
+                    print(f"[Channel {self.channel.id}] Gerando vídeo de Standby (Off-Air)...")
+                    subprocess.run([
+                        self.media.ffmpeg, "-f", "lavfi", "-i", "color=c=black:s=1920x1080:r=30",
+                        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+                        "-t", "10", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", standby_file
+                    ], stderr=subprocess.DEVNULL)
+                
+                from .models import MediaItem
+                dummy_media = MediaItem(file=standby_file, name="Standby (Off-Air)")
+                start_number = self._get_next_start_number()
+                self.player.start(dummy_media.file, self.channel_folder, [(0, 10.0)], channel_type=getattr(self.channel, 'type', 'TV'), start_number=start_number)
+                
+                while not self.stop_signal and self.player.process and self.player.process.poll() is None:
+                    try:
+                        self.player.process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        sch, _ = self.get_active_schedule()
+                        if sch:
+                            self.player.stop()
+                            break
                 continue
                 
             # Calcula o end_dt
@@ -395,55 +470,20 @@ class ChannelRuntime:
                 time.sleep(5)
                 continue
                 
-            # Monta a Timeline da Sessão
-            session_items = []
-            for item in openings: session_items.append(item)
-            
-            # Conteúdo Sequencial (com memória)
-            if contents:
-                idx_saved = schedule.current_item_index % len(contents)
-                rotated_contents = contents[idx_saved:] + contents[:idx_saved]
-                for item in rotated_contents: session_items.append(item)
-                
-            for item in closings: session_items.append(item)
-
-            # Constrói a timeline física (com segmentos e cuts)
-            timeline = []
-            for i, item in enumerate(session_items):
-                media = item["media"]
-                role = item["role"]
-                
-                # Regra AUTO: Primeiro conteúdo da sessão é HEAD, último é TAIL
-                # Mas aqui, como temos openings/closings fixos, os conteúdos são intermediários
-                is_first = (i == 0)
-                is_last = (i == len(session_items) - 1)
-                
-                # Se houver openings, o primeiro conteúdo NÃO é o primeiro da sessão
-                # Então o build_segments cuidará disso via get_cut_times
-                
-                segments = self.build_segments(media, role, is_first, is_last)
-                duration = self.effective_duration(segments)
-                if duration > 0:
-                    timeline.append({
-                        "media": media,
-                        "playlist_item_id": item["playlist_item_id"],
-                        "segments": segments,
-                        "duration": duration,
-                        "role": role
-                    })
-
+            timeline = self.build_session_timeline(openings, contents, closings, schedule.current_item_index)
             if not timeline:
-                time.sleep(5); continue
+                time.sleep(5)
+                continue
 
             idx = 0
             internal_offset = 0
             
-            # Clock Sync inicial (Opcional, pode ser desativado para sempre começar do início)
+            # Clock Sync (Wall-Clock Alignment)
             now = datetime.now().astimezone()
-            if now > st_dt + timedelta(seconds=30):
-                # Se você quiser que o canal SEMPRE comece do início (Maratona pura), 
-                # basta ignorar o cálculo de offset inicial.
-                pass
+            if now > st_dt + timedelta(seconds=10):
+                elapsed_seconds = (now - st_dt).total_seconds()
+                idx, internal_offset = self.calculate_clock_sync(timeline, elapsed_seconds)
+                print(f"[Channel {self.channel.id}] Clock Sync: Avançando {elapsed_seconds:.1f}s para índice {idx} offset {internal_offset:.1f}s")
 
             while not self.stop_signal:
                 # Verificação de validade do agendamento
@@ -500,7 +540,8 @@ class ChannelRuntime:
                 # Passa a lista de segmentos diretamente, pois 'remaining' já é uma lista de tuplas (start, duration)
                 standard_segments = remaining
 
-                self.player.start(media.file, self.channel_folder, standard_segments, channel_type=getattr(self.channel, 'type', 'TV'))
+                start_number = self._get_next_start_number()
+                self.player.start(media.file, self.channel_folder, standard_segments, channel_type=getattr(self.channel, 'type', 'TV'), start_number=start_number)
                 
                 # Monitor
                 log_path = os.path.join(self.channel_folder, "ffmpeg.log")
