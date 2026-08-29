@@ -34,10 +34,10 @@ def test_calculate_clock_sync():
     assert offset == 300.0
 
     # Teste 5: Estourou o tempo total (2000s > 1800s total)
-    # Timeline exaurida → fallback seguro (idx=0, offset=0)
+    # A timeline faz loop via módulo: 2000 % 1800 = 200s → Ep1, offset 200s
     idx, offset = runtime.calculate_clock_sync(timeline, 2000.0)
     assert idx == 0
-    assert offset == 0.0
+    assert offset == 200.0
 
 
 def test_clock_sync_last_second_of_episode():

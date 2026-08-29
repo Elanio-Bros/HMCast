@@ -130,7 +130,7 @@ class ChannelsView(PaginationMixin, Vertical):
             row_data = table.get_row_at(row_index)
             channel_id = int(row_data[0])
             with SessionLocal() as db:
-                channel = db.query(Channels).get(channel_id)
+                channel = db.get(Channels, channel_id)
                 if channel:
                     db.delete(channel)
                     db.commit()
@@ -148,7 +148,7 @@ class ChannelsView(PaginationMixin, Vertical):
             row_data = table.get_row_at(row_index)
             channel_id = int(row_data[0])
             with SessionLocal() as db:
-                channel = db.query(Channels).get(channel_id)
+                channel = db.get(Channels, channel_id)
                 if channel:
                     channel.active = not channel.active
                     db.commit()

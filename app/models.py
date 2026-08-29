@@ -47,7 +47,10 @@ class MediaItem(Base):
         
         try:
             val = 0.0
-            if len(parts) == 3: # HH:MM:SS
+            if len(parts) == 4: # HH:MM:SS:MS
+                h, m, s, ms = parts
+                val = int(h) * 3600 + int(m) * 60 + int(s) + float(ms) / (10 ** len(ms))
+            elif len(parts) == 3: # HH:MM:SS
                 h, m, s = parts
                 val = int(h) * 3600 + int(m) * 60 + float(s)
             elif len(parts) == 2: # MM:SS

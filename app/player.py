@@ -137,11 +137,12 @@ class Player:
                 "[v480_pre]scale=854:480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2:color=black[v480out]"
             )
             f_parts.append(tv_filters)
+            f_parts.append(f"{a_label_in}asplit=3[a_out0][a_out1][a_out2]")
             cmd += ["-filter_complex", ";".join(f_parts)]
             cmd += [
-                "-map", "[v1080out]", "-map", a_label_in,
-                "-map", "[v720out]",  "-map", a_label_in,
-                "-map", "[v480out]",  "-map", a_label_in,
+                "-map", "[v1080out]", "-map", "[a_out0]",
+                "-map", "[v720out]",  "-map", "[a_out1]",
+                "-map", "[v480out]",  "-map", "[a_out2]",
             ]
 
         # Se fallback de silêncio estiver ativo
@@ -153,8 +154,9 @@ class Player:
         # Codecs
         cmd += [
             "-c:v", "libx264",
-            "-preset", "ultrafast" if channel_type == "RADIO" else "veryfast",
-            "-profile:v", "main", "-pix_fmt", "yuv420p"
+            "-preset", "ultrafast",
+            "-profile:v", "main", "-pix_fmt", "yuv420p",
+            "-max_muxing_queue_size", "1024"
         ]
         
         if channel_type != "RADIO":
@@ -187,10 +189,10 @@ class Player:
                 "-hls_time", "5", "-hls_list_size", "10", "-hls_delete_threshold", "5",
                 "-hls_flags", "delete_segments+append_list+program_date_time+omit_endlist+discont_start",
                 "-hls_allow_cache", "0",
-                "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%05d.ts"),
+                "-hls_segment_filename", os.path.join(output_dir, "v%v_seg_%05d.ts").replace('\\', '/'),
                 "-master_pl_name", "master.m3u8",
                 "-var_stream_map", "v:0,a:0,name:1080p v:1,a:1,name:720p v:2,a:2,name:480p",
-                os.path.join(output_dir, "v%v.m3u8")
+                os.path.join(output_dir, "v%v.m3u8").replace('\\', '/')
             ]
 
         print(f"[Player] Iniciando FFmpeg para {input_file}...")

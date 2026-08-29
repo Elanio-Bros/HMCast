@@ -330,6 +330,10 @@ class ChannelRuntime:
         return timeline
 
     def calculate_clock_sync(self, timeline: list, elapsed_seconds: float) -> tuple[int, float]:
+        total_duration = sum(t["duration"] for t in timeline)
+        if total_duration > 0:
+            elapsed_seconds = elapsed_seconds % total_duration
+
         acc = 0.0
         for i, t in enumerate(timeline):
             if elapsed_seconds < acc + t["duration"]:
@@ -434,7 +438,7 @@ class ChannelRuntime:
                 if not os.path.exists(standby_file):
                     print(f"[Channel {self.channel.id}] Gerando vídeo de Standby (Off-Air)...")
                     subprocess.run([
-                        self.media.ffmpeg, "-f", "lavfi", "-i", "color=c=black:s=1920x1080:r=30",
+                        self.player.media.ffmpeg, "-f", "lavfi", "-i", "color=c=black:s=1920x1080:r=30",
                         "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
                         "-t", "10", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", standby_file
                     ], stderr=subprocess.DEVNULL)
@@ -518,8 +522,15 @@ class ChannelRuntime:
                 # --- DECISÃO DE IS_LAST (Para regra AUTO) ---
                 is_last_item = (idx == len(timeline) - 1)
                 if not is_last_item and role not in [PlaylistItemRole.OPENING, PlaylistItemRole.CLOSING]:
-                    # Se este item terminar depois do horário de fim, ele é o "último" desta sessão
-                    if (now + timedelta(seconds=slot["duration"])) > end_dt:
+                    # Para decidir se este é o "último" item da sessão, usamos a duração
+                    # SEM o cutout de final (is_last=False). Isso evita que episódios cujos
+                    # créditos ultrapassem o end_dt sejam marcados como últimos prematuramente
+                    # — apenas o conteúdo real (sem créditos) é comparado com o horário de fim.
+                    is_first_item_check = (idx == 0)
+                    duration_without_finish = self.effective_duration(
+                        self.build_segments(media, role, is_first_item_check, False)
+                    )
+                    if (now + timedelta(seconds=duration_without_finish)) > end_dt:
                         is_last_item = True
                     else:
                         # Ou se o próximo item for um CLOSING

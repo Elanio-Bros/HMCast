@@ -51,7 +51,6 @@ class ServiceManager:
 
         # Abre os arquivos de log
         out_log = open(self.log_file, "a", encoding="utf-8")
-        err_log = open(self.error_log, "a", encoding="utf-8")
 
         # Configurações de criação de processo (Windows vs Linux)
         creation_flags = 0
@@ -63,7 +62,7 @@ class ServiceManager:
                 cmd,
                 cwd=self.root_dir,
                 stdout=out_log,
-                stderr=err_log,
+                stderr=out_log,
                 creationflags=creation_flags,
                 close_fds=True if os.name != "nt" else False,
                 env=env

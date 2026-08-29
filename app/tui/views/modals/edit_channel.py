@@ -51,7 +51,7 @@ class EditChannelModal(ModalScreen[bool]):
         from app.models import Channels
         
         with SessionLocal() as db:
-            channel = db.query(Channels).get(self.channel_id)
+            channel = db.get(Channels, self.channel_id)
             if channel:
                 self.query_one("#channel-identifier", Input).value = channel.identifier or ""
                 self.query_one("#channel-name", Input).value = channel.name
@@ -77,7 +77,7 @@ class EditChannelModal(ModalScreen[bool]):
             return
             
         with SessionLocal() as db:
-            channel = db.query(Channels).get(self.channel_id)
+            channel = db.get(Channels, self.channel_id)
             if channel:
                 # Opcional: verificar unicidade do identifier se mudou
                 channel.identifier = identifier

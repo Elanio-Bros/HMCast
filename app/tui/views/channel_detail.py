@@ -45,7 +45,7 @@ class ChannelDetailView(Vertical):
         self.channel_id = channel_id
         
         with SessionLocal() as db:
-            channel = db.query(Channels).get(channel_id)
+            channel = db.get(Channels, channel_id)
             if not channel:
                 return
             
