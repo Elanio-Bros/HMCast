@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Next engine:
   - Deinterlace with `send_frame` mode by default; this maintains fps and is significantly more performant. `send_field` and other modes can still be used via channel config.
   - Optimize anamorphic pipelines by only performing one scale instead of two
+  - Optimize tonemapping pipelines by downscaling before tonemapping when possible
+  - Optimize QSV pipelines by merging consecutive vpp_qsv filters as much as possible (e.g. tonemap, scale and format using a single filter)
 
 ### Fixed
 - Fix health checks causing a flood of (harmless) logged errors when quickly navigating away from home page
