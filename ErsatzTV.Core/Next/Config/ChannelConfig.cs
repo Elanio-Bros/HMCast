@@ -139,6 +139,12 @@ namespace ErsatzTV.Core.Next.Config
         [JsonPropertyName("accel")]
         public AccelEnum? Accel { get; set; }
 
+        /// <summary>
+        /// Windows only. Unset picks the discrete AMD adapter.
+        /// </summary>
+        [JsonPropertyName("amf_device")]
+        public long? AmfDevice { get; set; }
+
         [JsonPropertyName("bit_depth")]
         public long? BitDepth { get; set; }
 
