@@ -209,6 +209,12 @@
 
             _mpegTsScripts.Clear();
             _mpegTsScripts.AddRange(await Mediator.Send(new GetMpegTsScripts(), token));
+            if (_mpegTsScripts.All(s => s.Id != _ffmpegSettings.DefaultMpegTsScript) && _mpegTsScripts.Any())
+            {
+                _ffmpegSettings.DefaultMpegTsScript =
+                    _mpegTsScripts.Find(s => string.Equals(s.Id, "default", StringComparison.OrdinalIgnoreCase))?.Id
+                    ?? _mpegTsScripts[0].Id;
+            }
 
             await RefreshCustomResolutions(token);
         }
