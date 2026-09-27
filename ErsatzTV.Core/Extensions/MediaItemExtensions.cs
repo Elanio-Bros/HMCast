@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.Emby;
 using ErsatzTV.Core.Interfaces.Jellyfin;
 using ErsatzTV.Core.Interfaces.Plex;
@@ -43,6 +43,31 @@ public static class MediaItemExtensions
             }
 
             return version.Duration;
+        }
+
+        public TimeSpan GetEffectiveDuration(
+            out List<MediaSkip> activeSkips,
+            MediaItem previousItem = null,
+            MediaItem nextItem = null,
+            bool isFirstItemInSession = false,
+            bool isLastItemInSession = false)
+        {
+            activeSkips = ErsatzTV.Core.Scheduling.MediaSkipEvaluator.GetActiveSkips(
+                mediaItem,
+                previousItem,
+                nextItem,
+                isFirstItemInSession,
+                isLastItemInSession);
+
+            TimeSpan totalSkipDuration = TimeSpan.Zero;
+            foreach (var skip in activeSkips)
+            {
+                totalSkipDuration += (skip.End - skip.Start);
+            }
+
+            TimeSpan originalDuration = mediaItem.GetDurationForPlayout();
+            TimeSpan itemDuration = originalDuration - totalSkipDuration;
+            return itemDuration < TimeSpan.Zero ? TimeSpan.Zero : itemDuration;
         }
 
         public MediaVersion GetHeadVersion() =>
