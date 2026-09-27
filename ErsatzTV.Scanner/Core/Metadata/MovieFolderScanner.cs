@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.IO.Abstractions;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
@@ -21,6 +21,8 @@ public class MovieFolderScanner : LocalFolderScanner, IMovieFolderScanner
 {
     private readonly ILibraryRepository _libraryRepository;
     private readonly ILocalChaptersProvider _localChaptersProvider;
+    private readonly IEDLEnricher _edlEnricher;
+    private readonly INFOSkipEnricher _nfoSkipEnricher;
     private readonly IScannerProxy _scannerProxy;
     private readonly IFileSystem _fileSystem;
     private readonly ILocalFileSystem _localFileSystem;
@@ -39,6 +41,8 @@ public class MovieFolderScanner : LocalFolderScanner, IMovieFolderScanner
         ILocalStatisticsProvider localStatisticsProvider,
         ILocalSubtitlesProvider localSubtitlesProvider,
         ILocalChaptersProvider localChaptersProvider,
+        IEDLEnricher edlEnricher,
+        INFOSkipEnricher nfoSkipEnricher,
         ILocalMetadataProvider localMetadataProvider,
         IMetadataRepository metadataRepository,
         IImageCache imageCache,
@@ -63,6 +67,8 @@ public class MovieFolderScanner : LocalFolderScanner, IMovieFolderScanner
         _movieRepository = movieRepository;
         _localSubtitlesProvider = localSubtitlesProvider;
         _localChaptersProvider = localChaptersProvider;
+        _edlEnricher = edlEnricher;
+        _nfoSkipEnricher = nfoSkipEnricher;
         _localMetadataProvider = localMetadataProvider;
         _metadataRepository = metadataRepository;
         _libraryRepository = libraryRepository;
@@ -188,6 +194,7 @@ public class MovieFolderScanner : LocalFolderScanner, IMovieFolderScanner
                         .BindT(movie => UpdateArtwork(movie, ArtworkKind.FanArt, cancellationToken))
                         .BindT(movie => UpdateSubtitles(movie, cancellationToken))
                         .BindT(movie => UpdateChapters(movie, cancellationToken))
+                        .BindT(movie => UpdateSkips(movie, cancellationToken))
                         .BindT(FlagNormal);
 
                     foreach (BaseError error in maybeMovie.LeftToSeq())
@@ -360,6 +367,22 @@ public class MovieFolderScanner : LocalFolderScanner, IMovieFolderScanner
         try
         {
             await _localChaptersProvider.UpdateChapters(result.Item, None, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return BaseError.New(ex.ToString());
+        }
+    }
+
+    private async Task<Either<BaseError, MediaItemScanResult<Movie>>> UpdateSkips(
+        MediaItemScanResult<Movie> result,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _edlEnricher.UpdateSkips(result.Item, None, cancellationToken);
+            await _nfoSkipEnricher.UpdateSkips(result.Item, None, cancellationToken);
             return result;
         }
         catch (Exception ex)

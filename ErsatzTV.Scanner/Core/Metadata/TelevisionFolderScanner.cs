@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.IO.Abstractions;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
@@ -22,6 +22,8 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
     private readonly IFallbackMetadataProvider _fallbackMetadataProvider;
     private readonly ILibraryRepository _libraryRepository;
     private readonly ILocalChaptersProvider _localChaptersProvider;
+    private readonly IEDLEnricher _edlEnricher;
+    private readonly INFOSkipEnricher _nfoSkipEnricher;
     private readonly IScannerProxy _scannerProxy;
     private readonly IFileSystem _fileSystem;
     private readonly ILocalFileSystem _localFileSystem;
@@ -41,6 +43,8 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         ILocalMetadataProvider localMetadataProvider,
         ILocalSubtitlesProvider localSubtitlesProvider,
         ILocalChaptersProvider localChaptersProvider,
+        IEDLEnricher edlEnricher,
+        INFOSkipEnricher nfoSkipEnricher,
         IMetadataRepository metadataRepository,
         IImageCache imageCache,
         ILibraryRepository libraryRepository,
@@ -65,6 +69,8 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         _localMetadataProvider = localMetadataProvider;
         _localSubtitlesProvider = localSubtitlesProvider;
         _localChaptersProvider = localChaptersProvider;
+        _edlEnricher = edlEnricher;
+        _nfoSkipEnricher = nfoSkipEnricher;
         _metadataRepository = metadataRepository;
         _libraryRepository = libraryRepository;
         _mediaItemRepository = mediaItemRepository;
@@ -352,6 +358,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                 .BindT(e => UpdateThumbnail(e, cancellationToken))
                 .BindT(e => UpdateSubtitles(e, cancellationToken))
                 .BindT(e => UpdateChapters(e, cancellationToken))
+                .BindT(e => UpdateSkips(e, cancellationToken))
                 .BindT(e => FlagNormal(new MediaItemScanResult<Episode>(e)))
                 .MapT(r => r.Item);
 
@@ -612,6 +619,20 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         try
         {
             await _localChaptersProvider.UpdateChapters(episode, None, cancellationToken);
+            return episode;
+        }
+        catch (Exception ex)
+        {
+            return BaseError.New(ex.ToString());
+        }
+    }
+
+    private async Task<Either<BaseError, Episode>> UpdateSkips(Episode episode, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _edlEnricher.UpdateSkips(episode, None, cancellationToken);
+            await _nfoSkipEnricher.UpdateSkips(episode, None, cancellationToken);
             return episode;
         }
         catch (Exception ex)

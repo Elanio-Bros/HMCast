@@ -4,4 +4,5 @@ public class JellyfinChapterResponse
 {
     public long StartPositionTicks { get; set; }
     public string Name { get; set; }
+    public string MarkerType { get; set; }
 }
