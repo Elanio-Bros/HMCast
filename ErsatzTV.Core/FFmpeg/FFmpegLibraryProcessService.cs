@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text;
 using CliWrap;
 using CliWrap.Buffered;
@@ -98,6 +98,7 @@ public class FFmpegLibraryProcessService : IFFmpegProcessService
         FillerKind fillerKind,
         TimeSpan inPoint,
         DateTimeOffset channelStartTime,
+        IList<Tuple<TimeSpan, TimeSpan>> mediaSkips,
         TimeSpan ptsOffset,
         Option<FrameRate> targetFramerate,
         Option<string> customReportsFolder,
@@ -285,6 +286,25 @@ public class FFmpegLibraryProcessService : IFFmpegProcessService
         if (!audioVersion.MediaVersion.Streams.Any(s => s.MediaStreamKind is MediaStreamKind.Audio))
         {
             audioInputFile = new NullAudioInputFile(audioState with { PadAudio = playbackSettings.PadAudio });
+        }
+
+        if (mediaSkips != null && mediaSkips.Any())
+        {
+            var filter = new ErsatzTV.FFmpeg.Filter.MediaSkipFilter(mediaSkips);
+            videoInputFile.FilterSteps.Add(filter);
+            foreach (var audioInput in audioInputFile)
+            {
+                audioInput.FilterSteps.Add(filter);
+            }
+        }
+
+        // Modo Rádio (HMCast 3.0 - Ponto 10): substitui o vídeo por fundo preto de 1fps,
+        // preservando apenas o áudio para economizar banda drasticamente.
+        if (channel.Mode == ChannelMode.Radio)
+        {
+            _logger.LogDebug("Channel {Channel} is in Radio Mode — replacing video with static black frame", channel.Number);
+            var radioFilter = new ErsatzTV.FFmpeg.Filter.RadioModeVideoFilter();
+            videoInputFile.FilterSteps.Add(radioFilter);
         }
 
         OutputFormatKind outputFormat = OutputFormatKind.MpegTs;

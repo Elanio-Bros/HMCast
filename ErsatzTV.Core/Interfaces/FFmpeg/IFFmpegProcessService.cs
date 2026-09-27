@@ -1,4 +1,4 @@
-﻿using CliWrap;
+using CliWrap;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.FFmpeg;
@@ -38,6 +38,7 @@ public interface IFFmpegProcessService
         FillerKind fillerKind,
         TimeSpan inPoint,
         DateTimeOffset channelStartTime,
+        IList<Tuple<TimeSpan, TimeSpan>> mediaSkips,
         TimeSpan ptsOffset,
         Option<FrameRate> targetFramerate,
         Option<string> customReportsFolder,
