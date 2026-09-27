@@ -1,0 +1,111 @@
+@using ErsatzTV.Application.MediaItems
+@implements IDisposable
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject ILogger<MediaBulkEditDialog> Logger
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Class="mb-6">
+            <MudText Typo="Typo.body1">
+                Edit settings for @MediaItemIds.Count item(s).
+            </MudText>
+        </MudContainer>
+        
+        <MudText Typo="Typo.h6" Class="mt-4">Flags</MudText>
+        <MudCheckBox T="bool" @bind-Value="_showIntro" Label="Show Intro" />
+        <MudCheckBox T="bool" @bind-Value="_showFinish" Label="Show Finish" />
+        <MudCheckBox T="bool" @bind-Value="_showPreview" Label="Show Preview" />
+        <MudCheckBox T="bool" @bind-Value="_showRecap" Label="Show Recap" />
+        <MudCheckBox T="bool" @bind-Value="_showCut" Label="Show Cut (Commercials)" />
+
+        <MudText Typo="Typo.h6" Class="mt-6">Media Skips (Smart Duration from start/end)</MudText>
+        <MudTextField T="string" @bind-Value="_introDurationStr" Label="Intro Duration (hh:mm:ss)" HelperText="Leave empty to not change" />
+        <MudTextField T="string" @bind-Value="_finishDurationStr" Label="Finish Duration (hh:mm:ss)" HelperText="Leave empty to not change" />
+        
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" ButtonType="ButtonType.Reset">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save Changes</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private CancellationTokenSource _cts;
+
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public List<int> MediaItemIds { get; set; }
+
+    [Parameter]
+    public bool InitialShowIntro { get; set; } = true;
+
+    [Parameter]
+    public bool InitialShowFinish { get; set; } = true;
+
+    private bool _showIntro;
+    private bool _showFinish;
+    private bool _showPreview;
+    private bool _showRecap;
+    private bool _showCut;
+
+    private string _introDurationStr;
+    private string _finishDurationStr;
+
+    protected override void OnInitialized()
+    {
+        _showIntro = InitialShowIntro;
+        _showFinish = InitialShowFinish;
+        _showPreview = true;
+        _showRecap = true;
+        _showCut = false;
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private async Task Submit()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        // Update Flags
+        var flagsRequest = new UpdateMediaItemFlags(MediaItemIds, _showIntro, _showFinish, _showPreview, _showRecap, _showCut);
+        var flagsResult = await Mediator.Send(flagsRequest, _cts.Token);
+
+        if (flagsResult.IsLeft)
+        {
+            flagsResult.IfLeft(error => Snackbar.Add($"Error updating flags: {error.Value}", Severity.Error));
+            return;
+        }
+
+        // Update Skips
+        TimeSpan? introDuration = string.IsNullOrWhiteSpace(_introDurationStr) ? null : TimeSpan.Parse(_introDurationStr);
+        TimeSpan? finishDuration = string.IsNullOrWhiteSpace(_finishDurationStr) ? null : TimeSpan.Parse(_finishDurationStr);
+
+        if (introDuration.HasValue || finishDuration.HasValue)
+        {
+            var skipsRequest = new BulkUpdateMediaSkips(MediaItemIds, introDuration, finishDuration);
+            var skipsResult = await Mediator.Send(skipsRequest, _cts.Token);
+            if (skipsResult.IsLeft)
+            {
+                skipsResult.IfLeft(error => Snackbar.Add($"Error updating skips: {error.Value}", Severity.Error));
+                return;
+            }
+        }
+
+        Snackbar.Add("Media updated successfully", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

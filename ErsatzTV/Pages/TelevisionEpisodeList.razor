@@ -1,4 +1,4 @@
-﻿@page "/media/tv/seasons/{SeasonId:int}"
+@page "/media/tv/seasons/{SeasonId:int}"
 @using ErsatzTV.Application.MediaCards
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
@@ -64,6 +64,12 @@
                            OnClick="@AddToSchedule">
                     Add To Schedule
                 </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.Edit"
+                           OnClick="@BulkEditSeason">
+                    Bulk Edit Skips/Flags
+                </MudButton>
             </MudStack>
         </MudStack>
     </MudStack>
@@ -108,6 +114,9 @@
                                     </MudMenuItem>
                                     <MudMenuItem OnClick="@(_ => AddEpisodeToPlaylist(episode))" Icon="@Icons.Material.Filled.PlaylistAdd">
                                         Add To Playlist
+                                    </MudMenuItem>
+                                    <MudMenuItem OnClick="@(_ => EditEpisode(episode))" Icon="@Icons.Material.Filled.Edit">
+                                        Edit Skips/Flags
                                     </MudMenuItem>
                                 </MudMenu>
                                 <MudButton Variant="Variant.Filled"
@@ -336,6 +345,27 @@
                 options);
             DialogResult _ = await dialog.Result;
         }
+    }
+
+    private async Task EditEpisode(TelevisionEpisodeCardViewModel episode)
+    {
+        var parameters = new DialogParameters
+        {
+            { "MediaItemIds", new List<int> { episode.EpisodeId } }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        await Dialog.ShowAsync<MediaBulkEditDialog>($"Edit {episode.Title}", parameters, options);
+    }
+
+    private async Task BulkEditSeason()
+    {
+        var allIds = _data.Cards.Map(c => c.EpisodeId).ToList();
+        var parameters = new DialogParameters
+        {
+            { "MediaItemIds", allIds }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        await Dialog.ShowAsync<MediaBulkEditDialog>($"Bulk Edit {_season.Title} Season {_season.Name}", parameters, options);
     }
 
     private static string GetPosterUrl(string poster) => poster.StartsWith("http://") || poster.StartsWith("https://") ? poster : $"artwork/posters/{poster}";
