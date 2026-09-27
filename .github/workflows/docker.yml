@@ -127,8 +127,8 @@ jobs:
           AMD64_HASH=$(cat digests/digest-amd64/digest.txt)
           ARM64_HASH=$(cat digests/digest-arm64/digest.txt)
 
-          DOCKER_HUB_DIGESTS="ersatztv/legacy@${AMD64_HASH} ersatztv/legacy@${ARM64_HASH}
-          GHCR_DIGESTS="ghcr.io/ersatztv/legacy@${AMD64_HASH} ghcr.io/ersatztv/legacy@${ARM64_HASH}
+          DOCKER_HUB_DIGESTS="ersatztv/legacy@${AMD64_HASH} ersatztv/legacy@${ARM64_HASH}"
+          GHCR_DIGESTS="ghcr.io/ersatztv/legacy@${AMD64_HASH} ghcr.io/ersatztv/legacy@${ARM64_HASH}"
 
           echo "docker_hub_digests=${DOCKER_HUB_DIGESTS}" >> $GITHUB_OUTPUT
           echo "ghcr_digests=${GHCR_DIGESTS}" >> $GITHUB_OUTPUT
