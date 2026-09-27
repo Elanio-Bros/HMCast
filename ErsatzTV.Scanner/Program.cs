@@ -192,6 +192,10 @@ public class Program
                 services.AddScoped<ILocalStatisticsProvider, LocalStatisticsProvider>();
                 services.AddScoped<ILocalSubtitlesProvider, LocalSubtitlesProvider>();
                 services.AddScoped<ILocalChaptersProvider, LocalChaptersProvider>();
+                services.AddScoped<IEDLEnricher, EDLEnricher>();
+                services.AddScoped<INFOSkipEnricher, NFOSkipEnricher>();
+                services.AddScoped<IJellyfinSkipEnricher, JellyfinSkipEnricher>();
+                services.AddScoped<IPlexSkipEnricher, PlexSkipEnricher>();
                 services.AddScoped<IImageCache, ImageCache>();
                 services.AddScoped<ILocalFileSystem, LocalFileSystem>();
                 services.AddScoped<IMovieFolderScanner, MovieFolderScanner>();

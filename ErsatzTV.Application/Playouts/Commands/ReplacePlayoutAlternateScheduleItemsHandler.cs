@@ -94,7 +94,8 @@ public class ReplacePlayoutAlternateScheduleItemsHandler(
                             StartYear = add.StartYear,
                             EndMonth = add.EndMonth,
                             EndDay = add.EndDay,
-                            EndYear = add.EndYear
+                            EndYear = add.EndYear,
+                            SpecificDates = add.SpecificDates
                         });
                 }
 
@@ -114,6 +115,7 @@ public class ReplacePlayoutAlternateScheduleItemsHandler(
                         ex.EndMonth = update.EndMonth;
                         ex.EndDay = update.EndDay;
                         ex.EndYear = update.EndYear;
+                        ex.SpecificDates = update.SpecificDates;
                     }
                 }
 

@@ -22,5 +22,5 @@ public class PlayoutTemplate : IAlternateScheduleItem
     public int? EndYear { get; set; }
 
     public DateTime DateUpdated { get; set; }
-    //public ICollection<DateTimeOffset> AdditionalDays { get; set; }
+    public ICollection<DateTimeOffset> SpecificDates { get; set; }
 }

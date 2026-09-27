@@ -123,6 +123,9 @@ public class BlockPlayoutBuilder(
         var baseItems = referenceData.ExistingItems.Where(i => !playoutItemsToRemoveIds.Contains(i.Id)).ToList();
 
         DateTimeOffset currentTime = start;
+        MediaItem previousMediaItem = null;
+        bool isFirstItemInSession = true;
+
         if (updatedEffectiveBlocks.Count > 0)
         {
             currentTime = updatedEffectiveBlocks.Min(eb => eb.Start);
@@ -164,6 +167,8 @@ public class BlockPlayoutBuilder(
 
             DateTimeOffset blockFinish = effectiveBlock.Start.AddMinutes(effectiveBlock.Block.Minutes);
 
+            bool jumpToLastItemMode = false;
+
             foreach (BlockItem blockItem in effectiveBlock.Block.Items.OrderBy(i => i.Index))
             {
                 // TODO: support other playback orders
@@ -172,15 +177,41 @@ public class BlockPlayoutBuilder(
                     continue;
                 }
 
+                var isLastItem = blockItem == effectiveBlock.Block.Items.OrderBy(i => i.Index).Last();
+
                 if (currentTime >= blockFinish)
                 {
-                    logger.LogDebug(
-                        "Current time {Time} for block {Block} is beyond block finish {Finish}; will stop with this block's items",
-                        currentTime,
-                        effectiveBlock.Block.Name,
-                        blockFinish);
+                    if (effectiveBlock.Block.StopScheduling is BlockStopScheduling.JumpToLastItem)
+                    {
+                        if (isLastItem)
+                        {
+                            logger.LogDebug(
+                                "Current time {Time} for block {Block} is beyond block finish {Finish}, but JumpToLastItem is enabled so we will schedule the last item",
+                                currentTime,
+                                effectiveBlock.Block.Name,
+                                blockFinish);
+                        }
+                        else
+                        {
+                            // Skip this item and keep looping until we reach the last item
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        logger.LogDebug(
+                            "Current time {Time} for block {Block} is beyond block finish {Finish}; will stop with this block's items",
+                            currentTime,
+                            effectiveBlock.Block.Name,
+                            blockFinish);
 
-                    break;
+                        break;
+                    }
+                }
+
+                if (jumpToLastItemMode && !isLastItem)
+                {
+                    continue;
                 }
 
                 // check for playout history for this collection
@@ -214,7 +245,12 @@ public class BlockPlayoutBuilder(
                             mediaItem.Id,
                             PlayoutBuilder.DisplayTitle(mediaItem));
 
-                        TimeSpan itemDuration = mediaItem.GetDurationForPlayout();
+                        TimeSpan itemDuration = mediaItem.GetEffectiveDuration(
+                            out List<MediaSkip> activeSkips,
+                            previousMediaItem,
+                            null, // nextItem is currently unknown here
+                            isFirstItemInSession,
+                            isLastItem);
 
                         // item will never fit in block
                         var blockDuration = TimeSpan.FromMinutes(effectiveBlock.Block.Minutes);
@@ -224,7 +260,7 @@ public class BlockPlayoutBuilder(
                             // enumerator.MinimumDuration is none for images and remote streams, which
                             // would skip forever, so use the same duration source as the check above
                             TimeSpan minimumDuration = collectionMediaItems[CollectionKey.ForBlockItem(blockItem)]
-                                .Map(i => i.GetDurationForPlayout())
+                                .Map(i => i.GetEffectiveDuration(out _))
                                 .OrderBy(identity)
                                 .Head();
 
@@ -314,6 +350,21 @@ public class BlockPlayoutBuilder(
                             break;
                         }
 
+                        if (effectiveBlock.Block.StopScheduling is BlockStopScheduling.JumpToLastItem
+                            && playoutItem.FinishOffset > blockFinish
+                            && !isLastItem)
+                        {
+                            logger.LogDebug(
+                                "Current time {Time} for block {Block} would go beyond block finish {Finish}; jumping to the last item",
+                                currentTime,
+                                effectiveBlock.Block.Name,
+                                blockFinish);
+
+                            jumpToLastItemMode = true;
+                            pastTime = true; // Break the inner while-loop
+                            break;
+                        }
+
                         result.AddedItems.Add(playoutItem);
 
                         // create a playout history record
@@ -332,6 +383,9 @@ public class BlockPlayoutBuilder(
                         //logger.LogDebug("Adding history item: {When}: {History}", nextHistory.When, nextHistory.Details);
                         result.AddedHistory.Add(nextHistory);
 
+                        previousMediaItem = mediaItem;
+                        isFirstItemInSession = false;
+
                         currentTime += itemDuration;
                         enumerator.MoveNext(playoutItem.StartOffset);
                         done = true;
@@ -340,6 +394,11 @@ public class BlockPlayoutBuilder(
 
                 if (pastTime)
                 {
+                    if (jumpToLastItemMode && !isLastItem)
+                    {
+                        pastTime = false; // reset for the next block items
+                        continue;
+                    }
                     break;
                 }
             }

@@ -1,4 +1,4 @@
-﻿@page "/schedules/{Id:int}/items"
+@page "/schedules/{Id:int}/items"
 @using ErsatzTV.Application.Filler
 @using ErsatzTV.Application.Graphics
 @using ErsatzTV.Application.MediaCollections
@@ -414,6 +414,7 @@
                     <MudSelectItem Value="PlaybackOrder.Shuffle">Shuffle</MudSelectItem>
                     <MudSelectItem Value="PlaybackOrder.ShuffleInOrder">Shuffle In Order</MudSelectItem>
                     <MudSelectItem Value="PlaybackOrder.Marathon">Marathon</MudSelectItem>
+                    <MudSelectItem Value="PlaybackOrder.DeterministicByDay">Deterministic By Day</MudSelectItem>
                     break;
                 case CollectionType.TelevisionShow:
                     <MudSelectItem Value="PlaybackOrder.Chronological">Chronological</MudSelectItem>
@@ -421,6 +422,7 @@
                     <MudSelectItem Value="PlaybackOrder.Random">Random</MudSelectItem>
                     <MudSelectItem Value="PlaybackOrder.Shuffle">Shuffle</MudSelectItem>
                     <MudSelectItem Value="PlaybackOrder.MultiEpisodeShuffle">Multi-Episode Shuffle</MudSelectItem>
+                    <MudSelectItem Value="PlaybackOrder.DeterministicByDay">Deterministic By Day</MudSelectItem>
                     break;
                 case CollectionType.Playlist:
                     <MudSelectItem Value="PlaybackOrder.None">Playlist</MudSelectItem>
@@ -435,6 +437,7 @@
                     <MudSelectItem Value="PlaybackOrder.Chronological">Chronological</MudSelectItem>
                     <MudSelectItem Value="PlaybackOrder.Random">Random</MudSelectItem>
                     <MudSelectItem Value="PlaybackOrder.Shuffle">Shuffle</MudSelectItem>
+                    <MudSelectItem Value="PlaybackOrder.DeterministicByDay">Deterministic By Day</MudSelectItem>
                     break;
             }
         </MudSelect>

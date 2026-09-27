@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +22,9 @@ public class ChannelConfiguration : IEntityTypeConfiguration<Channel>
 
         builder.Property(c => c.ShowInEpg)
             .HasDefaultValue(true);
+
+        builder.Property(c => c.Mode)
+            .HasDefaultValue(ChannelMode.Television);
 
         builder.HasMany(c => c.Playouts) // TODO: is this correct, or should we have one to one?
             .WithOne(p => p.Channel)

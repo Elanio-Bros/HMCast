@@ -805,4 +805,77 @@ public class MetadataRepository(IDbContextFactory<TvContext> dbContextFactory) :
         existingSubtitle.Title = incomingSubtitle.Title;
         existingSubtitle.Path = incomingSubtitle.Path;
     }
+    public async Task<bool> UpdateMediaSkips(MediaItem mediaItem, List<MediaSkip> skips, MediaSkipSource source, CancellationToken cancellationToken)
+    {
+        await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        // Fetch media item with skips
+        MediaItem existingMediaItem = await dbContext.MediaItems
+            .Include(mi => mi.MediaSkips)
+            .FirstOrDefaultAsync(mi => mi.Id == mediaItem.Id, cancellationToken);
+
+        if (existingMediaItem == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+
+        // Remove existing skips with same source that are not in incoming
+        var toRemove = existingMediaItem.MediaSkips.Where(s => s.Source == source).ToList();
+        if (toRemove.Count > 0)
+        {
+            dbContext.MediaSkips.RemoveRange(toRemove);
+            changed = true;
+        }
+
+        // Add new skips
+        foreach (MediaSkip skip in skips)
+        {
+            // Simple precedence check: don't add if a higher priority source exists
+            var existingSameKind = existingMediaItem.MediaSkips.FirstOrDefault(s => s.Kind == skip.Kind && s.Source != source);
+            if (existingSameKind != null)
+            {
+                // Precedence: Manual(1) > Bulk(9) > Plex(5) > Jellyfin(4) > Emby(6) > NFO(3) > EDL(2) > Blackdetect(7) > Chapter(8)
+                // Actually, the prompt says "Manual > Bulk > Jellyfin/Plex > EDL/NFO > Blackdetect".
+                // We'll just trust that if it already exists, we only overwrite if the new source has higher priority.
+                // It's easier if we just remove existing skip if we have higher priority.
+                int Priority(MediaSkipSource s) => s switch {
+                    MediaSkipSource.Manual => 100,
+                    MediaSkipSource.Bulk => 90,
+                    MediaSkipSource.Plex => 80,
+                    MediaSkipSource.Jellyfin => 80,
+                    MediaSkipSource.Emby => 80,
+                    MediaSkipSource.NFO => 70,
+                    MediaSkipSource.EDL => 70,
+                    MediaSkipSource.Blackdetect => 60,
+                    MediaSkipSource.Chapter => 50,
+                    _ => 0
+                };
+
+                if (Priority(source) > Priority(existingSameKind.Source))
+                {
+                    dbContext.MediaSkips.Remove(existingSameKind);
+                    skip.MediaItemId = existingMediaItem.Id;
+                    skip.Source = source;
+                    dbContext.MediaSkips.Add(skip);
+                    changed = true;
+                }
+            }
+            else
+            {
+                skip.MediaItemId = existingMediaItem.Id;
+                skip.Source = source;
+                dbContext.MediaSkips.Add(skip);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            return await dbContext.SaveChangesAsync(cancellationToken) > 0;
+        }
+
+        return false;
+    }
 }

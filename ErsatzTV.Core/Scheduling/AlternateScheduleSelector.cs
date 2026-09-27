@@ -24,6 +24,16 @@ public static class AlternateScheduleSelector
     {
         foreach (T item in items.OrderBy(x => x.Index))
         {
+            // HMCast 3.0: SpecificDates override — if the current date matches any
+            // entry in SpecificDates, this item is selected immediately (OR logic).
+            if (item.SpecificDates is { Count: > 0 } specificDates)
+            {
+                if (specificDates.Any(sd => sd.Date == date.Date))
+                {
+                    return item;
+                }
+            }
+
             if (item.LimitToDateRange)
             {
                 if (item.StartMonth is < 1 or > 12 || item.EndMonth is < 1 or > 12 || item.StartDay < 1 ||

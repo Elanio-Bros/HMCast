@@ -95,7 +95,7 @@ public class ReplaceTemplateItemsHandler(IDbContextFactory<TvContext> dbContextF
                     continue;
                 }
 
-                if (item.StartTime < otherItem.EndTime && otherItem.StartTime < item.EndTime)
+                if (TimeRangeValidation.Intersects(item.StartTime, item.EndTime, otherItem.StartTime, otherItem.EndTime))
                 {
                     return BaseError.New(
                         $"Block from {item.StartTime} to {item.EndTime} intersects block from {otherItem.StartTime} to {otherItem.EndTime}");

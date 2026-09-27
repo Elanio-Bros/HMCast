@@ -32,7 +32,7 @@ public class ReplaceDecoTemplateItemsHandler(IDbContextFactory<TvContext> dbCont
         // drop items that are invalid
         decoTemplate.Items = request.Items
             .Map(i => BuildItem(decoTemplate, i))
-            .Filter(i => i.StartTime < i.EndTime || i.EndTime == TimeSpan.Zero)
+            .Filter(i => i.StartTime != i.EndTime || i.EndTime == TimeSpan.Zero)
             .ToList();
 
         await dbContext.SaveChangesAsync(cancellationToken);

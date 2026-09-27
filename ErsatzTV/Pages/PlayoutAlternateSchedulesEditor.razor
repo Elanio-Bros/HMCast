@@ -1,4 +1,4 @@
-﻿@page "/playouts/{Id:int}/alternate-schedules"
+@page "/playouts/{Id:int}/alternate-schedules"
 @using System.Globalization
 @using System.Text
 @using ErsatzTV.Application.Channels
@@ -216,6 +216,12 @@
                         }
                     </MudSelect>
                 </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Specific Dates</MudText>
+                    </div>
+                    <MudTextField T="string" Value="@GetSpecificDatesString(_selectedItem)" ValueChanged="@(s => SetSpecificDatesString(_selectedItem, s))" HelperText="Comma-separated dates (e.g. 2026-12-25, 2027-01-01). Overrides all other date rules." />
+                </MudStack>
             }
         </MudContainer>
     </div>
@@ -283,7 +289,8 @@
             StartYear = item.StartYear,
             EndMonth = item.EndMonth,
             EndDay = item.EndDay,
-            EndYear = item.EndYear
+            EndYear = item.EndYear,
+            SpecificDates = item.SpecificDates.ToList()
         };
 
     private void SelectWeekdays()
@@ -324,7 +331,8 @@
             StartYear = null,
             EndMonth = 1,
             EndDay = 1,
-            EndYear = null
+            EndYear = null,
+            SpecificDates = new List<DateTimeOffset>()
         };
 
         _items.Add(item);
@@ -366,7 +374,8 @@
             item.StartYear,
             item.EndMonth,
             item.EndDay,
-            item.EndYear)).ToList();
+            item.EndYear,
+            item.SpecificDates)).ToList();
 
         Seq<BaseError> errorMessages = await Mediator.Send(new ReplacePlayoutAlternateScheduleItems(Id, items), _cts.Token)
             .Map(e => e.LeftToSeq());
@@ -467,6 +476,24 @@
     {
         _selectedItem.MonthsOfYear.Clear();
         _selectedItem.MonthsOfYear.AddRange(selectedMonths);
+    }
+
+    private string GetSpecificDatesString(PlayoutAlternateScheduleEditViewModel item) =>
+        item == null ? string.Empty : string.Join(", ", item.SpecificDates.Select(d => d.ToString("yyyy-MM-dd")));
+
+    private void SetSpecificDatesString(PlayoutAlternateScheduleEditViewModel item, string value)
+    {
+        if (item == null) return;
+        item.SpecificDates.Clear();
+        if (string.IsNullOrWhiteSpace(value)) return;
+        
+        foreach (var d in value.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (DateTimeOffset.TryParse(d, out var dto))
+            {
+                item.SpecificDates.Add(dto);
+            }
+        }
     }
 
 }

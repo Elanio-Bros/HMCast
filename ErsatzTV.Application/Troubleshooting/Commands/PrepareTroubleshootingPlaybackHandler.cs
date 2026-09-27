@@ -555,12 +555,13 @@ public class PrepareTroubleshootingPlaybackHandler(
             FillerKind.None,
             inPoint: TimeSpan.Zero,
             channelStartTime: now,
+            mediaSkips: null,
             TimeSpan.Zero,
             Option<FrameRate>.None,
             FileSystemLayout.TranscodeTroubleshootingFolder,
             _ => { },
             canProxy: true,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return playoutItemResult;
     }

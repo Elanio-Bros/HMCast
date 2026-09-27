@@ -14,4 +14,5 @@ public record PlayoutTemplateViewModel(
     int? StartYear,
     int EndMonth,
     int EndDay,
-    int? EndYear);
+    int? EndYear,
+    ICollection<DateTimeOffset> SpecificDates);

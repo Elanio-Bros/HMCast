@@ -1,4 +1,4 @@
-﻿using CliWrap;
+using CliWrap;
 using ErsatzTV.Application.Playouts;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
@@ -379,6 +379,44 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 effectiveNow,
                 duration);
 
+            PlayoutItem currentPlayoutItem = playoutItemWithPath.PlayoutItem;
+
+            // HMCast 3.0: só busca contexto de itens adjacentes se o item atual tiver MediaSkips configurados.
+            // Evita 2 queries desnecessárias ao banco para itens sem cortes definidos.
+            var mediaSkips = new List<System.Tuple<TimeSpan, TimeSpan>>();
+            if (currentPlayoutItem.MediaItem?.MediaSkips is { Count: > 0 })
+            {
+                PlayoutItem previousPlayoutItem = await dbContext.PlayoutItems
+                    .Include(i => i.MediaItem)
+                    .ThenInclude(mi => (mi as Episode).Season)
+                    .ThenInclude(s => s.Show)
+                    .Where(i => i.PlayoutId == currentPlayoutItem.PlayoutId && i.StartOffset < currentPlayoutItem.StartOffset)
+                    .OrderByDescending(i => i.StartOffset)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                PlayoutItem nextPlayoutItem = await dbContext.PlayoutItems
+                    .Include(i => i.MediaItem)
+                    .ThenInclude(mi => (mi as Episode).Season)
+                    .ThenInclude(s => s.Show)
+                    .Where(i => i.PlayoutId == currentPlayoutItem.PlayoutId && i.StartOffset > currentPlayoutItem.StartOffset)
+                    .OrderBy(i => i.StartOffset)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                // Detecta corretamente se é o primeiro/último item do playout (sessão)
+                bool isFirstItemInSession = previousPlayoutItem == null;
+                bool isLastItemInSession = nextPlayoutItem == null;
+
+                List<MediaSkip> activeSkips = ErsatzTV.Core.Scheduling.MediaSkipEvaluator.GetActiveSkips(
+                    currentPlayoutItem.MediaItem,
+                    previousPlayoutItem?.MediaItem,
+                    nextPlayoutItem?.MediaItem,
+                    isFirstItemInSession,
+                    isLastItemInSession);
+
+                mediaSkips = activeSkips.Select(s => new System.Tuple<TimeSpan, TimeSpan>(s.Start, s.End)).ToList();
+            }
+
+
             PlayoutItemResult playoutItemResult = await _ffmpegProcessService.ForPlayoutItem(
                 ffmpegPath,
                 ffprobePath,
@@ -410,12 +448,13 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 playoutItemWithPath.PlayoutItem.FillerKind,
                 inPoint,
                 request.ChannelStartTime,
+                mediaSkips: mediaSkips,
                 request.PtsOffset,
                 request.TargetFramerate,
                 request.IsTroubleshooting ? FileSystemLayout.TranscodeTroubleshootingFolder : Option<string>.None,
                 _ => { },
                 canProxy: true,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             var result = new PlayoutItemProcessModel(
                 playoutItemResult.Process,

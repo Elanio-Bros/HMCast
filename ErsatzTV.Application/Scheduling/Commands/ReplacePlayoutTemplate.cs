@@ -14,4 +14,5 @@ public record ReplacePlayoutTemplate(
     int? StartYear,
     int EndMonth,
     int EndDay,
-    int? EndYear);
+    int? EndYear,
+    List<DateTimeOffset> SpecificDates);

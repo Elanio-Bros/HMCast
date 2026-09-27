@@ -214,7 +214,7 @@ public class BlockPlayoutFillerBuilder(
                         {
                             foreach (MediaItem mediaItem in enumerator.Current)
                             {
-                                TimeSpan itemDuration = mediaItem.GetDurationForPlayout();
+                                TimeSpan itemDuration = mediaItem.GetEffectiveDuration(out _);
 
                                 var filler = new PlayoutItem
                                 {
@@ -360,7 +360,7 @@ public class BlockPlayoutFillerBuilder(
                 {
                     foreach (MediaItem mediaItem in enumerator.Current)
                     {
-                        TimeSpan itemDuration = mediaItem.GetDurationForPlayout();
+                        TimeSpan itemDuration = mediaItem.GetEffectiveDuration(out _);
 
                         // without a duration this loop can never reach the end of the gap
                         if (itemDuration <= TimeSpan.Zero)

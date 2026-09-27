@@ -739,7 +739,7 @@ public class SchedulingEngine(
 
             foreach (MediaItem mediaItem in enumeratorDetails.Enumerator.Current)
             {
-                TimeSpan itemDuration = mediaItem.GetDurationForPlayout();
+                TimeSpan itemDuration = mediaItem.GetEffectiveDuration(out _);
 
                 var playoutItem = new PlayoutItem
                 {
@@ -934,7 +934,7 @@ public class SchedulingEngine(
 
             foreach (MediaItem mediaItem in enumeratorDetails.Enumerator.Current)
             {
-                TimeSpan itemDuration = mediaItem.GetDurationForPlayout();
+                TimeSpan itemDuration = mediaItem.GetEffectiveDuration(out _);
 
                 // create a playout item
                 var playoutItem = new PlayoutItem
@@ -1242,6 +1242,14 @@ public class SchedulingEngine(
         {
             case PlaybackOrder.Chronological:
                 return new ChronologicalMediaCollectionEnumerator(items, state);
+            case PlaybackOrder.Random:
+                return new RandomizedMediaCollectionEnumerator(items, state);
+            case PlaybackOrder.DeterministicByDay:
+                bool keepMultiPartEpisodesTogether2 = multiPart;
+                List<GroupedMediaItem> groupedMediaItems2 = keepMultiPartEpisodesTogether2
+                    ? MultiPartEpisodeGrouper.GroupMediaItems(items, false)
+                    : items.Map(mi => new GroupedMediaItem(mi, null)).ToList();
+                return new DeterministicByDayMediaCollectionEnumerator(groupedMediaItems2, state, CancellationToken.None);
             case PlaybackOrder.Shuffle:
                 bool keepMultiPartEpisodesTogether = multiPart;
                 List<GroupedMediaItem> groupedMediaItems = keepMultiPartEpisodesTogether

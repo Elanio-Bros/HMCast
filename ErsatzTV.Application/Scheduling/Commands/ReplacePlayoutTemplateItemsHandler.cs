@@ -63,7 +63,8 @@ public class ReplacePlayoutTemplateItemsHandler(
                             EndMonth = add.EndMonth,
                             EndDay = add.EndDay,
                             EndYear = add.EndYear,
-                            DateUpdated = now
+                            DateUpdated = now,
+                            SpecificDates = add.SpecificDates
                         });
                 }
 
@@ -85,6 +86,7 @@ public class ReplacePlayoutTemplateItemsHandler(
                         ex.EndDay = update.EndDay;
                         ex.EndYear = update.EndYear;
                         ex.DateUpdated = now;
+                        ex.SpecificDates = update.SpecificDates;
                     }
                 }
 

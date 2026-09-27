@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 
 namespace ErsatzTV.Core.Scheduling;
 
@@ -23,6 +23,9 @@ public class MultiCollectionGroup : GroupedMediaItem
             switch (collectionWithItems.PlaybackOrder)
             {
                 case PlaybackOrder.Chronological:
+                case PlaybackOrder.DeterministicByDay:
+                case PlaybackOrder.Random:
+                case PlaybackOrder.Shuffle:
                 {
                     var sortedItems = collectionWithItems.MediaItems.OrderBy(identity, new ChronologicalMediaComparer())
                         .ToList();

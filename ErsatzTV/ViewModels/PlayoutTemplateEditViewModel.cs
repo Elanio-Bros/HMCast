@@ -18,6 +18,7 @@ public class PlayoutTemplateEditViewModel
     public List<int> DaysOfMonth { get; set; }
     public List<int> MonthsOfYear { get; set; }
     public bool LimitToDateRange { get; set; }
+    public List<DateTimeOffset> SpecificDates { get; set; } = new();
 
     public int StartMonth
     {
@@ -62,7 +63,8 @@ public class PlayoutTemplateEditViewModel
             StartYear = StartYear,
             EndMonth = EndMonth,
             EndDay = EndDay,
-            EndYear = EndYear
+            EndYear = EndYear,
+            SpecificDates = SpecificDates
         };
 
         TimeSpan offset = TimeZoneInfo.Local.GetUtcOffset(

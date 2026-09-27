@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Abstractions;
 using System.Net;
@@ -431,7 +431,7 @@ public class Startup
                         {
                             o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
                             o.MigrationsAssembly("ErsatzTV.Infrastructure.Sqlite");
-                        });
+                        }).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
                 }
 
                 if (databaseProvider == Provider.MySql.Name)
@@ -446,7 +446,7 @@ public class Startup
                             o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
                             o.MigrationsAssembly("ErsatzTV.Infrastructure.MySql");
                         }
-                    );
+                    ).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
                 }
             },
             ServiceLifetime.Scoped,
@@ -462,7 +462,7 @@ public class Startup
                     {
                         o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
                         o.MigrationsAssembly("ErsatzTV.Infrastructure.Sqlite");
-                    });
+                    }).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             }
 
             if (databaseProvider == Provider.MySql.Name)
@@ -475,7 +475,7 @@ public class Startup
                         o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
                         o.MigrationsAssembly("ErsatzTV.Infrastructure.MySql");
                     }
-                );
+                ).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             }
         });
 
@@ -996,6 +996,7 @@ public class Startup
         services.AddHostedService<WorkerService>();
         services.AddHostedService<SchedulerService>();
         services.AddHostedService<FFmpegWorkerService>();
+        services.AddHostedService<PredictiveWarmupService>(); // HMCast 3.0 - Ponto 9
         services.AddHostedService<SearchIndexService>();
     }
 

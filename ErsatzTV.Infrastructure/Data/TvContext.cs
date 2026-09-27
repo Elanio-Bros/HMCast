@@ -127,6 +127,7 @@ public class TvContext : DbContext
     public DbSet<FillerPreset> FillerPresets { get; set; }
     public DbSet<Subtitle> Subtitles { get; set; }
     public DbSet<GraphicsElement> GraphicsElements { get; set; }
+    public DbSet<MediaSkip> MediaSkips { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

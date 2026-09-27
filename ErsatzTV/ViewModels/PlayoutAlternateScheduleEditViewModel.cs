@@ -11,6 +11,7 @@ public class PlayoutAlternateScheduleEditViewModel
     public List<int> DaysOfMonth { get; set; }
     public List<int> MonthsOfYear { get; set; }
     public bool LimitToDateRange { get; set; }
+    public List<DateTimeOffset> SpecificDates { get; set; } = new();
 
     public int StartMonth
     {

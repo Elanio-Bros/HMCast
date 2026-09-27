@@ -1,4 +1,4 @@
-﻿@page "/channels/{Id:int?}"
+@page "/channels/{Id:int?}"
 @page "/channels/add"
 @using System.Globalization
 @using ErsatzTV.Application.Artworks
@@ -116,6 +116,7 @@ else
         <MudSelect @bind-Value="_model.PlayoutMode" For="@(() => _model.PlayoutMode)" HelperText="Controls the progression of the channel's playout">
             <MudSelectItem Value="@(ChannelPlayoutMode.Continuous)">Continuous</MudSelectItem>
             <MudSelectItem Value="@(ChannelPlayoutMode.OnDemand)">On Demand</MudSelectItem>
+            <MudSelectItem Value="@(ChannelPlayoutMode.Predictive)">Predictive (Pre-Cache)</MudSelectItem>
         </MudSelect>
     </MudStack>
 }
@@ -130,6 +131,18 @@ else
         <MudText>Show In EPG</MudText>
     </div>
     <MudCheckBox @bind-Value="_model.ShowInEpg" For="@(() => _model.ShowInEpg)" Dense="true"/>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Mode</MudText>
+        <MudTooltip Text="Select Television for standard video playback, or Radio to serve audio only with a static black frame at 1fps to save bandwidth.">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
+        </MudTooltip>
+    </div>
+    <MudSelect T="ChannelMode" @bind-Value="_model.Mode" For="@(() => _model.Mode)">
+        <MudSelectItem Value="ChannelMode.Television">Television</MudSelectItem>
+        <MudSelectItem Value="ChannelMode.Radio">Radio</MudSelectItem>
+    </MudSelect>
 </MudStack>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
@@ -451,6 +464,7 @@ else
                         _model.IdleBehavior = channelViewModel.IdleBehavior;
                         _model.IsEnabled = channelViewModel.IsEnabled;
                         _model.ShowInEpg = channelViewModel.ShowInEpg;
+                        _model.Mode = channelViewModel.Mode;
                     },
                     () => NavigationManager.NavigateTo("404"));
             }

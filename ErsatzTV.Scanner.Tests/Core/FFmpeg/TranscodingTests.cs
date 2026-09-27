@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -413,14 +413,15 @@ public class TranscodingTests
             false,
             StreamInputKind.Vod,
             FillerKind.None,
-            TimeSpan.Zero,
-            DateTimeOffset.Now,
-            TimeSpan.Zero,
-            None,
-            Option<string>.None,
-            _ => { },
-            canProxy: false,
-            CancellationToken.None);
+            inPoint: TimeSpan.Zero,
+            channelStartTime: DateTimeOffset.UtcNow,
+            mediaSkips: null,
+            ptsOffset: TimeSpan.Zero,
+            targetFramerate: Option<FrameRate>.None,
+            customReportsFolder: Option<string>.None,
+            pipelineAction: null,
+            canProxy: true,
+            cancellationToken: CancellationToken.None);
 
         // Console.WriteLine($"ffmpeg arguments {process.Arguments}");
 
@@ -752,12 +753,13 @@ public class TranscodingTests
             FillerKind.None,
             TimeSpan.Zero,
             DateTimeOffset.Now,
+            mediaSkips: null,
             TimeSpan.Zero,
             None,
             Option<string>.None,
             PipelineAction,
             canProxy: false,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         // Console.WriteLine($"ffmpeg arguments {string.Join(" ", process.StartInfo.ArgumentList)}");
 

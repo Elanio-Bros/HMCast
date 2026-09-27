@@ -1,4 +1,4 @@
-﻿@page "/playouts/{Id:int}/templates"
+@page "/playouts/{Id:int}/templates"
 @using System.Globalization
 @using System.Text
 @using ErsatzTV.Application.Channels
@@ -255,6 +255,12 @@
                         }
                     </MudSelect>
                 </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Specific Dates</MudText>
+                    </div>
+                    <MudTextField T="string" Value="@GetSpecificDatesString(_selectedItem)" ValueChanged="@(s => SetSpecificDatesString(_selectedItem, s))" HelperText="Comma-separated dates (e.g. 2026-12-25, 2027-01-01). Overrides all other date rules." />
+                </MudStack>
             }
             else
             {
@@ -343,7 +349,8 @@
             StartYear = item.StartYear,
             EndMonth = item.EndMonth,
             EndDay = item.EndDay,
-            EndYear = item.EndYear
+            EndYear = item.EndYear,
+            SpecificDates = item.SpecificDates.ToList()
         };
 
     private async Task UpdateTemplateGroupItems(TemplateGroupViewModel templateGroup)
@@ -407,7 +414,8 @@
             Index = _items.Map(i => i.Index).DefaultIfEmpty().Max() + 1,
             DaysOfWeek = AlternateScheduleSelector.AllDaysOfWeek(),
             DaysOfMonth = AlternateScheduleSelector.AllDaysOfMonth(),
-            MonthsOfYear = AlternateScheduleSelector.AllMonthsOfYear()
+            MonthsOfYear = AlternateScheduleSelector.AllMonthsOfYear(),
+            SpecificDates = new List<DateTimeOffset>()
         };
 
         _items.Add(item);
@@ -456,7 +464,8 @@
             item.StartYear,
             item.EndMonth,
             item.EndDay,
-            item.EndYear)).ToList();
+            item.EndYear,
+            item.SpecificDates)).ToList();
 
         Option<BaseError> maybeError = await Mediator.Send(new ReplacePlayoutTemplateItems(Id, items), _cts.Token);
 
@@ -596,6 +605,24 @@
     {
         _selectedItem.MonthsOfYear.Clear();
         _selectedItem.MonthsOfYear.AddRange(selectedMonths);
+    }
+
+    private string GetSpecificDatesString(PlayoutTemplateEditViewModel item) =>
+        item == null ? string.Empty : string.Join(", ", item.SpecificDates.Select(d => d.ToString("yyyy-MM-dd")));
+
+    private void SetSpecificDatesString(PlayoutTemplateEditViewModel item, string value)
+    {
+        if (item == null) return;
+        item.SpecificDates.Clear();
+        if (string.IsNullOrWhiteSpace(value)) return;
+        
+        foreach (var d in value.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (DateTimeOffset.TryParse(d, out var dto))
+            {
+                item.SpecificDates.Add(dto);
+            }
+        }
     }
 
 }

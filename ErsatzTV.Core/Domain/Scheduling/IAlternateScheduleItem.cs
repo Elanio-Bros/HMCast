@@ -13,4 +13,5 @@ public interface IAlternateScheduleItem
     int EndMonth { get; }
     int EndDay { get; }
     int? EndYear { get; }
+    ICollection<DateTimeOffset> SpecificDates { get; }
 }

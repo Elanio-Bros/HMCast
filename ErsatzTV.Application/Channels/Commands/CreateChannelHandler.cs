@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using ErsatzTV.Core;
@@ -101,7 +101,8 @@ public class CreateChannelHandler(
                 TranscodeMode = request.TranscodeMode,
                 IdleBehavior = request.IdleBehavior,
                 IsEnabled = request.IsEnabled,
-                ShowInEpg = request.IsEnabled && request.ShowInEpg
+                ShowInEpg = request.IsEnabled && request.ShowInEpg,
+                Mode = request.Mode
             };
 
             if (channel.PlayoutSource is ChannelPlayoutSource.Mirror)

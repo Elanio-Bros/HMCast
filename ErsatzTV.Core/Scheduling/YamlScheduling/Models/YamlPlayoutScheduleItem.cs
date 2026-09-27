@@ -52,6 +52,9 @@ public class YamlPlayoutScheduleItem : IAlternateScheduleItem
     [YamlIgnore]
     public int? EndYear => Range.EndYear;
 
+    [YamlIgnore]
+    public ICollection<DateTimeOffset> SpecificDates => [];
+
     private NormalizedRange Range => NormalizedRange.From(StartDate, EndDate);
 
     private readonly record struct NormalizedRange(

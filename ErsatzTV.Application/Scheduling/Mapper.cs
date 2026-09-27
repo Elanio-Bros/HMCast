@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Application.Tree;
+using ErsatzTV.Application.Tree;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Scheduling;
 
@@ -198,7 +198,8 @@ internal static class Mapper
             playoutTemplate.StartYear,
             playoutTemplate.EndMonth,
             playoutTemplate.EndDay,
-            playoutTemplate.EndYear);
+            playoutTemplate.EndYear,
+            playoutTemplate.SpecificDates);
 
     internal static PlayoutItemPreviewViewModel ProjectToViewModel(PlayoutItem playoutItem) =>
         new(

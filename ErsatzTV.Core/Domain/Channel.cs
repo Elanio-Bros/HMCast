@@ -43,6 +43,7 @@ public class Channel
     public TimeSpan? PlayoutOffset { get; set; }
     public ChannelTranscodeMode TranscodeMode { get; set; }
     public ChannelIdleBehavior IdleBehavior { get; set; }
+    public ChannelMode Mode { get; set; }
     public bool IsEnabled { get; set; }
     public bool ShowInEpg { get; set; }
     public string WebEncodedName => WebUtility.UrlEncode(Name);

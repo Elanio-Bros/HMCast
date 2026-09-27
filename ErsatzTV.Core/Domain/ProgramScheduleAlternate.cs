@@ -20,4 +20,5 @@ public class ProgramScheduleAlternate : IAlternateScheduleItem
     public int EndMonth { get; set; }
     public int EndDay { get; set; }
     public int? EndYear { get; set; }
+    public ICollection<DateTimeOffset> SpecificDates { get; set; }
 }

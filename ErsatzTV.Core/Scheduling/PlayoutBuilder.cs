@@ -1,4 +1,4 @@
-﻿using System.IO.Abstractions;
+using System.IO.Abstractions;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.Errors;
@@ -1419,6 +1419,17 @@ public class PlayoutBuilder : IPlayoutBuilder
                 goto case PlaybackOrder.Shuffle;
 
             // fall back to shuffle when television show isn't selected
+            case PlaybackOrder.DeterministicByDay:
+                return new DeterministicByDayMediaCollectionEnumerator(
+                    await GetGroupedMediaItemsForShuffle(
+                        _mediaCollectionRepository,
+                        activeSchedule,
+                        mediaItems,
+                        collectionKey,
+                        cancellationToken),
+                    state,
+                    cancellationToken);
+
             case PlaybackOrder.MultiEpisodeShuffle:
             case PlaybackOrder.Shuffle:
                 return new ShuffledMediaCollectionEnumerator(

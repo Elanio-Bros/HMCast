@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using ErsatzTV.Application.Playouts;
@@ -73,6 +73,7 @@ public class UpdateChannelHandler(
         c.IdleBehavior = update.IdleBehavior;
         c.IsEnabled = update.IsEnabled;
         c.ShowInEpg = update.IsEnabled && update.ShowInEpg;
+        c.Mode = update.Mode;
         c.Artwork ??= [];
 
         if (!string.IsNullOrWhiteSpace(update.Logo?.Path))

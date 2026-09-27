@@ -18,5 +18,8 @@ public class ProgramScheduleAlternateConfiguration : IEntityTypeConfiguration<Pr
 
         builder.Property(t => t.DaysOfWeek)
             .HasConversion<EnumCollectionJsonValueConverter<DayOfWeek>, CollectionValueComparer<DayOfWeek>>();
+
+        builder.Property(t => t.SpecificDates)
+            .HasConversion<DateTimeOffsetCollectionValueConverter, CollectionValueComparer<DateTimeOffset>>();
     }
 }

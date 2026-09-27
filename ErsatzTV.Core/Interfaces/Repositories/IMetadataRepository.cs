@@ -53,4 +53,5 @@ public interface IMetadataRepository
         SidecarSubtitleIdentity sidecarIdentity,
         CancellationToken cancellationToken);
     Task<bool> UpdateChapters(MediaVersion version, List<MediaChapter> chapters, CancellationToken cancellationToken);
+    Task<bool> UpdateMediaSkips(MediaItem mediaItem, List<MediaSkip> skips, MediaSkipSource source, CancellationToken cancellationToken);
 }

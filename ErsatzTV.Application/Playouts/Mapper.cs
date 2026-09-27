@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Scheduling;
 
 namespace ErsatzTV.Application.Playouts;
@@ -41,7 +41,8 @@ internal static class Mapper
             programScheduleAlternate.StartYear,
             programScheduleAlternate.EndMonth,
             programScheduleAlternate.EndDay,
-            programScheduleAlternate.EndYear);
+            programScheduleAlternate.EndYear,
+            programScheduleAlternate.SpecificDates);
 
     internal static PlayoutHistoryViewModel ProjectToViewModel(PlayoutHistory playoutHistory) =>
         new(

@@ -1,4 +1,4 @@
-﻿@page "/blocks/{Id:int}"
+@page "/blocks/{Id:int}"
 @using ErsatzTV.Application.Graphics
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
@@ -87,6 +87,7 @@
                For="@(() => _block.StopScheduling)">
         <MudSelectItem Value="BlockStopScheduling.BeforeDurationEnd">Before Duration End</MudSelectItem>
         <MudSelectItem Value="BlockStopScheduling.AfterDurationEnd">After Duration End</MudSelectItem>
+        <MudSelectItem Value="BlockStopScheduling.JumpToLastItem">Jump To Last Item (Skip intermediate)</MudSelectItem>
     </MudSelect>
 </MudStack>
 <MudText Typo="Typo.h5" Class="mt-10 mb-2">Block Items</MudText>
