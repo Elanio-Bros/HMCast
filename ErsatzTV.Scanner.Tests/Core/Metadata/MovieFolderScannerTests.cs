@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.FFmpeg;
@@ -1036,6 +1036,8 @@ public class MovieFolderScannerTests
                 _localStatisticsProvider,
                 Substitute.For<ILocalSubtitlesProvider>(),
                 Substitute.For<ILocalChaptersProvider>(),
+                Substitute.For<IEDLEnricher>(),
+                Substitute.For<INFOSkipEnricher>(),
                 _localMetadataProvider,
                 Substitute.For<IMetadataRepository>(),
                 _imageCache,
@@ -1063,6 +1065,8 @@ public class MovieFolderScannerTests
                 _localStatisticsProvider,
                 Substitute.For<ILocalSubtitlesProvider>(),
                 Substitute.For<ILocalChaptersProvider>(),
+                Substitute.For<IEDLEnricher>(),
+                Substitute.For<INFOSkipEnricher>(),
                 _localMetadataProvider,
                 Substitute.For<IMetadataRepository>(),
                 _imageCache,

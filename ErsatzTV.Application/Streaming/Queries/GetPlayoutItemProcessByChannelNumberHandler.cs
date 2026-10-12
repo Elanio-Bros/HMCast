@@ -178,6 +178,8 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
             .ThenInclude(mv => mv.Streams)
             .Include(i => i.MediaItem)
             .ThenInclude(mi => (mi as RemoteStream).RemoteStreamMetadata)
+            .Include(i => i.MediaItem)
+            .ThenInclude(mi => mi.MediaSkips)
             .Include(i => i.Watermarks)
             .ForChannelAndTime(channel.MirrorSourceChannelId ?? channel.Id, now)
             .Map(o => o.ToEither<BaseError>(new UnableToLocatePlayoutItem()))
@@ -380,6 +382,14 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 duration);
 
             PlayoutItem currentPlayoutItem = playoutItemWithPath.PlayoutItem;
+
+            // HMCast 3.0: Garante carregamento dos MediaSkips se não vierem na query inicial
+            if (currentPlayoutItem.MediaItem != null && currentPlayoutItem.MediaItem.MediaSkips == null)
+            {
+                currentPlayoutItem.MediaItem.MediaSkips = await dbContext.MediaSkips
+                    .Where(ms => ms.MediaItemId == currentPlayoutItem.MediaItemId)
+                    .ToListAsync(cancellationToken);
+            }
 
             // HMCast 3.0: só busca contexto de itens adjacentes se o item atual tiver MediaSkips configurados.
             // Evita 2 queries desnecessárias ao banco para itens sem cortes definidos.
