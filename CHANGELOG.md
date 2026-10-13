@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [26.11.2] - 2026-10-13
 ### Changed
 - Graphics engine: decode image and watermark elements with SkiaSharp instead of ImageSharp
   - TIFF, TGA, PBM and QOI images are no longer supported
@@ -3632,7 +3634,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial release to facilitate testing outside of Docker.
 
 
-[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.1...HEAD
+[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.2...HEAD
+[26.11.2]: https://github.com/ErsatzTV/legacy/compare/v26.11.1...v26.11.2
 [26.11.1]: https://github.com/ErsatzTV/legacy/compare/v26.11.0...v26.11.1
 [26.11.0]: https://github.com/ErsatzTV/legacy/compare/v26.10.0...v26.11.0
 [26.10.0]: https://github.com/ErsatzTV/legacy/compare/v26.9.0...v26.10.0
