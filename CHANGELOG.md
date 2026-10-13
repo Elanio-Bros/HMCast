@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [26.11.3] - 2026-10-13
 ### Changed
 - MPEG-TS streams send their first 6 seconds immediately instead of in real time
   - This lets clients like Plex fill their buffer and start playback sooner
@@ -3645,7 +3647,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial release to facilitate testing outside of Docker.
 
 
-[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.2...HEAD
+[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.3...HEAD
+[26.11.3]: https://github.com/ErsatzTV/legacy/compare/v26.11.2...v26.11.3
 [26.11.2]: https://github.com/ErsatzTV/legacy/compare/v26.11.1...v26.11.2
 [26.11.1]: https://github.com/ErsatzTV/legacy/compare/v26.11.0...v26.11.1
 [26.11.0]: https://github.com/ErsatzTV/legacy/compare/v26.10.0...v26.11.0
