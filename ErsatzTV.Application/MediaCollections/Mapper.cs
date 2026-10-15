@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Application.Tree;
+using ErsatzTV.Application.Tree;
 using ErsatzTV.Core.Api.SmartCollections;
 using ErsatzTV.Core.Domain;
 
@@ -12,7 +12,8 @@ internal static class Mapper
             collection.Id,
             collection.Name,
             collection.UseCustomPlaybackOrder,
-            MediaItemState.Normal);
+            MediaItemState.Normal,
+            collection.CollectionItems?.Count ?? collection.MediaItems?.Count ?? 0);
 
     internal static MultiCollectionViewModel ProjectToViewModel(MultiCollection multiCollection) =>
         new(

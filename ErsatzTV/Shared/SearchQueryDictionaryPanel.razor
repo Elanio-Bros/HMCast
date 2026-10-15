@@ -1,0 +1,245 @@
+@namespace ErsatzTV.Shared
+
+<style>
+    .term-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--mud-palette-lines-default);
+        transition: all 0.15s ease-in-out;
+        cursor: pointer;
+        user-select: none;
+        overflow: hidden;
+    }
+
+    .term-card:hover {
+        border-color: var(--mud-palette-primary) !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .term-card:active {
+        transform: translateY(0);
+    }
+</style>
+
+<div class="d-flex flex-column" style="width: 100%; min-width: 0; overflow-x: hidden;">
+    <!-- HEADER -->
+    <div class="d-flex align-center justify-space-between pb-2 mb-1 flex-shrink-0">
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.MenuBook" Color="Color.Primary" Size="Size.Medium" />
+            <div>
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Lucene Query Dictionary</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Click any block or operator to append it to your query.</MudText>
+            </div>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="OnClose" aria-label="Close Dictionary" />
+    </div>
+
+    <!-- SEARCH FILTER INSIDE DICTIONARY -->
+    <div class="flex-shrink-0">
+        <MudTextField @bind-Value="_filter"
+                      Placeholder="Filter dictionary terms (e.g. network, minutes, genre, actor)..."
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true"
+                      Immediate="true"
+                      Class="mb-3" />
+    </div>
+
+    <!-- SCROLLABLE CONTENT -->
+    <div style="overflow-y: auto; overflow-x: hidden; max-height: 460px; min-height: 260px; padding-right: 6px;">
+        
+        <!-- LOGICAL OPERATORS -->
+        @if (MatchesFilter("Logical Operators AND OR NOT () quotes wildcard"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    ⚡ Logical Operators
+                </MudText>
+                <div class="d-flex flex-wrap gap-2 mb-1">
+                    <MudChip T="string" Size="Size.Medium" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => Select("AND"))" Style="cursor: pointer;">AND</MudChip>
+                    <MudChip T="string" Size="Size.Medium" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => Select("OR"))" Style="cursor: pointer;">OR</MudChip>
+                    <MudChip T="string" Size="Size.Medium" Color="Color.Error" Variant="Variant.Filled" OnClick="@(() => Select("NOT"))" Style="cursor: pointer;">NOT</MudChip>
+                    <MudChip T="string" Size="Size.Medium" Color="Color.Dark" Variant="Variant.Outlined" OnClick="@(() => Select("( )"))" Style="cursor: pointer;">( )</MudChip>
+                    <MudChip T="string" Size="Size.Medium" Color="Color.Dark" Variant="Variant.Outlined" OnClick="@(() => Select("\"\""))" Style="cursor: pointer;">" "</MudChip>
+                    <MudChip T="string" Size="Size.Medium" Color="Color.Dark" Variant="Variant.Outlined" OnClick="@(() => Select("*"))" Style="cursor: pointer;">* (wildcard)</MudChip>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    * Operators AND/OR/NOT must be uppercase. Terms with spaces require quotes (e.g. studio:"Warner Bros.").
+                </MudText>
+            </div>
+            <MudDivider Class="my-3" />
+        }
+
+        <!-- MEDIA TYPES -->
+        @if (MatchesFilter("Media Types type movie show episode season artist music_video other_video song image remote_stream"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    🎬 Media Types (type:)
+                </MudText>
+                <div class="d-flex flex-wrap gap-2">
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:movie"))" Style="cursor: pointer;">type:movie</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:show"))" Style="cursor: pointer;">type:show</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:season"))" Style="cursor: pointer;">type:season</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:episode"))" Style="cursor: pointer;">type:episode</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:artist"))" Style="cursor: pointer;">type:artist</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:music_video"))" Style="cursor: pointer;">type:music_video</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:other_video"))" Style="cursor: pointer;">type:other_video</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:song"))" Style="cursor: pointer;">type:song</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:image"))" Style="cursor: pointer;">type:image</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="@(() => Select("type:remote_stream"))" Style="cursor: pointer;">type:remote_stream</MudChip>
+                </div>
+            </div>
+            <MudDivider Class="my-3" />
+        }
+
+        <!-- METADATA & CONTENT (GRID) -->
+        @if (MatchesFilter("Metadata Content genre tag title plot country content_rating show_title show_genre show_tag show_content_rating"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    🏷️ Metadata & Content
+                </MudText>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;">
+                    @RenderTermCard("genre:", "Media genre", "genre:Comedy")
+                    @RenderTermCard("tag:", "Assigned media tag", "tag:halloween")
+                    @RenderTermCard("title:", "Media or episode title", "title:Matrix")
+                    @RenderTermCard("plot:", "Synopsis / plot search", "plot:space")
+                    @RenderTermCard("country:", "Country of origin", "country:USA")
+                    @RenderTermCard("content_rating:", "Content / age rating", "content_rating:PG-13")
+                    @RenderTermCard("show_title:", "Parent show title", "show_title:\"Breaking Bad\"")
+                    @RenderTermCard("show_genre:", "Parent show genre", "show_genre:Animation")
+                    @RenderTermCard("show_tag:", "Parent show tag", "show_tag:anime")
+                    @RenderTermCard("show_content_rating:", "Parent show rating", "show_content_rating:TV-14")
+                </div>
+            </div>
+            <MudDivider Class="my-3" />
+        }
+
+        <!-- PRODUCTION & CAST (GRID) -->
+        @if (MatchesFilter("Production Cast People studio network show_studio show_network director writer actor artist album album_artist"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    🏢 Production & Cast
+                </MudText>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;">
+                    @RenderTermCard("studio:", "Production studio", "studio:\"Warner Bros.\"")
+                    @RenderTermCard("network:", "Broadcast network", "network:HBO")
+                    @RenderTermCard("show_studio:", "Parent show studio", "show_studio:\"Hanna-Barbera\"")
+                    @RenderTermCard("show_network:", "Parent show network", "show_network:Nickelodeon")
+                    @RenderTermCard("director:", "Director name", "director:\"Steven Spielberg\"")
+                    @RenderTermCard("writer:", "Writer / Screenplay", "writer:\"Quentin Tarantino\"")
+                    @RenderTermCard("actor:", "Cast member / actor", "actor:\"Tom Hanks\"")
+                    @RenderTermCard("artist:", "Musical artist", "artist:\"Queen\"")
+                    @RenderTermCard("album:", "Music album title", "album:\"Thriller\"")
+                </div>
+            </div>
+            <MudDivider Class="my-3" />
+        }
+
+        <!-- DATES & DURATIONS & NUMBERS (GRID) -->
+        @if (MatchesFilter("Dates Durations Numbers release_date added_date minutes seconds season_number episode_number"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    ⏱️ Dates & Durations
+                </MudText>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;">
+                    @RenderTermCard("release_date:", "Release date or year", "release_date:1999")
+                    @RenderTermCard("added_date:", "Date added to library", "added_date:>20230101")
+                    @RenderTermCard("minutes:", "Duration in minutes", "minutes:>90")
+                    @RenderTermCard("season_number:", "Season number", "season_number:1")
+                    @RenderTermCard("episode_number:", "Episode number", "episode_number:1")
+                </div>
+            </div>
+            <MudDivider Class="my-3" />
+        }
+
+        <!-- TECHNICAL AUDIO & VIDEO (GRID) -->
+        @if (MatchesFilter("Technical Audio Video language sub_language video_codec video_dynamic_range height width"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    🎧 Audio & Video Technical
+                </MudText>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;">
+                    @RenderTermCard("language:", "Audio language code", "language:eng")
+                    @RenderTermCard("sub_language:", "Subtitle language code", "sub_language:eng")
+                    @RenderTermCard("video_codec:", "Video codec format", "video_codec:h264")
+                    @RenderTermCard("video_dynamic_range:", "Dynamic range (SDR/HDR)", "video_dynamic_range:HDR10")
+                    @RenderTermCard("height:", "Pixel height resolution", "height:1080")
+                </div>
+            </div>
+            <MudDivider Class="my-3" />
+        }
+
+        <!-- COLLECTIONS & LIBRARIES (GRID) -->
+        @if (MatchesFilter("Collections Libraries collection smart_collection library_name trakt_list"))
+        {
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-muted text-uppercase mb-2 d-block" Style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                    📁 Collections & Libraries
+                </MudText>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;">
+                    @RenderTermCard("collection:", "Items in collection", "collection:\"Marvel\"")
+                    @RenderTermCard("smart_collection:", "Nest smart collection", "smart_collection:\"90s Comedies\"")
+                    @RenderTermCard("library_name:", "Filter by library", "library_name:\"Movies\"")
+                    @RenderTermCard("trakt_list:", "Items from Trakt list", "trakt_list:\"username/list-slug\"")
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<string> OnTermSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string _filter = string.Empty;
+
+    private bool MatchesFilter(string categoryKeywords)
+    {
+        if (string.IsNullOrWhiteSpace(_filter)) return true;
+        return categoryKeywords.Contains(_filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void Select(string term)
+    {
+        OnTermSelected.InvokeAsync(term);
+    }
+
+    private RenderFragment RenderTermCard(string field, string description, string example) => __builder =>
+    {
+        if (!string.IsNullOrWhiteSpace(_filter) && 
+            !field.Contains(_filter, StringComparison.OrdinalIgnoreCase) && 
+            !description.Contains(_filter, StringComparison.OrdinalIgnoreCase) && 
+            !example.Contains(_filter, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        <div class="pa-2 rounded term-card" @onclick="@(() => Select(field))">
+            <div class="d-flex align-center justify-space-between gap-1 mb-1">
+                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Filled" 
+                         Style="pointer-events: none; font-family: monospace; font-weight: 600; font-size: 0.75rem;">
+                    @field
+                </MudChip>
+                <MudText Typo="Typo.caption" Class="font-weight-medium text-muted text-truncate" Style="text-align: right; max-width: 55%;">
+                    @description
+                </MudText>
+            </div>
+            <div title="@example">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-size: 0.72rem; font-family: monospace; display: block;" Class="pl-1 text-truncate">
+                    Ex: @example
+                </MudText>
+            </div>
+        </div>
+    };
+}

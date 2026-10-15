@@ -1,9 +1,17 @@
-﻿@page "/media/sources/local"
+@page "/media/sources"
+@page "/media/sources/local"
 @using ErsatzTV.Application.Libraries
 @implements IDisposable
 @inject IDialogService Dialog
 @inject IMediator Mediator
 @inject IEntityLocker Locker
+@inject NavigationManager NavigationManager
+
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+</style>
 
 <MudForm Style="max-height: 100%">
     <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
@@ -15,7 +23,7 @@
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
             <MudText Typo="Typo.h5" Class="mb-2">Local Libraries</MudText>
             <MudDivider Class="mb-6"/>
-            <MudTable Hover="true" Items="_libraries" Dense="true">
+            <MudTable T="LocalLibraryViewModel" Hover="true" Items="_libraries" Dense="false" Elevation="0" Outlined="true" OnRowClick="@OnRowClick" RowClass="cursor-pointer">
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">
                         <col/>
@@ -26,21 +34,28 @@
                 <HeaderContent>
                     <MudTh>Name</MudTh>
                     <MudTh>Media Kind</MudTh>
-                    <MudTh/>
+                    <MudTh Style="text-align: right;"/>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Name">@context.Name</MudTd>
-                    <MudTd DataLabel="Media Kind">@StringForMediaKind(context.MediaKind)</MudTd>
-                    <MudTd>
-                        <div style="align-items: center; display: flex;">
+                    <MudTd DataLabel="Name" Class="py-3">
+                        <MudText Typo="Typo.subtitle1">@context.Name</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Media Kind" Class="py-3">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@StringForMediaKind(context.MediaKind)</MudText>
+                    </MudTd>
+                    <MudTd Class="py-3" Style="text-align: right;" @onclick:stopPropagation="true">
+                        <div style="align-items: center; display: flex; justify-content: flex-end;">
                             <MudTooltip Text="Edit Library">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
                                                Disabled="@Locker.IsLibraryLocked(context.Id)"
                                                Href="@($"media/sources/local/{context.Id}/edit")">
                                 </MudIconButton>
                             </MudTooltip>
                             <MudTooltip Text="Delete Library">
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
                                                Disabled="@Locker.IsLibraryLocked(context.Id)"
                                                OnClick="@(() => DeleteLibrary(context))">
                                 </MudIconButton>
@@ -84,6 +99,14 @@
 
     private void LockChanged(object sender, EventArgs e) =>
         InvokeAsync(StateHasChanged);
+
+    private void OnRowClick(TableRowClickEventArgs<LocalLibraryViewModel> args)
+    {
+        if (args?.Item != null && !Locker.IsLibraryLocked(args.Item.Id))
+        {
+            NavigationManager.NavigateTo($"media/sources/local/{args.Item.Id}/edit");
+        }
+    }
 
     private async Task DeleteLibrary(LocalLibraryViewModel library)
     {

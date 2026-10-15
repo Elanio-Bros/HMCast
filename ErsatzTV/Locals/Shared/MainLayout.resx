@@ -79,7 +79,7 @@
         <value>Remote Streams</value>
     </data>
     <data name="ButtonListsManualCollections" xml:space="preserve">
-        <value>Manual Collections</value>
+        <value>Collections</value>
     </data>
     <data name="ButtonListsSmartCollections" xml:space="preserve">
         <value>Smart Collections</value>

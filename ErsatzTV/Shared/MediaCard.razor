@@ -1,4 +1,4 @@
-﻿@using ErsatzTV.Application.MediaCards
+@using ErsatzTV.Application.MediaCards
 @using ErsatzTV.Application.MediaItems
 @using static Prelude
 @inject NavigationManager NavigationManager
@@ -248,14 +248,14 @@
 
     private async Task ShowMediaInfo()
     {
-        Either<BaseError, MediaItemInfo> maybeInfo = await Mediator.Send(new GetMediaItemInfo(Data.MediaItemId));
-        foreach (MediaItemInfo info in maybeInfo.RightToSeq())
+        var parameters = new DialogParameters
         {
-            var parameters = new DialogParameters { { "MediaItemInfo", info } };
-            var options = new DialogOptions { CloseButton = true, CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-            IDialogReference dialog = await Dialog.ShowAsync<MediaItemInfoDialog>(Data.Title, parameters, options);
-            DialogResult _ = await dialog.Result;
-        }
+            { "MediaItemId", Data.MediaItemId },
+            { "InitialTitle", Data.Title }
+        };
+        var options = new DialogOptions { CloseButton = true, CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        IDialogReference dialog = await Dialog.ShowAsync<MediaItemInfoDialog>(Data.Title, parameters, options);
+        await dialog.Result;
     }
 
     private void TroubleshootPlayback() => NavigationManager.NavigateTo($"system/troubleshooting/playback?mediaItem={Data.MediaItemId}");

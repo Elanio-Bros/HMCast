@@ -1,43 +1,286 @@
-﻿@using System.Text.Json
+@using System.Text.Json
 @using System.Text.Json.Serialization
 @using ErsatzTV.Application.MediaItems
+@using ErsatzTV.Core.Domain
 @inject IJSRuntime JsRuntime
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
 
-<div>
-    <MudDialog>
-        <DialogContent>
-            <div class="overflow-y-scroll" style="max-height: 500px">
-                <pre>
-                    <code @ref="_infoView">@_info</code>
-                </pre>
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+            <MudText Typo="Typo.h6">@(!string.IsNullOrWhiteSpace(_title) ? _title : (!string.IsNullOrWhiteSpace(InitialTitle) ? InitialTitle : "Media Information"))</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex flex-column align-center justify-center py-10">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+                <MudText Typo="Typo.body2" Class="mt-3 text-muted">Loading media information...</MudText>
             </div>
-        </DialogContent>
-        <DialogActions>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => CopyToClipboard(_infoView)">
-                Copy
-            </MudButton>
-            <MudButton Color="Color.Primary" OnClick="Close">Close</MudButton>
-        </DialogActions>
-    </MudDialog>
-</div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="my-4">@_errorMessage</MudAlert>
+        }
+        else
+        {
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
+                <!-- TAB 1: EDIT METADATA -->
+                <MudTabPanel Text="Edit Metadata" Icon="@Icons.Material.Filled.Edit">
+                    <MudText Typo="Typo.subtitle2" Class="mb-3 text-muted">Direct media metadata editing in database</MudText>
+                    
+                    <MudGrid>
+                        <MudItem xs="12" sm="8">
+                            <MudTextField @bind-Value="_title" Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudNumericField @bind-Value="_year" Label="Year" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_sortTitle" Label="Sort Title" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_contentRating" Label="Content Rating" Placeholder="e.g. PG-13, TV-MA, 16" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_originalTitle" Label="Original Title" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_plot" Label="Plot / Summary" Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <div class="d-flex justify-end mt-4">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveMetadata">
+                            Save Metadata
+                        </MudButton>
+                    </div>
+                </MudTabPanel>
+
+                <!-- TAB 2: TECHNICAL DETAILS -->
+                <MudTabPanel Text="Technical Details" Icon="@Icons.Material.Filled.SettingsSystemDaydream">
+                    <!-- FILE PATH CARD -->
+                    <MudPaper Class="pa-3 my-3" Outlined="true" Style="background: rgba(255,255,255,0.03);">
+                        <div class="d-flex justify-space-between align-center mb-1">
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Small" Class="mr-2 text-muted" />
+                                <MudText Typo="Typo.caption" Class="text-muted font-weight-bold">FILE PATH</MudText>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(_path))
+                            {
+                                <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" Color="Color.Primary" OnClick="CopyPathToClipboard">
+                                    Copy Path
+                                </MudButton>
+                            }
+                        </div>
+                        <div class="overflow-x-auto pa-2" style="background: #141414; border-radius: 4px;">
+                            <code @ref="_pathView" style="color: #4ec9b0; font-family: monospace; font-size: 0.85rem; word-break: break-all;">
+                                @(!string.IsNullOrWhiteSpace(_path) ? _path : "No local file path recorded")
+                            </code>
+                        </div>
+                    </MudPaper>
+
+                    <!-- QUICK OVERVIEW BADGES -->
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        @if (MediaItemInfo?.Width > 0 && MediaItemInfo?.Height > 0)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Dark" Variant="Variant.Filled">
+                                <MudIcon Icon="@Icons.Material.Filled.AspectRatio" Size="Size.Small" Class="mr-1" />
+                                @($"{MediaItemInfo.Width}x{MediaItemInfo.Height} ({MediaItemInfo.DisplayAspectRatio ?? "16:9"})")
+                            </MudChip>
+                        }
+                        @if (MediaItemInfo?.Duration > TimeSpan.Zero)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Dark" Variant="Variant.Filled">
+                                <MudIcon Icon="@Icons.Material.Filled.Timer" Size="Size.Small" Class="mr-1" />
+                                @MediaItemInfo.Duration.ToString(@"hh\:mm\:ss")
+                            </MudChip>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(MediaItemInfo?.RFrameRate))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Dark" Variant="Variant.Filled">
+                                <MudIcon Icon="@Icons.Material.Filled.Speed" Size="Size.Small" Class="mr-1" />
+                                @($"{MediaItemInfo.RFrameRate} fps ({MediaItemInfo.VideoScanKind})")
+                            </MudChip>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(MediaItemInfo?.LibraryName))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Dark" Variant="Variant.Filled">
+                                <MudIcon Icon="@Icons.Material.Filled.VideoLibrary" Size="Size.Small" Class="mr-1" />
+                                @($"{MediaItemInfo.LibraryName} ({MediaItemInfo.Kind})")
+                            </MudChip>
+                        }
+                    </div>
+
+                    <!-- STREAMS SECTION -->
+                    @if (MediaItemInfo?.Streams?.Any() == true)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Streams</MudText>
+                        <MudTable Items="MediaItemInfo.Streams" Dense="true" Hover="true" Elevation="0" Class="mb-4" Outlined="true">
+                            <HeaderContent>
+                                <MudTh>#</MudTh>
+                                <MudTh>Kind</MudTh>
+                                <MudTh>Codec</MudTh>
+                                <MudTh>Details</MudTh>
+                                <MudTh>Language</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@(context.Index.HasValue ? context.Index.Value.ToString() : "-")</MudTd>
+                                <MudTd>
+                                    @switch (context.Kind)
+                                    {
+                                        case MediaStreamKind.Video:
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">Video</MudChip>
+                                            break;
+                                        case MediaStreamKind.Audio:
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Audio</MudChip>
+                                            break;
+                                        case MediaStreamKind.Subtitle:
+                                        case MediaStreamKind.ExternalSubtitle:
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Subtitle</MudChip>
+                                            break;
+                                        default:
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text">@context.Kind</MudChip>
+                                            break;
+                                    }
+                                </MudTd>
+                                <MudTd><strong>@context.Codec</strong> @(!string.IsNullOrWhiteSpace(context.Profile) ? $"({context.Profile})" : "")</MudTd>
+                                <MudTd>
+                                    @if (context.Kind == MediaStreamKind.Audio)
+                                    {
+                                        @($"{context.Channels ?? 2} Channels")
+                                    }
+                                    else if (context.Kind == MediaStreamKind.Video)
+                                    {
+                                        @($"{context.PixelFormat} {(!string.IsNullOrWhiteSpace(context.ColorPrimaries) ? $"| {context.ColorPrimaries}" : "")}")
+                                        @if (context.HasHdr10Metadata == true)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Class="ml-1">HDR10</MudChip>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @(context.FileName ?? context.Title ?? "-")
+                                    }
+                                </MudTd>
+                                <MudTd>@(string.IsNullOrWhiteSpace(context.Language) ? "-" : context.Language)</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+
+                    <!-- CHAPTERS SECTION -->
+                    @if (MediaItemInfo?.Chapters?.Any() == true)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Chapters (@MediaItemInfo.Chapters.Count)</MudText>
+                        <MudTable Items="MediaItemInfo.Chapters" Dense="true" Hover="true" Elevation="0" Class="mb-4" Outlined="true">
+                            <HeaderContent>
+                                <MudTh>Title</MudTh>
+                                <MudTh>Start</MudTh>
+                                <MudTh>End</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Title</MudTd>
+                                <MudTd>@context.StartTime.ToString(@"hh\:mm\:ss")</MudTd>
+                                <MudTd>@context.EndTime.ToString(@"hh\:mm\:ss")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+
+                    <!-- RAW JSON EXPANSION -->
+                    <MudExpansionPanels Elevation="0" Class="mt-2">
+                        <MudExpansionPanel Text="Raw JSON Output" Icon="@Icons.Material.Filled.Code">
+                            <div class="d-flex justify-end mb-2">
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" Color="Color.Primary" OnClick="() => CopyToClipboard(_infoView)">
+                                    Copy JSON
+                                </MudButton>
+                            </div>
+                            <div class="overflow-y-scroll" style="max-height: 300px; background: #141414; padding: 12px; border-radius: 4px;">
+                                <pre style="margin: 0; color: #dcdcdc; font-family: monospace; font-size: 0.85rem;">
+                                    <code @ref="_infoView">@_info</code>
+                                </pre>
+                            </div>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
-
     [CascadingParameter]
     IMudDialogInstance MudDialog { get; set; }
 
     [Parameter]
+    public int MediaItemId { get; set; }
+
+    [Parameter]
+    public string InitialTitle { get; set; }
+
+    [Parameter]
     public MediaItemInfo MediaItemInfo { get; set; }
+
+    private bool _loading;
+    private string _errorMessage;
 
     private string _info;
     private ElementReference _infoView;
+    private ElementReference _pathView;
 
-    protected override Task OnParametersSetAsync()
+    private string _title;
+    private string _sortTitle;
+    private string _originalTitle;
+    private int? _year;
+    private string _contentRating;
+    private string _plot;
+    private string _path;
+
+    protected override async Task OnInitializedAsync()
     {
+        if (MediaItemInfo == null && MediaItemId > 0)
+        {
+            _loading = true;
+            var result = await Mediator.Send(new GetMediaItemInfo(MediaItemId));
+            result.Match(
+                info =>
+                {
+                    MediaItemInfo = info;
+                    PopulateFields(info);
+                },
+                error =>
+                {
+                    _errorMessage = error.Value;
+                });
+            _loading = false;
+        }
+        else if (MediaItemInfo != null)
+        {
+            PopulateFields(MediaItemInfo);
+        }
+    }
+
+    private void PopulateFields(MediaItemInfo info)
+    {
+        if (info == null) return;
+
+        _title = info.Title ?? "";
+        _sortTitle = info.SortTitle ?? "";
+        _originalTitle = info.OriginalTitle ?? "";
+        _year = info.Year;
+        _contentRating = info.ContentRating ?? "";
+        _plot = info.Plot ?? "";
+        _path = info.Path ?? "";
+
         try
         {
             _info = JsonSerializer.Serialize(
-                MediaItemInfo,
+                info,
                 new JsonSerializerOptions
                 {
                     Converters = { new JsonStringEnumConverter() },
@@ -49,11 +292,47 @@
         {
             _info = ex.ToString();
         }
-
-        return Task.CompletedTask;
     }
 
-    private async Task CopyToClipboard(ElementReference view) => await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", view);
+    private async Task SaveMetadata()
+    {
+        var id = MediaItemInfo?.Id ?? MediaItemId;
+        if (id <= 0) return;
+
+        var command = new UpdateMediaItemBasicMetadata(
+            id,
+            _title,
+            _sortTitle,
+            _originalTitle,
+            _year,
+            _contentRating,
+            _plot);
+
+        var result = await Mediator.Send(command);
+        result.Match(
+            Left: error =>
+            {
+                Snackbar.Add($"Error updating metadata: {error.Value}", Severity.Error);
+                return LanguageExt.Unit.Default;
+            },
+            Right: _ =>
+            {
+                Snackbar.Add("Metadata updated successfully!", Severity.Success);
+                return LanguageExt.Unit.Default;
+            });
+    }
+
+    private async Task CopyPathToClipboard()
+    {
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", _pathView);
+        Snackbar.Add("File path copied to clipboard", Severity.Info);
+    }
+
+    private async Task CopyToClipboard(ElementReference view)
+    {
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", view);
+        Snackbar.Add("JSON copied to clipboard", Severity.Info);
+    }
 
     private void Close() => MudDialog.Close(DialogResult.Ok(true));
 }

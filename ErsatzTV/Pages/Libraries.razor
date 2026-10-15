@@ -1,9 +1,10 @@
-﻿@page "/media/libraries"
+@page "/media/libraries"
 @using ErsatzTV.Application.Emby
 @using ErsatzTV.Application.Jellyfin
 @using ErsatzTV.Application.Libraries
 @using ErsatzTV.Application.MediaSources
 @using ErsatzTV.Application.Plex
+@using ErsatzTV.Core.Domain
 @using ErsatzTV.Core.Interfaces.Metadata
 @using ErsatzTV.Core.Metadata
 @using MediatR.Courier
@@ -14,13 +15,38 @@
 @inject ChannelWriter<IScannerBackgroundServiceRequest> ScannerWorkerChannel
 @inject ICourier Courier
 @inject IScannerProxyService ScannerProxyService
+@inject NavigationManager NavigationManager
 
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Libraries</MudText>
-            <MudDivider Class="mb-6"/>
-            <MudTable Hover="true" Items="_libraries" Dense="true" Class="mb-5">
+            <MudText Typo="Typo.h5" Class="mb-2">Libraries & Media</MudText>
+            
+            <MudPaper Class="pa-4 mb-6" Elevation="1">
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="string" Label="Library Kind" @bind-Value="_filterLibraryKind" Clearable="true">
+                            @foreach (var kind in _allLibraries.Select(x => x.Library.LibraryKind).Distinct().OrderBy(x => x))
+                            {
+                                <MudSelectItem Value="@kind">@kind</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="LibraryMediaKind?" Label="Media Kind" @bind-Value="_filterMediaKind" Clearable="true">
+                            @foreach (var kind in _allLibraries.Select(x => x.Library.MediaKind).Distinct().OrderBy(x => x.ToString()))
+                            {
+                                <MudSelectItem Value="@((LibraryMediaKind?)kind)">@kind.ToString()</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField T="string" Label="Library Name (Search)" @bind-Value="_filterLibraryName" Clearable="true" Immediate="true" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudTable Hover="true" Items="_filteredLibraries" Dense="true" Class="mb-5" OnRowClick="RowClicked" T="UnifiedLibrary" Style="cursor: pointer;">
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">
                         <col/>
@@ -44,14 +70,14 @@
                     <MudTh/>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Library Kind">@context.LibraryKind</MudTd>
+                    <MudTd DataLabel="Library Kind">@context.Library.LibraryKind @(context.IsExternalCollection ? " (Collection)" : "")</MudTd>
                     @if (_showServerNames)
                     {
-                        <MudTd DataLabel="Server Name">@context.MediaSourceName</MudTd>
+                        <MudTd DataLabel="Server Name">@context.Library.MediaSourceName</MudTd>
                     }
-                    <MudTd DataLabel="Library Name">@context.Name</MudTd>
+                    <MudTd DataLabel="Library Name">@context.Library.Name</MudTd>
                     <MudTd DataLabel="Media Kind">
-                        @switch (context.MediaKind)
+                        @switch (context.Library.MediaKind)
                         {
                             case LibraryMediaKind.MusicVideos:
                                 @:Music Videos
@@ -63,19 +89,19 @@
                                 @:Remote Streams
                                 break;
                             default:
-                                @(context.MediaKind)
+                                @(context.Library.MediaKind)
                                 break;
                         }
                     </MudTd>
                     <MudTd>
-                        <div style="align-items: center; display: flex;">
-                            @if (IsLibraryLocked(context.Id))
+                        <div style="align-items: center; display: flex;" @onclick:stopPropagation="true">
+                            @if (context.IsExternalCollection ? AreCollectionsLocked(context.Library.LibraryKind) : IsLibraryLocked(context.Library.Id))
                             {
                                 <div style="width: 48px">
-                                    @if (_progressByLibrary[context.Id] > 0)
+                                    @if (!context.IsExternalCollection && _progressByLibrary[context.Library.Id] > 0)
                                     {
                                         <MudText Color="Color.Primary">
-                                            @($"{_progressByLibrary[context.Id]} %")
+                                            @($"{_progressByLibrary[context.Library.Id]} %")
                                         </MudText>
                                     }
                                 </div>
@@ -85,12 +111,12 @@
                             }
                             else
                             {
-                                if (context is PlexLibraryViewModel or EmbyLibraryViewModel or JellyfinLibraryViewModel)
+                                if (context.Library is PlexLibraryViewModel or EmbyLibraryViewModel or JellyfinLibraryViewModel || context.IsExternalCollection)
                                 {
-                                    <MudTooltip Text="Deep Scan Library">
+                                    <MudTooltip Text="Deep Scan">
                                         <MudIconButton Icon="@Icons.Material.Filled.FindReplace"
-                                                       Disabled="@Locker.IsLibraryLocked(context.Id)"
-                                                       OnClick="@(_ => ScanLibrary(context, true))">
+                                                       Disabled="@(context.IsExternalCollection ? AreCollectionsLocked(context.Library.LibraryKind) : Locker.IsLibraryLocked(context.Library.Id))"
+                                                       OnClick="@(_ => context.IsExternalCollection ? ScanExternalCollections(context.Library, true) : ScanLibrary(context.Library, true))">
                                         </MudIconButton>
                                     </MudTooltip>
                                 }
@@ -99,76 +125,28 @@
                                     <div style="width: 48px"></div>
                                 }
 
-                                <MudTooltip Text="Scan Library">
+                                <MudTooltip Text="Scan">
                                     <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                                   Disabled="@Locker.IsLibraryLocked(context.Id)"
-                                                   OnClick="@(_ => ScanLibrary(context))">
+                                                   Disabled="@(context.IsExternalCollection ? AreCollectionsLocked(context.Library.LibraryKind) : Locker.IsLibraryLocked(context.Library.Id))"
+                                                   OnClick="@(_ => context.IsExternalCollection ? ScanExternalCollections(context.Library) : ScanLibrary(context.Library))">
                                     </MudIconButton>
                                 </MudTooltip>
                             }
-                            <MudTooltip Text="Search Library">
-                                <MudIconButton Icon="@Icons.Material.Filled.Search"
-                                               Href="@($"search?query=library_id%3a{context.Id}")">
-                                </MudIconButton>
-                            </MudTooltip>
+                            @if (!context.IsExternalCollection)
+                            {
+                                <MudTooltip Text="View Library contents">
+                                    <MudIconButton Icon="@Icons.Material.Filled.FolderOpen"
+                                                   Href="@($"media/libraries/{context.Library.Id}")">
+                                    </MudIconButton>
+                                </MudTooltip>
+                            }
                         </div>
                     </MudTd>
                 </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
             </MudTable>
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">External Collections</MudText>
-            <MudDivider Class="mb-6"/>
-            @if (_externalCollections.Any())
-            {
-                <MudTable Hover="true" Items="_externalCollections" Dense="true">
-                    <ColGroup>
-                        <MudHidden Breakpoint="Breakpoint.Xs">
-                            <col/>
-                            <col style="width: 180px;"/>
-                        </MudHidden>
-                    </ColGroup>
-                    <HeaderContent>
-                        <MudTh>Library Kind</MudTh>
-                        <MudTh/>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.LibraryKind</MudTd>
-                        <MudTd>
-                            <div style="align-items: center; display: flex;">
-                                <div style="width: 48px"></div>
-                                @if (AreCollectionsLocked(context.LibraryKind))
-                                {
-                                    <div style="align-items: center; display: flex; height: 48px; justify-content: center; width: 48px;">
-                                        <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true"/>
-                                    </div>
-                                }
-                                else
-                                {
-                                    if (context.LibraryKind is "Plex" or "Emby" or "Jellyfin")
-                                    {
-                                        <MudTooltip Text="Deep Scan Collections">
-                                            <MudIconButton Icon="@Icons.Material.Filled.FindReplace"
-                                                           Disabled="@AreCollectionsLocked(context.LibraryKind)"
-                                                           OnClick="@(_ => ScanExternalCollections(context, true))">
-                                            </MudIconButton>
-                                        </MudTooltip>
-                                    }
-                                    else
-                                    {
-                                        <div style="width: 48px"></div>
-                                    }
-                                    <MudTooltip Text="Scan Collections">
-                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                                       Disabled="@AreCollectionsLocked(context.LibraryKind)"
-                                                       OnClick="@(_ => ScanExternalCollections(context))">
-                                        </MudIconButton>
-                                    </MudTooltip>
-                                }
-                                <div style="width: 48px"></div>
-                            </div>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            }
         </MudContainer>
     </div>
 </MudForm>
@@ -176,10 +154,21 @@
 @code {
     private CancellationTokenSource _cts;
 
-    private IList<LibraryViewModel> _libraries = new List<LibraryViewModel>();
-    private IList<LibraryViewModel> _externalCollections = new List<LibraryViewModel>();
+    private record UnifiedLibrary(LibraryViewModel Library, bool IsExternalCollection);
+
+    private IList<UnifiedLibrary> _allLibraries = new List<UnifiedLibrary>();
     private Dictionary<int, int> _progressByLibrary = new();
     private bool _showServerNames;
+
+    private string _filterLibraryKind;
+    private LibraryMediaKind? _filterMediaKind;
+    private string _filterLibraryName;
+
+    private IEnumerable<UnifiedLibrary> _filteredLibraries => _allLibraries.Where(l => 
+        (string.IsNullOrWhiteSpace(_filterLibraryKind) || l.Library.LibraryKind == _filterLibraryKind) &&
+        (!_filterMediaKind.HasValue || l.Library.MediaKind == _filterMediaKind.Value) &&
+        (string.IsNullOrWhiteSpace(_filterLibraryName) || l.Library.Name.Contains(_filterLibraryName, StringComparison.OrdinalIgnoreCase))
+    );
 
     protected override void OnInitialized()
     {
@@ -199,13 +188,17 @@
 
         try
         {
-            _libraries = await Mediator.Send(new GetConfiguredLibraries(), token);
-            _showServerNames = _libraries.Any(l => l is PlexLibraryViewModel);
+            var libraries = await Mediator.Send(new GetConfiguredLibraries(), token);
+            _showServerNames = libraries.Any(l => l is PlexLibraryViewModel);
             token.ThrowIfCancellationRequested();
 
-            _externalCollections = await Mediator.Send(new GetExternalCollections(), token);
+            var externalCollections = await Mediator.Send(new GetExternalCollections(), token);
 
-            foreach (var library in _libraries)
+            _allLibraries = libraries.Select(l => new UnifiedLibrary(l, false))
+                .Concat(externalCollections.Select(c => new UnifiedLibrary(c, true)))
+                .ToList();
+
+            foreach (var library in libraries)
             {
                 decimal progress = ScannerProxyService.GetProgress(library.Id).IfNone(0);
                 _progressByLibrary[library.Id] = (int)(progress * 100);
@@ -214,6 +207,14 @@
         catch (OperationCanceledException)
         {
             // do nothing
+        }
+    }
+
+    private void RowClicked(TableRowClickEventArgs<UnifiedLibrary> args)
+    {
+        if (!args.Item.IsExternalCollection)
+        {
+            NavigationManager.NavigateTo($"media/libraries/{args.Item.Library.Id}");
         }
     }
 

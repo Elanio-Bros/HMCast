@@ -5,6 +5,10 @@ using ErsatzTV.Infrastructure.Data;
 using LanguageExt;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ErsatzTV.Application.MediaItems;
 
@@ -13,80 +17,42 @@ public class UpdateMediaSkipsHandler(IDbContextFactory<TvContext> dbContextFacto
 {
     public async Task<Either<BaseError, Unit>> Handle(UpdateMediaSkips request, CancellationToken cancellationToken)
     {
-        if (request.MediaItemIds == null || request.MediaItemIds.Count == 0)
-        {
-            return BaseError.New("At least one Media Item ID must be provided.");
-        }
-
-        if (request.IntroStart.HasValue && request.IntroEnd.HasValue && request.IntroEnd.Value <= request.IntroStart.Value)
-        {
-            return BaseError.New("IntroEnd must be greater than IntroStart.");
-        }
-
-        if (request.OutroStart.HasValue && request.OutroEnd.HasValue && request.OutroEnd.Value <= request.OutroStart.Value)
-        {
-            return BaseError.New("OutroEnd must be greater than OutroStart.");
-        }
-
-        if (request.IntroEnd.HasValue && request.OutroStart.HasValue && request.OutroStart.Value <= request.IntroEnd.Value)
-        {
-            return BaseError.New("OutroStart must be greater than IntroEnd.");
-        }
-
         await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        List<MediaItem> mediaItems = await dbContext.MediaItems
+        MediaItem mediaItem = await dbContext.MediaItems
             .Include(mi => mi.MediaSkips)
-            .Where(mi => request.MediaItemIds.Contains(mi.Id))
-            .ToListAsync(cancellationToken);
+            .FirstOrDefaultAsync(mi => mi.Id == request.MediaItemId, cancellationToken);
 
-        foreach (MediaItem mediaItem in mediaItems)
+        if (mediaItem == null)
         {
-            if (request.IntroStart.HasValue && request.IntroEnd.HasValue)
-            {
-                MediaSkip introSkip = mediaItem.MediaSkips.Find(ms => ms.Kind == MediaSkipKind.Intro);
-                if (introSkip != null)
-                {
-                    introSkip.Start = request.IntroStart.Value;
-                    introSkip.End = request.IntroEnd.Value;
-                    introSkip.Source = MediaSkipSource.Manual;
-                }
-                else
-                {
-                    introSkip = new MediaSkip
-                    {
-                        MediaItemId = mediaItem.Id,
-                        Kind = MediaSkipKind.Intro,
-                        Start = request.IntroStart.Value,
-                        End = request.IntroEnd.Value,
-                        Source = MediaSkipSource.Manual
-                    };
-                    dbContext.MediaSkips.Add(introSkip);
-                    mediaItem.MediaSkips.Add(introSkip);
-                }
-            }
+            return BaseError.New($"MediaItem with ID {request.MediaItemId} was not found.");
+        }
 
-            if (request.OutroStart.HasValue && request.OutroEnd.HasValue)
+        // Remove existing manual skips for this item
+        var existingManualSkips = mediaItem.MediaSkips.Where(s => s.Source == MediaSkipSource.Manual).ToList();
+        foreach (var skip in existingManualSkips)
+        {
+            dbContext.MediaSkips.Remove(skip);
+            mediaItem.MediaSkips.Remove(skip);
+        }
+
+        // Add new skips
+        if (request.Skips != null)
+        {
+            foreach (var item in request.Skips)
             {
-                MediaSkip outroSkip = mediaItem.MediaSkips.Find(ms => ms.Kind == MediaSkipKind.Finish);
-                if (outroSkip != null)
+                if (item.End > item.Start)
                 {
-                    outroSkip.Start = request.OutroStart.Value;
-                    outroSkip.End = request.OutroEnd.Value;
-                    outroSkip.Source = MediaSkipSource.Manual;
-                }
-                else
-                {
-                    outroSkip = new MediaSkip
+                    var newSkip = new MediaSkip
                     {
-                        MediaItemId = mediaItem.Id,
-                        Kind = MediaSkipKind.Finish,
-                        Start = request.OutroStart.Value,
-                        End = request.OutroEnd.Value,
+                        MediaItemId = request.MediaItemId,
+                        Start = item.Start,
+                        End = item.End,
+                        Kind = item.Kind,
                         Source = MediaSkipSource.Manual
                     };
-                    dbContext.MediaSkips.Add(outroSkip);
-                    mediaItem.MediaSkips.Add(outroSkip);
+                    dbContext.MediaSkips.Add(newSkip);
+                    mediaItem.MediaSkips.Add(newSkip);
                 }
             }
         }

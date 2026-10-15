@@ -25,6 +25,7 @@ public class GetMediaItemInfoHandler : IRequestHandler<GetMediaItemInfo, Either<
 
             Option<MediaItemInfo> mediaItem = await dbContext.MediaItems
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(i => i.LibraryPath)
                 .ThenInclude(lp => lp.Library)
                 .ThenInclude(l => l.MediaSource)
@@ -32,9 +33,13 @@ public class GetMediaItemInfoHandler : IRequestHandler<GetMediaItemInfo, Either<
                 .Include(i => (i as Movie).MovieMetadata)
                 .ThenInclude(mm => mm.Subtitles)
                 .Include(i => (i as Movie).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
+                .Include(i => (i as Movie).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as Movie).MediaVersions)
                 .ThenInclude(mv => mv.Streams)
+                .Include(i => (i as Episode).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
                 .Include(i => (i as Episode).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as Episode).MediaVersions)
@@ -47,11 +52,15 @@ public class GetMediaItemInfoHandler : IRequestHandler<GetMediaItemInfo, Either<
                 .Include(i => (i as OtherVideo).OtherVideoMetadata)
                 .ThenInclude(ovm => ovm.Subtitles)
                 .Include(i => (i as OtherVideo).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
+                .Include(i => (i as OtherVideo).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as OtherVideo).MediaVersions)
                 .ThenInclude(mv => mv.Streams)
                 .Include(i => (i as Image).ImageMetadata)
                 .ThenInclude(im => im.Subtitles)
+                .Include(i => (i as Image).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
                 .Include(i => (i as Image).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as Image).MediaVersions)
@@ -59,17 +68,23 @@ public class GetMediaItemInfoHandler : IRequestHandler<GetMediaItemInfo, Either<
                 .Include(i => (i as RemoteStream).RemoteStreamMetadata)
                 .ThenInclude(rsm => rsm.Subtitles)
                 .Include(i => (i as RemoteStream).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
+                .Include(i => (i as RemoteStream).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as RemoteStream).MediaVersions)
                 .ThenInclude(mv => mv.Streams)
                 .Include(i => (i as Song).SongMetadata)
                 .ThenInclude(sm => sm.Subtitles)
                 .Include(i => (i as Song).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
+                .Include(i => (i as Song).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as Song).MediaVersions)
                 .ThenInclude(mv => mv.Streams)
                 .Include(i => (i as MusicVideo).MusicVideoMetadata)
                 .ThenInclude(mvm => mvm.Subtitles)
+                .Include(i => (i as MusicVideo).MediaVersions)
+                .ThenInclude(mv => mv.MediaFiles)
                 .Include(i => (i as MusicVideo).MediaVersions)
                 .ThenInclude(mv => mv.Chapters)
                 .Include(i => (i as MusicVideo).MediaVersions)
@@ -134,6 +149,90 @@ public class GetMediaItemInfoHandler : IRequestHandler<GetMediaItemInfo, Either<
 
         var allChapters = (version.Chapters ?? []).OrderBy(c => c.StartTime).Map(Project).ToList();
 
+        string path = version.MediaFiles?.FirstOrDefault()?.Path;
+        string sortTitle = null;
+        string originalTitle = null;
+        int? year = null;
+        string contentRating = null;
+        string plot = null;
+        DateTime? dateAdded = null;
+        DateTime? dateUpdated = null;
+
+        switch (mediaItem)
+        {
+            case Movie m:
+                var mm = m.MovieMetadata?.FirstOrDefault();
+                if (mm != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(mm.Title)) displayTitle = mm.Title;
+                    sortTitle = mm.SortTitle;
+                    originalTitle = mm.OriginalTitle;
+                    year = mm.Year;
+                    contentRating = mm.ContentRating;
+                    plot = mm.Plot;
+                    dateAdded = mm.DateAdded;
+                    dateUpdated = mm.DateUpdated;
+                }
+                break;
+            case Episode e:
+                var em = e.EpisodeMetadata?.FirstOrDefault();
+                if (em != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(em.Title)) displayTitle = em.Title;
+                    sortTitle = em.SortTitle;
+                    originalTitle = em.OriginalTitle;
+                    year = em.Year;
+                    plot = em.Plot;
+                    dateAdded = em.DateAdded;
+                    dateUpdated = em.DateUpdated;
+                }
+                var sm = e.Season?.Show?.ShowMetadata?.FirstOrDefault();
+                if (sm != null)
+                {
+                    contentRating = sm.ContentRating;
+                }
+                break;
+            case OtherVideo ov:
+                var ovm = ov.OtherVideoMetadata?.FirstOrDefault();
+                if (ovm != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(ovm.Title)) displayTitle = ovm.Title;
+                    sortTitle = ovm.SortTitle;
+                    originalTitle = ovm.OriginalTitle;
+                    year = ovm.Year;
+                    contentRating = ovm.ContentRating;
+                    plot = ovm.Plot;
+                    dateAdded = ovm.DateAdded;
+                    dateUpdated = ovm.DateUpdated;
+                }
+                break;
+            case MusicVideo mv:
+                var mvm = mv.MusicVideoMetadata?.FirstOrDefault();
+                if (mvm != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(mvm.Title)) displayTitle = mvm.Title;
+                    sortTitle = mvm.SortTitle;
+                    originalTitle = mvm.OriginalTitle;
+                    year = mvm.Year;
+                    plot = mvm.Plot;
+                    dateAdded = mvm.DateAdded;
+                    dateUpdated = mvm.DateUpdated;
+                }
+                break;
+            case Song s:
+                var songm = s.SongMetadata?.FirstOrDefault();
+                if (songm != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(songm.Title)) displayTitle = songm.Title;
+                    sortTitle = songm.SortTitle;
+                    originalTitle = songm.OriginalTitle;
+                    year = songm.Year;
+                    dateAdded = songm.DateAdded;
+                    dateUpdated = songm.DateUpdated;
+                }
+                break;
+        }
+
         return new MediaItemInfo(
             mediaItem.Id,
             displayTitle,
@@ -151,7 +250,15 @@ public class GetMediaItemInfoHandler : IRequestHandler<GetMediaItemInfo, Either<
             version.Width,
             version.Height,
             allStreams,
-            allChapters);
+            allChapters,
+            path,
+            sortTitle,
+            originalTitle,
+            year,
+            contentRating,
+            plot,
+            dateAdded,
+            dateUpdated);
     }
 
     private static MediaItemInfoStream Project(MediaStream mediaStream) =>

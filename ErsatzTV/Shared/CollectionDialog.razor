@@ -1,0 +1,180 @@
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Core
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4 text-muted">
+            @(IsEdit 
+                ? "Update collection name and custom playback order settings." 
+                : "Create a new manual collection to curate specific movies, shows, and videos.")
+        </MudText>
+
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-6">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else
+        {
+            <MudTextField @bind-Value="_name"
+                          Label="Collection Name"
+                          Placeholder="e.g. Action Favorites, Holiday Specials"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          AutoFocus="true" />
+
+            <MudSwitch @bind-Value="_useCustomPlaybackOrder"
+                       Color="Color.Primary"
+                       Label="Use Custom Playback Order"
+                       Class="mt-3" />
+            <MudText Typo="Typo.caption" Class="text-muted d-block">
+                Allows custom drag-and-drop or manual ordering of items within this collection.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(string.IsNullOrWhiteSpace(_name) || _isSaving || _isLoading)" 
+                   OnClick="Save">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Save Changes" : "Create Collection")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [Parameter]
+    public string InitialName { get; set; }
+
+    [Parameter]
+    public bool InitialUseCustomOrder { get; set; }
+
+    private bool IsEdit => Id > 0;
+
+    private string _name;
+    private bool _useCustomPlaybackOrder;
+    private bool _isLoading;
+    private bool _isSaving;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsEdit)
+        {
+            if (!string.IsNullOrWhiteSpace(InitialName))
+            {
+                _name = InitialName;
+                _useCustomPlaybackOrder = InitialUseCustomOrder;
+                _isLoading = false;
+            }
+            else
+            {
+                _isLoading = true;
+                try
+                {
+                    var maybe = await Mediator.Send(new GetCollectionById(Id));
+                    maybe.Match(
+                        c =>
+                        {
+                            _name = c.Name;
+                            _useCustomPlaybackOrder = c.UseCustomPlaybackOrder;
+                        },
+                        () =>
+                        {
+                            Snackbar.Add("Collection not found", Severity.Error);
+                            MudDialog.Cancel();
+                        });
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error loading collection: {ex.Message}", Severity.Error);
+                    MudDialog.Cancel();
+                }
+                finally
+                {
+                    _isLoading = false;
+                }
+            }
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+
+        _isSaving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                var request = new UpdateCollection(Id, _name.Trim())
+                {
+                    UseCustomPlaybackOrder = _useCustomPlaybackOrder
+                };
+
+                var result = await Mediator.Send(request);
+                result.Match(
+                    Left: error =>
+                    {
+                        Snackbar.Add($"Error updating collection: {error.Value}", Severity.Error);
+                    },
+                    Right: _ =>
+                    {
+                        Snackbar.Add($"Collection '{_name}' updated successfully.", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(new MediaCollectionViewModel(CollectionType.Collection, Id, _name.Trim(), _useCustomPlaybackOrder, MediaItemState.Normal)));
+                    });
+            }
+            else
+            {
+                var result = await Mediator.Send(new CreateCollection(_name.Trim()));
+                await result.Match(
+                    Left: error =>
+                    {
+                        Snackbar.Add($"Error creating collection: {error.Value}", Severity.Error);
+                        return Task.CompletedTask;
+                    },
+                    Right: async collection =>
+                    {
+                        if (_useCustomPlaybackOrder)
+                        {
+                            var updateRequest = new UpdateCollection(collection.Id, collection.Name)
+                            {
+                                UseCustomPlaybackOrder = true
+                            };
+                            await Mediator.Send(updateRequest);
+                        }
+
+                        Snackbar.Add($"Collection '{collection.Name}' created successfully.", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(collection));
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Unexpected error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

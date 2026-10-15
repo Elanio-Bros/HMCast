@@ -1,0 +1,448 @@
+@page "/media/smart-collections/{Id:int}"
+@using ErsatzTV.Application.MediaCards
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Application.Search
+@using ErsatzTV.Extensions
+@using ErsatzTV.Shared
+@using LanguageExt
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject ILogger<SmartCollectionItems> Logger
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-10">
+
+            @* Top Navigation & Header *@
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Href="media/collections?tab=1" Class="mb-1">
+                    Back to Collections
+                </MudButton>
+
+                <div class="d-flex align-center gap-2">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Edit"
+                               OnClick="OpenEditDialog">
+                        Edit Smart Collection
+                    </MudButton>
+
+                    @if (_data != null && !string.IsNullOrWhiteSpace(_data.Query))
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Secondary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Search"
+                                   Href="@_data.Query.GetRelativeSearchQuery()">
+                            Open in Search
+                        </MudButton>
+                    }
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="DeleteThisCollection" />
+                </div>
+            </div>
+
+            <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-4">
+                <div>
+                    <div class="d-flex align-center gap-2 mb-1">
+                        <MudIcon Icon="@Icons.Material.Filled.Bolt" Color="Color.Secondary" Size="Size.Medium" />
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">
+                            @(_data?.Name ?? "Loading Smart Collection...")
+                        </MudText>
+                    </div>
+                    <div class="d-flex align-center flex-wrap gap-2 mt-1">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">
+                            Smart Collection
+                        </MudChip>
+                        @if (_data != null)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.FilterAlt">
+                                @_data.Query
+                            </MudChip>
+                        }
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
+                            @_allItems.Count matched items
+                        </MudText>
+                    </div>
+                </div>
+            </div>
+
+            @* Quick Filter Chips by Media Kind *@
+            @if (_allItems.Count > 0 && AvailableKinds.Count > 1)
+            {
+                <div class="d-flex align-center flex-wrap gap-2 mb-4">
+                    <MudChip T="string"
+                             Color="@(_selectedFilterKind == "All" ? Color.Primary : Color.Default)"
+                             Variant="@(_selectedFilterKind == "All" ? Variant.Filled : Variant.Outlined)"
+                             Size="Size.Small"
+                             OnClick="@(() => _selectedFilterKind = "All")">
+                        All (@_allItems.Count)
+                    </MudChip>
+
+                    @foreach (var kind in AvailableKinds)
+                    {
+                        var count = _allItems.Count(i => GetItemType(i) == kind);
+                        <MudChip T="string"
+                                 Color="@(_selectedFilterKind == kind ? Color.Primary : Color.Default)"
+                                 Variant="@(_selectedFilterKind == kind ? Variant.Filled : Variant.Outlined)"
+                                 Size="Size.Small"
+                                 OnClick="@(() => _selectedFilterKind = kind)">
+                            @kind (@count)
+                        </MudChip>
+                    }
+                </div>
+            }
+
+            @* Content Area *@
+            @if (_isLoading)
+            {
+                <div class="d-flex justify-center mt-12 mb-12">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+                </div>
+            }
+            else if (FilteredItems.Any())
+            {
+                var displayItems = FilteredItems;
+
+                <MudTable Items="displayItems"
+                          Hover="true"
+                          Dense="false"
+                          Class="mb-5"
+                          Elevation="0"
+                          Outlined="true">
+                    <ToolBarContent>
+                        <MudText Typo="Typo.h6">
+                            @if (!string.IsNullOrWhiteSpace(_searchString))
+                            {
+                                @:Search Results (@displayItems.Count)
+                            }
+                            else if (_selectedFilterKind != "All")
+                            {
+                                @:@_selectedFilterKind Items (@displayItems.Count)
+                            }
+                            else
+                            {
+                                @:Matched Media Items (@displayItems.Count)
+                            }
+                        </MudText>
+                        <MudSpacer />
+                        <MudTextField @bind-Value="_searchString"
+                                      Placeholder="Filter displayed items..."
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      IconSize="Size.Small"
+                                      Margin="Margin.Dense"
+                                      Variant="Variant.Outlined"
+                                      Immediate="true"
+                                      Clearable="true"
+                                      Style="max-width: 280px;" />
+                    </ToolBarContent>
+                    <HeaderContent>
+                        <MudTh Style="width: 70px;">Poster</MudTh>
+                        <MudTh>Title</MudTh>
+                        <MudTh>Subtitle / Details</MudTh>
+                        <MudTh Style="width: 140px;">Type</MudTh>
+                        <MudTh Style="width: 160px; text-align: right;">Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Poster" Class="py-3">
+                            @if (!string.IsNullOrWhiteSpace(context.Poster))
+                            {
+                                <div style="width: 48px; height: 68px; background-image: url('@($"/iptv/artwork/posters/{context.Poster}")'); background-size: cover; background-position: center; border-radius: 4px;"></div>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-center justify-center" style="width: 48px; height: 68px; background-color: var(--mud-palette-background-grey); border-radius: 4px;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Movie" Color="Color.Secondary" Size="Size.Small" />
+                                </div>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Title" Class="py-3">
+                            <MudText Typo="Typo.subtitle2">@context.Title</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Subtitle" Class="py-3">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Subtitle</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Type" Class="py-3">
+                            <MudChip T="string" Size="Size.Small" Color="@GetItemTypeColor(context)" Variant="Variant.Outlined">
+                                @GetItemType(context)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Actions" Style="text-align: right;">
+                            <div class="d-inline-flex align-center gap-1">
+                                @if (context is MovieCardViewModel || context is TelevisionShowCardViewModel || context is TelevisionSeasonCardViewModel || context is TelevisionEpisodeCardViewModel || context is ArtistCardViewModel)
+                                {
+                                    <MudTooltip Text="View Details">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Default" OnClick="@(() => NavigateToDetails(context))" />
+                                    </MudTooltip>
+                                }
+
+                                @if (context.HasMediaInfo)
+                                {
+                                    <MudTooltip Text="Media Info">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" OnClick="@(() => ShowMediaInfo(context))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Troubleshoot Playback">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Troubleshoot" Size="Size.Small" Color="Color.Warning" OnClick="@(() => TroubleshootPlayback(context))" />
+                                    </MudTooltip>
+                                }
+                            </div>
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager RowsPerPageString="Items per page:" />
+                    </PagerContent>
+                </MudTable>
+            }
+            else
+            {
+                <MudPaper Class="pa-8 d-flex flex-column align-center justify-center text-center my-6" Elevation="0" Outlined="true" Style="border-radius: 8px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Bolt" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
+                    @if (!string.IsNullOrWhiteSpace(_searchString))
+                    {
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">No items match your filter</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">No media items found matching "@_searchString".</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">No items found for this query</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                            The search query "@(_data?.Query)" did not match any media items currently in your library.
+                        </MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="OpenEditDialog">
+                            Edit Query Rules
+                        </MudButton>
+                    }
+                </MudPaper>
+            }
+
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private readonly CancellationTokenSource _cts = new();
+    private CancellationToken CancellationToken => _cts.Token;
+
+    private SmartCollectionViewModel _data;
+    private List<MediaCardViewModel> _allItems = new();
+    private bool _isLoading = true;
+    private string _searchString = "";
+    private string _selectedFilterKind = "All";
+
+    private List<string> AvailableKinds =>
+        _allItems
+            .Select(GetItemType)
+            .Distinct()
+            .OrderBy(k => k)
+            .ToList();
+
+    private List<MediaCardViewModel> FilteredItems =>
+        _allItems
+            .Where(item =>
+            {
+                if (!string.IsNullOrWhiteSpace(_selectedFilterKind) && _selectedFilterKind != "All")
+                {
+                    if (GetItemType(item) != _selectedFilterKind) return false;
+                }
+
+                if (!string.IsNullOrWhiteSpace(_searchString))
+                {
+                    return item.Title.Contains(_searchString, StringComparison.OrdinalIgnoreCase)
+                        || (item.Subtitle?.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ?? false);
+                }
+
+                return true;
+            })
+            .ToList();
+
+    protected override async Task OnParametersSetAsync() => await RefreshData(CancellationToken);
+
+    private async Task RefreshData(CancellationToken cancellationToken)
+    {
+        _isLoading = true;
+        try
+        {
+            var maybe = await Mediator.Send(new GetSmartCollectionById(Id), cancellationToken);
+            await maybe.Match(
+                async sc =>
+                {
+                    _data = sc;
+                    await LoadQueryResults(sc.Query, cancellationToken);
+                },
+                () =>
+                {
+                    NavigationManager.NavigateTo("404");
+                    return Task.CompletedTask;
+                });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading smart collection: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadQueryResults(string query, CancellationToken cancellationToken)
+    {
+        var items = new List<MediaCardViewModel>();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            _allItems = items;
+            return;
+        }
+
+        try
+        {
+            // Execute parallel search queries across all media categories
+            var moviesTask = Mediator.Send(new QuerySearchIndexMovies($"type:movie AND ({query})", 1, 100), cancellationToken);
+            var showsTask = Mediator.Send(new QuerySearchIndexShows($"type:show AND ({query})", 1, 100), cancellationToken);
+            var seasonsTask = Mediator.Send(new QuerySearchIndexSeasons($"type:season AND ({query})", 1, 100), cancellationToken);
+            var episodesTask = Mediator.Send(new QuerySearchIndexEpisodes($"type:episode AND ({query})", 1, 100), cancellationToken);
+            var musicVideosTask = Mediator.Send(new QuerySearchIndexMusicVideos($"type:music_video AND ({query})", 1, 100), cancellationToken);
+            var otherVideosTask = Mediator.Send(new QuerySearchIndexOtherVideos($"type:other_video AND ({query})", 1, 100), cancellationToken);
+            var songsTask = Mediator.Send(new QuerySearchIndexSongs($"type:song AND ({query})", 1, 100), cancellationToken);
+            var artistsTask = Mediator.Send(new QuerySearchIndexArtists($"type:artist AND ({query})", 1, 100), cancellationToken);
+
+            await Task.WhenAll(moviesTask, showsTask, seasonsTask, episodesTask, musicVideosTask, otherVideosTask, songsTask, artistsTask);
+
+            items.AddRange((await moviesTask).Cards);
+            items.AddRange((await showsTask).Cards);
+            items.AddRange((await seasonsTask).Cards);
+            items.AddRange((await episodesTask).Cards);
+            items.AddRange((await musicVideosTask).Cards);
+            items.AddRange((await otherVideosTask).Cards);
+            items.AddRange((await songsTask).Cards);
+            items.AddRange((await artistsTask).Cards);
+
+            _allItems = items.OrderBy(i => i.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error running query for smart collection");
+            Snackbar.Add($"Query execution error: {ex.Message}", Severity.Warning);
+            _allItems = new List<MediaCardViewModel>();
+        }
+    }
+
+    private async Task OpenEditDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            { "Id", Id },
+            { "InitialName", _data?.Name },
+            { "InitialQuery", _data?.Query }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
+
+        var dialog = await Dialog.ShowAsync<SmartCollectionDialog>("Edit Smart Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: SmartCollectionViewModel updated })
+        {
+            _data = updated;
+            await RefreshData(CancellationToken);
+        }
+    }
+
+    private async Task DeleteThisCollection()
+    {
+        if (_data == null) return;
+
+        var parameters = new DialogParameters { { "EntityType", "smart collection" }, { "EntityName", _data.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        var dialog = await Dialog.ShowAsync<DeleteDialog>("Delete Smart Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await Mediator.Send(new DeleteSmartCollection(_data.Id), CancellationToken);
+            Snackbar.Add($"Smart collection '{_data.Name}' deleted.", Severity.Success);
+            NavigationManager.NavigateTo("media/collections?tab=1");
+        }
+    }
+
+    private void NavigateToDetails(MediaCardViewModel card)
+    {
+        switch (card)
+        {
+            case MovieCardViewModel movie:
+                NavigationManager.NavigateTo($"media/movies/{movie.MovieId}");
+                break;
+            case TelevisionShowCardViewModel show:
+                NavigationManager.NavigateTo($"media/tv/shows/{show.TelevisionShowId}");
+                break;
+            case TelevisionSeasonCardViewModel season:
+                NavigationManager.NavigateTo($"media/tv/seasons/{season.TelevisionSeasonId}");
+                break;
+            case TelevisionEpisodeCardViewModel episode:
+                NavigationManager.NavigateTo($"media/tv/episodes/{episode.EpisodeId}");
+                break;
+            case ArtistCardViewModel artist:
+                NavigationManager.NavigateTo($"media/music/artists/{artist.ArtistId}");
+                break;
+        }
+    }
+
+    private void ShowMediaInfo(MediaCardViewModel card)
+    {
+        var parameters = new DialogParameters
+        {
+            { "MediaItemId", card.MediaItemId },
+            { "InitialTitle", card.Title }
+        };
+        var options = new DialogOptions { CloseButton = true, CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        Dialog.ShowAsync<MediaItemInfoDialog>(card.Title, parameters, options);
+    }
+
+    private void TroubleshootPlayback(MediaCardViewModel card) =>
+        NavigationManager.NavigateTo($"system/troubleshooting/playback?mediaItem={card.MediaItemId}");
+
+    private string GetItemType(MediaCardViewModel item) => item switch
+    {
+        MovieCardViewModel => "Movie",
+        TelevisionShowCardViewModel => "Show",
+        TelevisionSeasonCardViewModel => "Season",
+        TelevisionEpisodeCardViewModel => "Episode",
+        ArtistCardViewModel => "Artist",
+        MusicVideoCardViewModel => "Music Video",
+        OtherVideoCardViewModel => "Other Video",
+        SongCardViewModel => "Song",
+        ImageCardViewModel => "Image",
+        RemoteStreamCardViewModel => "Remote Stream",
+        _ => "Media"
+    };
+
+    private Color GetItemTypeColor(MediaCardViewModel item) => GetItemTypeColor(GetItemType(item));
+
+    private Color GetItemTypeColor(string typeName) => typeName switch
+    {
+        "Movie" => Color.Primary,
+        "Show" => Color.Info,
+        "Season" => Color.Info,
+        "Episode" => Color.Tertiary,
+        "Artist" => Color.Secondary,
+        "Music Video" => Color.Secondary,
+        "Song" => Color.Success,
+        "Other Video" => Color.Warning,
+        _ => Color.Default
+    };
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

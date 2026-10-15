@@ -1,0 +1,378 @@
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Application.Search
+@using ErsatzTV.Core
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+
+<style>
+    .smart-collection-dialog {
+        overflow-x: hidden !important;
+        transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+    .smart-collection-dialog .mud-dialog-content {
+        overflow-x: hidden !important;
+    }
+
+    .smart-collection-flyout-pane ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .smart-collection-flyout-pane ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+    }
+
+    .smart-collection-flyout-pane ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
+</style>
+
+<MudDialog Class="smart-collection-dialog">
+    <DialogContent>
+        <div class="d-flex flex-row flex-nowrap" style="width: 100%; min-width: 0; overflow-x: hidden; align-items: stretch;">
+            <!-- FORM PANE (LEFT) -->
+            <div style="@(_showHelper ? "width: 350px; min-width: 320px; max-width: 360px; flex: 0 0 350px;" : "width: 100%;")">
+                @if (_isLoading)
+                {
+                    <div class="d-flex justify-center my-6">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-3 text-muted">
+                        @(IsEdit 
+                            ? "Update this smart collection's name and dynamic search query rules." 
+                            : "Smart collections dynamically group media based on a search query.")
+                    </MudText>
+
+                    <MudTextField @bind-Value="_name"
+                                  Label="Collection Name"
+                                  Placeholder="e.g. 90s Comedy Movies, HBO Documentaries"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Class="mb-4"
+                                  AutoFocus="true" />
+
+                    <MudTextField @ref="_queryField"
+                                  @bind-Value="_query"
+                                  @bind-Value:after="OnQueryInputChanged"
+                                  Label="Search Query"
+                                  Placeholder="e.g. type:movie AND genre:Comedy"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Lines="5"
+                                  Immediate="true"
+                                  Class="query-input mb-1" />
+
+                    <!-- VALIDATION STATUS INDICATOR -->
+                    <div class="d-flex align-center gap-1 mb-2 px-1" style="min-height: 24px;">
+                        @if (string.IsNullOrWhiteSpace(_query))
+                        {
+                            <MudText Typo="Typo.caption" Class="text-muted" Style="font-size: 0.75rem;">
+                                Click terms from the dictionary to build your query.
+                            </MudText>
+                        }
+                        else if (_isValidating)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="width: 13px; height: 13px;" Class="mr-1" />
+                            <MudText Typo="Typo.caption" Class="text-muted" Style="font-size: 0.75rem;">Validating query...</MudText>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(_validationError))
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Color="Color.Error" Size="Size.Small" Style="font-size: 1rem;" />
+                            <MudText Typo="Typo.caption" Color="Color.Error" Style="font-size: 0.75rem;">@_validationError</MudText>
+                        }
+                        else if (_matchedCount.HasValue)
+                        {
+                            @if (_matchedCount.Value > 0)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" Color="Color.Success" Size="Size.Small" Style="font-size: 1rem;" />
+                                <MudText Typo="Typo.caption" Color="Color.Success" Class="font-weight-medium" Style="font-size: 0.75rem;">
+                                    Valid query · @_matchedCount.Value @(_matchedCount.Value == 1 ? "item matches" : "items match") in library
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" Size="Size.Small" Style="font-size: 1rem;" />
+                                <MudText Typo="Typo.caption" Color="Color.Warning" Class="font-weight-medium" Style="font-size: 0.75rem;">
+                                    Valid syntax · 0 items match in library
+                                </MudText>
+                            }
+                        }
+                    </div>
+
+                    <div class="d-flex align-center justify-end mb-1">
+                        <MudButton Variant="@(_showHelper ? Variant.Filled : Variant.Outlined)"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   StartIcon="@(_showHelper ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                   OnClick="ToggleHelper"
+                                   Style="text-transform: none;">
+                            @(_showHelper ? "Close Query Dictionary" : "Open Query Dictionary")
+                        </MudButton>
+                    </div>
+                }
+            </div>
+
+            <!-- FLYOUT PANE (RIGHT, LADO A LADO) -->
+            @if (_showHelper)
+            {
+                <MudDivider Vertical="true" FlexItem="true" Class="mx-3" />
+                <div class="smart-collection-flyout-pane" style="flex: 1 1 0; min-width: 0; overflow-x: hidden;">
+                    <SearchQueryDictionaryPanel OnTermSelected="AppendTerm" OnClose="ToggleHelper" />
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_query) || _isSaving || _isLoading || _validationError != null)" 
+                   OnClick="Save">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Save Changes" : "Create Smart Collection")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [Parameter]
+    public string InitialName { get; set; }
+
+    [Parameter]
+    public string InitialQuery { get; set; }
+
+    private bool IsEdit => Id > 0;
+
+    private MudTextField<string> _queryField;
+    private string _name;
+    private string _query;
+    private bool _isLoading;
+    private bool _isSaving;
+    private bool _showHelper;
+
+    private CancellationTokenSource _validationCts;
+    private bool _isValidating;
+    private string _validationError;
+    private int? _matchedCount;
+
+    private void ToggleHelper() => _showHelper = !_showHelper;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsEdit)
+        {
+            if (!string.IsNullOrWhiteSpace(InitialName))
+            {
+                _name = InitialName;
+                _query = InitialQuery;
+                _isLoading = false;
+                _ = ValidateQueryAsync();
+            }
+            else
+            {
+                _isLoading = true;
+                try
+                {
+                    var maybe = await Mediator.Send(new GetSmartCollectionById(Id));
+                    maybe.Match(
+                        sc =>
+                        {
+                            _name = sc.Name;
+                            _query = sc.Query;
+                            _ = ValidateQueryAsync();
+                        },
+                        () =>
+                        {
+                            Snackbar.Add("Smart collection not found", Severity.Error);
+                            MudDialog.Cancel();
+                        });
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error loading smart collection: {ex.Message}", Severity.Error);
+                    MudDialog.Cancel();
+                }
+                finally
+                {
+                    _isLoading = false;
+                }
+            }
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OnQueryInputChanged()
+    {
+        _validationCts?.Cancel();
+        _validationCts = new CancellationTokenSource();
+        var token = _validationCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(350, token);
+                await InvokeAsync(async () => await ValidateQueryAsync(token));
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private async Task ValidateQueryAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _validationError = null;
+            _matchedCount = null;
+            _isValidating = false;
+            StateHasChanged();
+            return;
+        }
+
+        _isValidating = true;
+        _validationError = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await Mediator.Send(new ValidateSearchQuery(_query.Trim()), cancellationToken);
+            result.Match(
+                Left: error =>
+                {
+                    _validationError = error.Value;
+                    _matchedCount = null;
+                },
+                Right: count =>
+                {
+                    _validationError = null;
+                    _matchedCount = count;
+                });
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _validationError = ex.Message;
+            _matchedCount = null;
+        }
+        finally
+        {
+            _isValidating = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task AppendTerm(string term)
+    {
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _query = term;
+        }
+        else
+        {
+            var trimmed = _query.TrimEnd();
+            if (term is "AND" or "OR" or "NOT")
+            {
+                _query = $"{trimmed} {term} ";
+            }
+            else if (term == "( )")
+            {
+                _query = $"{trimmed} ()";
+            }
+            else if (term == "\"\"")
+            {
+                _query = $"{trimmed} \"\"";
+            }
+            else
+            {
+                _query = $"{trimmed} {term}";
+            }
+        }
+
+        _ = ValidateQueryAsync();
+        StateHasChanged();
+        await Task.Yield();
+
+        if (_queryField != null)
+        {
+            await _queryField.FocusAsync();
+            try
+            {
+                await JsRuntime.InvokeVoidAsync("eval", 
+                    "(() => { const el = document.querySelector('.query-input textarea, .query-input input'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } })()");
+            }
+            catch
+            {
+                // Fallback gracefully if eval is restricted
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_query) || _validationError != null) return;
+
+        _isSaving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                var result = await Mediator.Send(new UpdateSmartCollection(Id, _name.Trim(), _query.Trim()));
+                result.Match(
+                    Left: error =>
+                    {
+                        Snackbar.Add($"Error updating smart collection: {error.Value}", Severity.Error);
+                    },
+                    Right: _ =>
+                    {
+                        Snackbar.Add($"Smart collection '{_name}' updated successfully.", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(new SmartCollectionViewModel(Id, _name.Trim(), _query.Trim())));
+                    });
+            }
+            else
+            {
+                var result = await Mediator.Send(new CreateSmartCollection(_query.Trim(), _name.Trim()));
+                result.Match(
+                    Left: error =>
+                    {
+                        Snackbar.Add($"Error creating smart collection: {error.Value}", Severity.Error);
+                        return LanguageExt.Unit.Default;
+                    },
+                    Right: collection =>
+                    {
+                        Snackbar.Add($"Smart collection '{collection.Name}' created successfully.", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(collection));
+                        return LanguageExt.Unit.Default;
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Unexpected error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

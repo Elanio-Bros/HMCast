@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Application.MediaCards;
+using ErsatzTV.Application.MediaCards;
 using ErsatzTV.Core.Domain;
 
 namespace ErsatzTV.Application.MediaCollections;
@@ -8,7 +8,8 @@ public record MediaCollectionViewModel(
     int Id,
     string Name,
     bool UseCustomPlaybackOrder,
-    MediaItemState State) : MediaCardViewModel(
+    MediaItemState State,
+    int ItemCount = 0) : MediaCardViewModel(
     Id,
     Name,
     string.Empty,

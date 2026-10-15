@@ -19,4 +19,12 @@ public record MediaItemInfo(
     int Width,
     int Height,
     List<MediaItemInfoStream> Streams,
-    List<MediaItemInfoChapter> Chapters);
+    List<MediaItemInfoChapter> Chapters,
+    string Path = null,
+    string SortTitle = null,
+    string OriginalTitle = null,
+    int? Year = null,
+    string ContentRating = null,
+    string Plot = null,
+    DateTime? DateAdded = null,
+    DateTime? DateUpdated = null);

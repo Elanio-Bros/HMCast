@@ -1,0 +1,212 @@
+@using ErsatzTV.Application.MediaItems
+@using ErsatzTV.Core.Domain
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudSelect T="MediaSkipKind" Value="_selectedKind" ValueChanged="OnKindChanged" Label="Skip Kind" Variant="Variant.Outlined" Margin="Margin.Dense" AnchorOrigin="Origin.BottomCenter">
+                        <MudSelectItem Value="MediaSkipKind.Intro">Intro (Opening)</MudSelectItem>
+                        <MudSelectItem Value="MediaSkipKind.Finish">Finish (Credits / Ending)</MudSelectItem>
+                        <MudSelectItem Value="MediaSkipKind.Cut">Cut (Commercial / Custom Cut)</MudSelectItem>
+                        <MudSelectItem Value="MediaSkipKind.Recap">Recap</MudSelectItem>
+                        <MudSelectItem Value="MediaSkipKind.Preview">Preview</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                @if (_selectedKind == MediaSkipKind.Intro || _selectedKind == MediaSkipKind.Finish)
+                {
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_durationInput" 
+                                      Label="@(_selectedKind == MediaSkipKind.Intro ? "Quick Duration: Intro Length" : "Quick Duration: Finish Length from End")" 
+                                      Placeholder="00:01:30 or 90s" 
+                                      HelperText="@(_selectedKind == MediaSkipKind.Intro 
+                                          ? "Calculates Start: 00:00:00 -> End: [Duration]" 
+                                          : _totalDuration > TimeSpan.Zero 
+                                              ? $"Video length is {_totalDuration:hh\\:mm\\:ss}. Calculates Start: [End - Duration] -> End: {_totalDuration:hh\\:mm\\:ss}" 
+                                              : "Enter duration to auto-calculate start & end")" 
+                                      Variant="Variant.Outlined" 
+                                      Margin="Margin.Dense" 
+                                      Adornment="Adornment.End" 
+                                      AdornmentIcon="@Icons.Material.Filled.Calculate" 
+                                      OnBlur="ApplyQuickDuration" />
+                    </MudItem>
+                }
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_startTimeStr" Label="Start" Placeholder="00:00:00" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="Start time is required" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_endTimeStr" Label="End" Placeholder="00:00:00" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="End time is required" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsEdit ? "Save Changes" : "Save Cutout")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int MediaItemId { get; set; }
+
+    [Parameter]
+    public MediaSkip ExistingSkip { get; set; }
+
+    private bool IsEdit => ExistingSkip != null;
+
+    private MudForm _form;
+    private MediaSkipKind _selectedKind = MediaSkipKind.Intro;
+    private string _startTimeStr = "";
+    private string _endTimeStr = "";
+    private string _durationInput = "";
+    private TimeSpan _totalDuration = TimeSpan.Zero;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var maybeInfo = await Mediator.Send(new GetMediaItemInfo(MediaItemId));
+            foreach (var info in maybeInfo.RightToSeq())
+            {
+                _totalDuration = info.Duration;
+            }
+        }
+        catch
+        {
+            // Fallback if unable to query
+        }
+
+        if (ExistingSkip != null)
+        {
+            _selectedKind = ExistingSkip.Kind;
+            _startTimeStr = ExistingSkip.Start.ToString(@"hh\:mm\:ss");
+            _endTimeStr = ExistingSkip.End.ToString(@"hh\:mm\:ss");
+
+            var diff = ExistingSkip.End - ExistingSkip.Start;
+            if (diff > TimeSpan.Zero)
+            {
+                _durationInput = diff.ToString(@"hh\:mm\:ss");
+            }
+        }
+    }
+
+    private void OnKindChanged(MediaSkipKind newKind)
+    {
+        _selectedKind = newKind;
+        if (!string.IsNullOrWhiteSpace(_durationInput))
+        {
+            ApplyQuickDuration();
+        }
+    }
+
+    private void ApplyQuickDuration()
+    {
+        if (string.IsNullOrWhiteSpace(_durationInput))
+            return;
+
+        TimeSpan parsedDuration;
+        if (int.TryParse(_durationInput.Trim().TrimEnd('s', 'S'), out int seconds))
+        {
+            parsedDuration = TimeSpan.FromSeconds(seconds);
+        }
+        else if (TimeSpan.TryParse(_durationInput.Trim(), out TimeSpan ts))
+        {
+            parsedDuration = ts;
+        }
+        else
+        {
+            return;
+        }
+
+        if (_selectedKind == MediaSkipKind.Intro)
+        {
+            _startTimeStr = "00:00:00";
+            _endTimeStr = parsedDuration.ToString(@"hh\:mm\:ss");
+        }
+        else if (_selectedKind == MediaSkipKind.Finish)
+        {
+            if (_totalDuration > TimeSpan.Zero)
+            {
+                var start = _totalDuration - parsedDuration;
+                if (start < TimeSpan.Zero) start = TimeSpan.Zero;
+                _startTimeStr = start.ToString(@"hh\:mm\:ss");
+                _endTimeStr = _totalDuration.ToString(@"hh\:mm\:ss");
+            }
+            else
+            {
+                _startTimeStr = "00:00:00";
+                _endTimeStr = parsedDuration.ToString(@"hh\:mm\:ss");
+            }
+        }
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            if (TimeSpan.TryParse(_startTimeStr, out TimeSpan start) && TimeSpan.TryParse(_endTimeStr, out TimeSpan end))
+            {
+                if (end <= start)
+                {
+                    Snackbar.Add("End time must be greater than start time.", Severity.Warning);
+                    return;
+                }
+
+                if (IsEdit)
+                {
+                    var updateRequest = new UpdateSingleMediaSkip(ExistingSkip.Id, start, end, _selectedKind);
+                    var updateResult = await Mediator.Send(updateRequest);
+
+                    updateResult.Match(
+                        Left: error =>
+                        {
+                            Snackbar.Add($"Error updating cutout: {error.Value}", Severity.Error);
+                            return LanguageExt.Unit.Default;
+                        },
+                        Right: _ =>
+                        {
+                            Snackbar.Add("Cutout updated successfully!", Severity.Success);
+                            MudDialog.Close(DialogResult.Ok(true));
+                            return LanguageExt.Unit.Default;
+                        });
+                }
+                else
+                {
+                    var addRequest = new AddMediaSkip(MediaItemId, start, end, _selectedKind, MediaSkipSource.Manual);
+                    var addResult = await Mediator.Send(addRequest);
+
+                    addResult.Match(
+                        Left: error =>
+                        {
+                            Snackbar.Add($"Error adding cutout: {error.Value}", Severity.Error);
+                            return LanguageExt.Unit.Default;
+                        },
+                        Right: _ =>
+                        {
+                            Snackbar.Add("Cutout added successfully!", Severity.Success);
+                            MudDialog.Close(DialogResult.Ok(true));
+                            return LanguageExt.Unit.Default;
+                        });
+                }
+            }
+            else
+            {
+                Snackbar.Add("Invalid time format. Use hh:mm:ss", Severity.Warning);
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

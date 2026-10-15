@@ -1,0 +1,776 @@
+@page "/media/libraries/{LibraryId:int}"
+@page "/media/libraries/{LibraryId:int}/folder/{FolderId:int}"
+@using ErsatzTV.Application.MediaCards
+@using ErsatzTV.Application.Libraries
+@using ErsatzTV.Application.Search
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Application.MediaCollections
+@using LanguageExt
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-10">
+
+            @* Top Navigation & Library Header *@
+            <div class="d-flex align-center justify-space-between mb-2">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Href="media/libraries" Class="mb-1">
+                    Back to Libraries
+                </MudButton>
+
+                <div class="d-flex align-center gap-2">
+                    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                        <MudButton Color="@(_isFolderView ? Color.Primary : Color.Default)"
+                                   Variant="@(_isFolderView ? Variant.Filled : Variant.Outlined)"
+                                   StartIcon="@Icons.Material.Filled.Folder"
+                                   OnClick="@(() => OnViewModeChanged(true))">
+                            Folders
+                        </MudButton>
+                        <MudButton Color="@(!_isFolderView ? Color.Primary : Color.Default)"
+                                   Variant="@(!_isFolderView ? Variant.Filled : Variant.Outlined)"
+                                   StartIcon="@Icons.Material.Filled.List"
+                                   OnClick="@(() => OnViewModeChanged(false))">
+                            Flat List
+                        </MudButton>
+                    </MudButtonGroup>
+                </div>
+            </div>
+
+            <div class="d-flex align-center flex-wrap gap-4 mb-4">
+                <div class="d-flex align-center gap-3">
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Rounded="true">
+                        <MudIcon Icon="@(_isFolderView ? Icons.Material.Filled.FolderSpecial : Icons.Material.Filled.VideoLibrary)" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">
+                            @(_library?.Name ?? "Loading Library...")
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @(_libraryContents?.TotalItemsInLibrary ?? _flatItems.Count) total items • Type: @(_library?.MediaKind.ToString() ?? "")
+                        </MudText>
+                    </div>
+                </div>
+            </div>
+
+            @* Breadcrumbs Bar (Folder Mode) *@
+            @if (_isFolderView && _libraryContents != null)
+            {
+                <MudPaper Class="px-4 py-2 mb-4 d-flex align-center flex-wrap gap-2" Elevation="0" Outlined="true" Style="border-radius: 8px; background-color: var(--mud-palette-background-grey);">
+                    <MudTooltip Text="Library Root">
+                        <MudIconButton Icon="@Icons.Material.Filled.Home"
+                                       Size="Size.Small"
+                                       Color="Color.Primary"
+                                       OnClick="@(() => NavigateToFolder(null))" />
+                    </MudTooltip>
+
+                    @if (_libraryContents.Breadcrumbs.Count > 1)
+                    {
+                        <MudDivider Vertical="true" FlexItem="true" Class="mx-1" />
+                    }
+
+                    @for (int i = 0; i < _libraryContents.Breadcrumbs.Count; i++)
+                    {
+                        var crumb = _libraryContents.Breadcrumbs[i];
+                        bool isLast = i == _libraryContents.Breadcrumbs.Count - 1;
+
+                        if (i > 0)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" />
+                        }
+
+                        if (isLast)
+                        {
+                            <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled" Class="font-weight-bold">
+                                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Small" Class="mr-1" />
+                                @crumb.Name
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Text"
+                                       Size="Size.Small"
+                                       Color="Color.Default"
+                                       OnClick="@(() => NavigateToFolder(crumb.Id))"
+                                       Class="px-2 text-transform-none">
+                                @crumb.Name
+                            </MudButton>
+                        }
+                    }
+
+                    @if (_libraryContents.ParentFolderId.HasValue || FolderId.HasValue)
+                    {
+                        <div class="flex-grow-1"></div>
+                        <MudButton Variant="Variant.Outlined"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.ArrowUpward"
+                                   OnClick="@NavigateUp"
+                                   Class="text-transform-none">
+                            Up One Level
+                        </MudButton>
+                    }
+                </MudPaper>
+            }
+
+            @* Sticky / Floating Selection Action Bar *@
+            @if (_selectedItems.Count > 0)
+            {
+                <MudPaper Class="pa-3 mb-5 d-flex align-center flex-wrap gap-3" Elevation="3" Style="background: linear-gradient(90deg, rgba(33,150,243,0.12) 0%, rgba(30,136,229,0.05) 100%); border: 1px solid var(--mud-palette-primary); border-radius: 8px;">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold" Color="Color.Primary">
+                        @_selectedItems.Count @(_selectedItems.Count == 1 ? "item selected" : "items selected")
+                    </MudText>
+
+                    <div class="flex-grow-1"></div>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@AddSelectedToCollection">
+                        Add Selected To Collection
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.PlaylistAdd"
+                               OnClick="@AddSelectedToPlaylist">
+                        Add Selected To Playlist
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Clear"
+                               OnClick="@ClearSelection">
+                        Clear Selection
+                    </MudButton>
+                </MudPaper>
+            }
+
+            <MudDivider Class="mb-5" />
+
+            @if (_isLoading)
+            {
+                <div class="d-flex justify-center mt-12 mb-12">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+                </div>
+            }
+            else if (_isFolderView && _libraryContents != null)
+            {
+                @* ================= SUBFOLDERS SECTION ================= *@
+                @if (FilteredSubFolders.Any())
+                {
+                    <div class="d-flex align-center justify-space-between mb-3">
+                        <MudText Typo="Typo.h6" Class="font-weight-bold d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Warning" />
+                            Folders (@FilteredSubFolders.Count)
+                        </MudText>
+                    </div>
+
+                    <MudGrid Class="mb-6">
+                        @foreach (var sub in FilteredSubFolders)
+                        {
+                            bool? folderCheckState = GetFolderCheckState(sub);
+
+                            <MudItem xs="12" sm="6" md="4" lg="3">
+                                <MudPaper Class="pa-3 d-flex align-center justify-space-between folder-card"
+                                          Elevation="1"
+                                          Outlined="true"
+                                          Style="border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out;"
+                                          @onclick="@(() => NavigateToFolder(sub.Id))">
+
+                                    <div class="d-flex align-center gap-2" style="overflow: hidden;" @onclick:stopPropagation="true">
+                                        <MudTooltip Text="@GetFolderTooltipText(sub, folderCheckState)">
+                                            <MudCheckBox T="bool?"
+                                                         TriState="true"
+                                                         Value="@folderCheckState"
+                                                         ValueChanged="@(_ => ToggleFolderSelection(sub))"
+                                                         Color="Color.Primary"
+                                                         Dense="true"
+                                                         StopClickPropagation="true" />
+                                        </MudTooltip>
+
+                                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Warning" Size="Size.Large" />
+
+                                        <div style="min-width: 0; cursor: pointer;" @onclick="@(() => NavigateToFolder(sub.Id))">
+                                            <MudTooltip Text="@sub.Name">
+                                                <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-truncate" Style="max-width: 150px;">
+                                                    @sub.Name
+                                                </MudText>
+                                            </MudTooltip>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                @sub.TotalItemCount @(sub.TotalItemCount == 1 ? "item" : "items")
+                                                @if (sub.SubFolderCount > 0)
+                                                {
+                                                    @: • @sub.SubFolderCount @(sub.SubFolderCount == 1 ? "folder" : "folders")
+                                                }
+                                            </MudText>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-center" @onclick:stopPropagation="true">
+                                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true">
+                                            <MudMenuItem Icon="@Icons.Material.Filled.FolderOpen" OnClick="@(() => NavigateToFolder(sub.Id))">
+                                                Open Folder
+                                            </MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Filled.Checklist" OnClick="@(() => ToggleFolderSelection(sub))">
+                                                @(folderCheckState == true ? "Deselect Folder Contents" : "Select Folder Contents")
+                                            </MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Filled.PlaylistAdd" OnClick="@(() => AddFolderDirectToPlaylist(sub))">
+                                                Add Folder To Playlist
+                                            </MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="@(() => AddFolderDirectToCollection(sub))">
+                                                Add Folder To Collection
+                                            </MudMenuItem>
+                                        </MudMenu>
+                                    </div>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+
+                @* ================= MEDIA ITEMS SECTION (FOLDER VIEW) ================= *@
+                @if (DisplayedFolderItems.Any())
+                {
+                    @RenderMediaTable(DisplayedFolderItems)
+                }
+                else if (!string.IsNullOrWhiteSpace(_searchString))
+                {
+                    <MudAlert Severity="Severity.Info" Class="my-4">
+                        No media items found matching "@_searchString".
+                    </MudAlert>
+                }
+                else if (!FilteredSubFolders.Any())
+                {
+                    <MudPaper Class="pa-8 d-flex flex-column align-center justify-center my-6" Elevation="0" Outlined="true" Style="border-radius: 8px;">
+                        <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">This folder is empty</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">There are no media files or subfolders in this directory.</MudText>
+                        @if (FolderId.HasValue)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowUpward" OnClick="@NavigateUp">
+                                Go to Parent Folder
+                            </MudButton>
+                        }
+                    </MudPaper>
+                }
+            }
+            else
+            {
+                @* ================= FLAT LIST VIEW (ALL ITEMS) ================= *@
+                @if (FilteredFlatItems.Any())
+                {
+                    @RenderMediaTable(FilteredFlatItems)
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        @if (!string.IsNullOrWhiteSpace(_searchString))
+                        {
+                            @:No media items found matching "@_searchString".
+                        }
+                        else
+                        {
+                            @:No items found in this library.
+                        }
+                    </MudAlert>
+                }
+            }
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    [Parameter]
+    public int LibraryId { get; set; }
+
+    [Parameter]
+    public int? FolderId { get; set; }
+
+    private LibraryViewModel _library;
+    private LibraryFolderContentsViewModel _libraryContents;
+    private List<MediaCardViewModel> _flatItems = new();
+    private System.Collections.Generic.HashSet<MediaCardViewModel> _selectedItems = new();
+
+    private bool _isLoading = true;
+    private bool _isFolderView = true;
+    private string _searchString = "";
+
+    // Filters
+    private List<LibrarySubFolderViewModel> FilteredSubFolders =>
+        _libraryContents?.SubFolders
+            .Where(f => string.IsNullOrWhiteSpace(_searchString) || f.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            .ToList() ?? new();
+
+    // When searching in Folder view, search across all items in the library so results appear in the list;
+    // when not searching, show items directly in the current folder.
+    private List<MediaCardViewModel> DisplayedFolderItems
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(_searchString))
+            {
+                return _flatItems
+                    .Where(FilterFunc)
+                    .ToList();
+            }
+
+            return _libraryContents?.Items
+                .Where(FilterFunc)
+                .ToList() ?? new();
+        }
+    }
+
+    private List<MediaCardViewModel> FilteredFlatItems =>
+        _flatItems
+            .Where(FilterFunc)
+            .ToList();
+
+    private bool FilterFunc(MediaCardViewModel element)
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+        if (element.Title != null && element.Title.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (element.Subtitle != null && element.Subtitle.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            var libraries = await Mediator.Send(new GetConfiguredLibraries(), CancellationToken.None);
+            _library = libraries.FirstOrDefault(l => l.Id == LibraryId);
+
+            // Load both folder contents and flat items concurrently so search is immediate
+            var folderTask = Mediator.Send(new GetLibraryFolderContents(LibraryId, FolderId), CancellationToken.None);
+            var flatTask = LoadFlatItems();
+
+            await Task.WhenAll(folderTask, flatTask);
+            _libraryContents = await folderTask;
+
+            // If no structured folders exist at root, fall back to flat view
+            if (_libraryContents == null || (!_libraryContents.SubFolders.Any() && !_libraryContents.Items.Any() && !FolderId.HasValue))
+            {
+                if (_flatItems.Any())
+                {
+                    _isFolderView = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading library: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadFlatItems()
+    {
+        if (_flatItems.Any()) return;
+
+        string query = $"library_id:{LibraryId}";
+        int maxItems = 2000;
+
+        if (_library != null)
+        {
+            switch (_library.MediaKind)
+            {
+                case LibraryMediaKind.Movies:
+                    var movies = await Mediator.Send(new QuerySearchIndexMovies(query, 1, maxItems), CancellationToken.None);
+                    _flatItems = movies.Cards.Cast<MediaCardViewModel>().ToList();
+                    break;
+                case LibraryMediaKind.Shows:
+                    var shows = await Mediator.Send(new QuerySearchIndexShows(query, 1, maxItems), CancellationToken.None);
+                    _flatItems = shows.Cards.Cast<MediaCardViewModel>().ToList();
+                    break;
+                case LibraryMediaKind.MusicVideos:
+                    var mv = await Mediator.Send(new QuerySearchIndexMusicVideos(query, 1, maxItems), CancellationToken.None);
+                    _flatItems = mv.Cards.Cast<MediaCardViewModel>().ToList();
+                    break;
+                case LibraryMediaKind.OtherVideos:
+                    var ov = await Mediator.Send(new QuerySearchIndexOtherVideos(query, 1, maxItems), CancellationToken.None);
+                    _flatItems = ov.Cards.Cast<MediaCardViewModel>().ToList();
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private async Task OnViewModeChanged(bool folderView)
+    {
+        _isFolderView = folderView;
+        await LoadData();
+    }
+
+    private void NavigateToFolder(int? folderId)
+    {
+        if (folderId.HasValue)
+        {
+            NavigationManager.NavigateTo($"media/libraries/{LibraryId}/folder/{folderId.Value}");
+        }
+        else
+        {
+            NavigationManager.NavigateTo($"media/libraries/{LibraryId}");
+        }
+    }
+
+    private void NavigateUp()
+    {
+        if (_libraryContents?.ParentFolderId.HasValue == true)
+        {
+            NavigateToFolder(_libraryContents.ParentFolderId.Value);
+        }
+        else
+        {
+            NavigateToFolder(null);
+        }
+    }
+
+    // ================= SELECTION & CHECKBOX MANAGEMENT (TRI-STATE) =================
+
+    private bool? GetFolderCheckState(LibrarySubFolderViewModel folder)
+    {
+        if (folder.MediaItemIds == null || folder.MediaItemIds.Count == 0)
+        {
+            return false;
+        }
+
+        int selectedCount = _selectedItems.Count(item => folder.MediaItemIds.Contains(item.MediaItemId));
+
+        if (selectedCount == 0)
+        {
+            return false;
+        }
+
+        if (selectedCount >= folder.MediaItemIds.Count)
+        {
+            return true;
+        }
+
+        return null; // Indeterminate state ("-" icon)
+    }
+
+    private string GetFolderTooltipText(LibrarySubFolderViewModel sub, bool? checkState) => checkState switch
+    {
+        true => "All items in this folder are selected. Click to deselect.",
+        null => "Some items in this folder are selected (-). Click to select all.",
+        false => "Click to select all items in this folder."
+    };
+
+    private async Task ToggleFolderSelection(LibrarySubFolderViewModel sub)
+    {
+        bool? currentState = GetFolderCheckState(sub);
+        bool shouldSelect = currentState != true; // if currently true, deselect; if false or null (-), select all
+
+        if (shouldSelect)
+        {
+            var itemsToAdd = _flatItems.Where(i => sub.MediaItemIds.Contains(i.MediaItemId)).ToList();
+            if (!itemsToAdd.Any())
+            {
+                itemsToAdd = await Mediator.Send(new GetLibraryFolderMediaItems(LibraryId, sub.Id), CancellationToken.None);
+            }
+
+            foreach (var item in itemsToAdd)
+            {
+                _selectedItems.Add(item);
+            }
+        }
+        else
+        {
+            _selectedItems.RemoveWhere(i => sub.MediaItemIds.Contains(i.MediaItemId));
+        }
+    }
+
+    private void SelectAllItems(IEnumerable<MediaCardViewModel> items)
+    {
+        foreach (var item in items)
+        {
+            _selectedItems.Add(item);
+        }
+    }
+
+    private void DeselectAllItems(IEnumerable<MediaCardViewModel> items)
+    {
+        var idsToRemove = items.Select(i => i.MediaItemId).ToHashSet();
+        _selectedItems.RemoveWhere(i => idsToRemove.Contains(i.MediaItemId));
+    }
+
+    private void ClearSelection()
+    {
+        _selectedItems.Clear();
+    }
+
+    private async Task AddFolderDirectToPlaylist(LibrarySubFolderViewModel sub)
+    {
+        var items = _flatItems.Where(i => sub.MediaItemIds.Contains(i.MediaItemId)).ToList();
+        if (!items.Any())
+        {
+            items = await Mediator.Send(new GetLibraryFolderMediaItems(LibraryId, sub.Id), CancellationToken.None);
+        }
+
+        if (!items.Any())
+        {
+            Snackbar.Add("This folder contains no media items", Severity.Warning);
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            _selectedItems.Add(item);
+        }
+
+        await AddSelectedToPlaylist();
+    }
+
+    private async Task AddFolderDirectToCollection(LibrarySubFolderViewModel sub)
+    {
+        var items = _flatItems.Where(i => sub.MediaItemIds.Contains(i.MediaItemId)).ToList();
+        if (!items.Any())
+        {
+            items = await Mediator.Send(new GetLibraryFolderMediaItems(LibraryId, sub.Id), CancellationToken.None);
+        }
+
+        if (!items.Any())
+        {
+            Snackbar.Add("This folder contains no media items", Severity.Warning);
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            _selectedItems.Add(item);
+        }
+
+        await AddSelectedToCollection();
+    }
+
+    // ================= MEDIA TABLE RENDERER =================
+
+    private RenderFragment RenderMediaTable(List<MediaCardViewModel> items) => __builder =>
+    {
+        <MudTable Items="items"
+                  MultiSelection="true"
+                  @bind-SelectedItems="_selectedItems"
+                  Hover="true"
+                  Dense="false"
+                  Class="mb-5"
+                  Elevation="0"
+                  Outlined="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">
+                    @if (!string.IsNullOrWhiteSpace(_searchString))
+                    {
+                        @:Search Results (@items.Count)
+                    }
+                    else if (_isFolderView)
+                    {
+                        @:Media in this folder (@items.Count)
+                    }
+                    else
+                    {
+                        @:All Library Items (@items.Count)
+                    }
+                </MudText>
+                <MudSpacer />
+                <MudTextField @bind-Value="_searchString"
+                              Placeholder="Search media..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Small"
+                              Margin="Margin.Dense"
+                              Variant="Variant.Outlined"
+                              Immediate="true"
+                              Clearable="true"
+                              Style="max-width: 280px;" />
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh Style="width: 70px;">Poster</MudTh>
+                <MudTh>Title</MudTh>
+                <MudTh>Subtitle / Year</MudTh>
+                <MudTh Style="width: 160px; text-align: right;">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Poster">
+                    @if (!string.IsNullOrWhiteSpace(context.Poster))
+                    {
+                        <div style="width: 48px; height: 68px; background-image: url('@($"/iptv/artwork/posters/{context.Poster}")'); background-size: cover; background-position: center; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);"></div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-center justify-center" style="width: 48px; height: 68px; background-color: var(--mud-palette-background-grey); border-radius: 4px;">
+                            <MudIcon Icon="@Icons.Material.Filled.Movie" Color="Color.Secondary" Size="Size.Small" />
+                        </div>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Title">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.Title</MudText>
+                </MudTd>
+                <MudTd DataLabel="Subtitle">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Subtitle</MudText>
+                </MudTd>
+                <MudTd DataLabel="Actions" Style="text-align: right;">
+                    <div class="d-inline-flex align-center gap-1">
+                        @if (context is MovieCardViewModel || context is TelevisionShowCardViewModel || context is TelevisionSeasonCardViewModel || context is TelevisionEpisodeCardViewModel || context is ArtistCardViewModel)
+                        {
+                            <MudTooltip Text="View Details">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Default" OnClick="@(() => NavigateToDetails(context))" />
+                            </MudTooltip>
+                        }
+
+                        <MudTooltip Text="Manage Cutouts">
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCut" Size="Size.Small" Color="Color.Primary" OnClick="@(() => ShowManageCutouts(context))" />
+                        </MudTooltip>
+
+                        @if (context.HasMediaInfo)
+                        {
+                            <MudTooltip Text="Media Info">
+                                <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" OnClick="@(() => ShowMediaInfo(context))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Troubleshoot Playback">
+                                <MudIconButton Icon="@Icons.Material.Filled.Troubleshoot" Size="Size.Small" Color="Color.Warning" OnClick="@(() => TroubleshootPlayback(context))" />
+                            </MudTooltip>
+                        }
+                    </div>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="Items per page:" />
+            </PagerContent>
+        </MudTable>
+    };
+
+    // ================= EXISTING ACTIONS =================
+
+    private void NavigateToDetails(MediaCardViewModel card)
+    {
+        if (card is MovieCardViewModel movie) NavigationManager.NavigateTo($"media/movies/{movie.MovieId}");
+        else if (card is TelevisionShowCardViewModel show) NavigationManager.NavigateTo($"media/tv/shows/{show.TelevisionShowId}");
+        else if (card is TelevisionSeasonCardViewModel season) NavigationManager.NavigateTo($"media/tv/seasons/{season.TelevisionSeasonId}");
+        else if (card is TelevisionEpisodeCardViewModel episode) NavigationManager.NavigateTo($"media/tv/seasons/{episode.SeasonId}#episode-{episode.EpisodeId}");
+        else if (card is ArtistCardViewModel artist) NavigationManager.NavigateTo($"media/music/artists/{artist.ArtistId}");
+    }
+
+    private async Task ShowMediaInfo(MediaCardViewModel card)
+    {
+        var parameters = new DialogParameters
+        {
+            { "MediaItemId", card.MediaItemId },
+            { "InitialTitle", card.Title }
+        };
+        var options = new DialogOptions { CloseButton = true, CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await Dialog.ShowAsync<ErsatzTV.Shared.MediaItemInfoDialog>(card.Title, parameters, options);
+    }
+
+    private void TroubleshootPlayback(MediaCardViewModel card) =>
+        NavigationManager.NavigateTo($"system/troubleshooting/playback?mediaItem={card.MediaItemId}");
+
+    private async Task ShowManageCutouts(MediaCardViewModel card)
+    {
+        var availableItems = _isFolderView ? (_libraryContents?.Items ?? new()) : _flatItems;
+        var parameters = new DialogParameters
+        {
+            { "MediaItem", card },
+            { "LibraryItems", availableItems }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await Dialog.ShowAsync<ErsatzTV.Shared.CutoutDialog>("Manage Cutouts", parameters, options);
+    }
+
+    private async Task AddSelectedToCollection()
+    {
+        if (!_selectedItems.Any()) return;
+
+        var movieIds = _selectedItems.OfType<MovieCardViewModel>().Select(m => m.MovieId).ToList();
+        var showIds = _selectedItems.OfType<TelevisionShowCardViewModel>().Select(s => s.TelevisionShowId).ToList();
+        var seasonIds = _selectedItems.OfType<TelevisionSeasonCardViewModel>().Select(s => s.TelevisionSeasonId).ToList();
+        var episodeIds = _selectedItems.OfType<TelevisionEpisodeCardViewModel>().Select(e => e.EpisodeId).ToList();
+        var artistIds = _selectedItems.OfType<ArtistCardViewModel>().Select(a => a.ArtistId).ToList();
+        var musicVideoIds = _selectedItems.OfType<MusicVideoCardViewModel>().Select(mv => mv.MusicVideoId).ToList();
+        var otherVideoIds = _selectedItems.OfType<OtherVideoCardViewModel>().Select(ov => ov.OtherVideoId).ToList();
+        var songIds = _selectedItems.OfType<SongCardViewModel>().Select(s => s.SongId).ToList();
+        var imageIds = _selectedItems.OfType<ImageCardViewModel>().Select(i => i.ImageId).ToList();
+        var remoteStreamIds = _selectedItems.OfType<RemoteStreamCardViewModel>().Select(rs => rs.RemoteStreamId).ToList();
+
+        int count = _selectedItems.Count;
+
+        var parameters = new DialogParameters { { "EntityType", count.ToString() }, { "EntityName", "selected items" } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<ErsatzTV.Shared.AddToCollectionDialog>("Add To Collection", parameters, options);
+        DialogResult result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: MediaCollectionViewModel collection })
+        {
+            var request = new AddItemsToCollection(
+                collection.Id, movieIds, showIds, seasonIds, episodeIds, artistIds, musicVideoIds, otherVideoIds, songIds, imageIds, remoteStreamIds);
+
+            var addResult = await Mediator.Send(request, System.Threading.CancellationToken.None);
+
+            addResult.Match(
+                Left: error => Snackbar.Add($"Error adding items: {error.Value}", Severity.Error),
+                Right: _ =>
+                {
+                    Snackbar.Add($"Added {count} items to collection {collection.Name}", Severity.Success);
+                    _selectedItems.Clear();
+                });
+        }
+    }
+
+    private async Task AddSelectedToPlaylist()
+    {
+        if (!_selectedItems.Any()) return;
+
+        var movieIds = _selectedItems.OfType<MovieCardViewModel>().Select(m => m.MovieId).ToList();
+        var showIds = _selectedItems.OfType<TelevisionShowCardViewModel>().Select(s => s.TelevisionShowId).ToList();
+        var seasonIds = _selectedItems.OfType<TelevisionSeasonCardViewModel>().Select(s => s.TelevisionSeasonId).ToList();
+        var episodeIds = _selectedItems.OfType<TelevisionEpisodeCardViewModel>().Select(e => e.EpisodeId).ToList();
+        var artistIds = _selectedItems.OfType<ArtistCardViewModel>().Select(a => a.ArtistId).ToList();
+        var musicVideoIds = _selectedItems.OfType<MusicVideoCardViewModel>().Select(mv => mv.MusicVideoId).ToList();
+        var otherVideoIds = _selectedItems.OfType<OtherVideoCardViewModel>().Select(ov => ov.OtherVideoId).ToList();
+        var songIds = _selectedItems.OfType<SongCardViewModel>().Select(s => s.SongId).ToList();
+        var imageIds = _selectedItems.OfType<ImageCardViewModel>().Select(i => i.ImageId).ToList();
+        var remoteStreamIds = _selectedItems.OfType<RemoteStreamCardViewModel>().Select(rs => rs.RemoteStreamId).ToList();
+
+        int count = _selectedItems.Count;
+
+        var parameters = new DialogParameters { { "EntityType", count.ToString() }, { "EntityName", "selected items" } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<ErsatzTV.Shared.AddToPlaylistDialog>("Add To Playlist", parameters, options);
+        DialogResult result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: PlaylistViewModel playlist })
+        {
+            var request = new AddItemsToPlaylist(
+                playlist.Id, movieIds, showIds, seasonIds, episodeIds, artistIds, musicVideoIds, otherVideoIds, songIds, imageIds, remoteStreamIds);
+
+            var addResult = await Mediator.Send(request, System.Threading.CancellationToken.None);
+
+            addResult.Match(
+                Left: error => Snackbar.Add($"Error adding items: {error.Value}", Severity.Error),
+                Right: _ =>
+                {
+                    Snackbar.Add($"Added {count} items to playlist {playlist.Name}", Severity.Success);
+                    _selectedItems.Clear();
+                });
+        }
+    }
+}

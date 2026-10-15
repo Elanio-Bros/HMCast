@@ -1,0 +1,241 @@
+@using ErsatzTV.Application.MediaCards
+@using ErsatzTV.Application.MediaItems
+@using ErsatzTV.Core.Domain
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+
+<MudDialog>
+    <DialogContent>
+        <div class="d-flex align-center justify-space-between mb-4">
+            <div>
+                <MudText Typo="Typo.h6">Manage Cutouts</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@MediaItem.Title</MudText>
+            </div>
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Error" 
+                           StartIcon="@Icons.Material.Filled.Delete" 
+                           Disabled="@(!_selectedCutouts.Any())" 
+                           OnClick="RemoveSelectedCutouts">
+                    Delete Selected @(_selectedCutouts.Any() ? $"({_selectedCutouts.Count})" : "")
+                </MudButton>
+
+                @if (LibraryItems != null && LibraryItems.Count > 1)
+                {
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Secondary" 
+                               StartIcon="@Icons.Material.Filled.ContentCopy" 
+                               Disabled="@(!_selectedCutouts.Any())" 
+                               OnClick="OpenReplicateModal">
+                        Replicate Selected @(_selectedCutouts.Any() ? $"({_selectedCutouts.Count})" : "")
+                    </MudButton>
+                }
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenAddModal">
+                    New Cutout
+                </MudButton>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else
+        {
+            <MudTable Items="_cutouts" MultiSelection="true" @bind-SelectedItems="_selectedCutouts" Dense="true" Hover="true" Elevation="0" Outlined="true" Class="mb-2">
+                <HeaderContent>
+                    <MudTh>Start</MudTh>
+                    <MudTh>End</MudTh>
+                    <MudTh>Kind</MudTh>
+                    <MudTh>Source</MudTh>
+                    <MudTh Style="width: 70px; text-align: right;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Start">
+                        <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Start.ToString(@"hh\:mm\:ss")</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="End">
+                        <MudText Typo="Typo.body2" Class="font-weight-bold">@context.End.ToString(@"hh\:mm\:ss")</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Kind">
+                        @switch (context.Kind)
+                        {
+                            case MediaSkipKind.Cut:
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Icon="@Icons.Material.Filled.ContentCut">Cut</MudChip>
+                                break;
+                            case MediaSkipKind.Intro:
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Icon="@Icons.Material.Filled.PlayArrow">Intro</MudChip>
+                                break;
+                            case MediaSkipKind.Finish:
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Stop">Finish</MudChip>
+                                break;
+                            case MediaSkipKind.Recap:
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Replay">Recap</MudChip>
+                                break;
+                            case MediaSkipKind.Preview:
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.FastForward">Preview</MudChip>
+                                break;
+                            default:
+                                <MudChip T="string" Size="Size.Small" Color="Color.Dark">@context.Kind</MudChip>
+                                break;
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Source">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Source</MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align: right;">
+                        <MudTooltip Text="Edit Cutout">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default" OnClick="@(() => OpenEditModal(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Class="pa-4 mud-text-secondary text-center">No cutouts configured for this media item.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="CloseDialog">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public MediaCardViewModel MediaItem { get; set; }
+
+    [Parameter]
+    public List<MediaCardViewModel> LibraryItems { get; set; }
+
+    private bool _isLoading = true;
+    private List<MediaSkip> _cutouts = new();
+    private System.Collections.Generic.HashSet<MediaSkip> _selectedCutouts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            _cutouts = await Mediator.Send(new GetMediaItemSkips(MediaItem.MediaItemId));
+            _selectedCutouts.Clear();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading cutouts: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenAddModal()
+    {
+        var parameters = new DialogParameters { { "MediaItemId", MediaItem.MediaItemId } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        
+        var dialog = await Dialog.ShowAsync<AddCutoutDialog>("Add New Cutout", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenEditModal(MediaSkip skip)
+    {
+        var parameters = new DialogParameters
+        {
+            { "MediaItemId", MediaItem.MediaItemId },
+            { "ExistingSkip", skip }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        
+        var dialog = await Dialog.ShowAsync<AddCutoutDialog>("Edit Cutout", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenReplicateModal()
+    {
+        if (!_selectedCutouts.Any())
+        {
+            Snackbar.Add("Select at least one cutout to replicate.", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { "SourceMediaItemId", MediaItem.MediaItemId },
+            { "SelectedSkips", _selectedCutouts.ToList() },
+            { "AvailableItems", LibraryItems ?? new List<MediaCardViewModel>() }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+        var dialog = await Dialog.ShowAsync<ReplicateCutoutsDialog>("Replicate Cutouts", parameters, options);
+        await dialog.Result;
+    }
+
+    private async Task RemoveCutout(MediaSkip skip)
+    {
+        var result = await Mediator.Send(new RemoveMediaSkip(skip.Id));
+        result.Match(
+            Left: error =>
+            {
+                Snackbar.Add($"Error removing cutout: {error.Value}", Severity.Error);
+                return LanguageExt.Unit.Default;
+            },
+            Right: _ =>
+            {
+                Snackbar.Add("Cutout removed successfully.", Severity.Info);
+                _cutouts.Remove(skip);
+                _selectedCutouts.Remove(skip);
+                StateHasChanged();
+                return LanguageExt.Unit.Default;
+            });
+    }
+
+    private async Task RemoveSelectedCutouts()
+    {
+        if (!_selectedCutouts.Any()) return;
+
+        var idsToRemove = _selectedCutouts.Select(s => s.Id).ToList();
+        var result = await Mediator.Send(new RemoveMediaSkips(idsToRemove));
+        result.Match(
+            Left: error =>
+            {
+                Snackbar.Add($"Error removing cutouts: {error.Value}", Severity.Error);
+                return LanguageExt.Unit.Default;
+            },
+            Right: _ =>
+            {
+                int count = idsToRemove.Count;
+                Snackbar.Add($"{count} cutout(s) removed successfully.", Severity.Info);
+                _cutouts.RemoveAll(s => idsToRemove.Contains(s.Id));
+                _selectedCutouts.Clear();
+                StateHasChanged();
+                return LanguageExt.Unit.Default;
+            });
+    }
+
+    private void CloseDialog() => MudDialog.Close(DialogResult.Ok(true));
+}

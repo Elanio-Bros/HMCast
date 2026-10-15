@@ -1,0 +1,120 @@
+@using ErsatzTV.Application.MediaCards
+@using ErsatzTV.Application.MediaItems
+@using ErsatzTV.Core.Domain
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle2" Class="mb-3">
+            Replicate <strong>@SelectedSkips.Count</strong> selected cutout(s) to other items in this library:
+        </MudText>
+
+        <MudTextField @bind-Value="_search" Placeholder="Filter items..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Immediate="true" />
+
+        <div class="d-flex justify-space-between align-center mb-2">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@_selectedTargetIds.Count item(s) selected</MudText>
+            <div class="d-flex gap-2">
+                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="SelectAll">Select All</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="ClearAll">Clear</MudButton>
+            </div>
+        </div>
+
+        <MudTable Items="FilteredItems" MultiSelection="true" @bind-SelectedItems="_selectedTargetItems" Dense="true" Hover="true" Elevation="0" Outlined="true" Style="max-height: 350px; overflow-y: auto;">
+            <HeaderContent>
+                <MudTh>Title</MudTh>
+                <MudTh>Subtitle / Year</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Title">
+                    <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Title</MudText>
+                </MudTd>
+                <MudTd DataLabel="Subtitle">@context.Subtitle</MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-4 mud-text-secondary text-center">No other items found in this library.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit" Disabled="@(!_selectedTargetItems.Any())">
+            Replicate to Selected (@_selectedTargetItems.Count)
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int SourceMediaItemId { get; set; }
+
+    [Parameter]
+    public List<MediaSkip> SelectedSkips { get; set; } = new();
+
+    [Parameter]
+    public List<MediaCardViewModel> AvailableItems { get; set; } = new();
+
+    private string _search = "";
+    private System.Collections.Generic.HashSet<MediaCardViewModel> _selectedTargetItems = new();
+    private System.Collections.Generic.HashSet<int> _selectedTargetIds => _selectedTargetItems.Select(i => i.MediaItemId).ToHashSet();
+
+    private IEnumerable<MediaCardViewModel> FilteredItems
+    {
+        get
+        {
+            var otherItems = AvailableItems.Where(i => i.MediaItemId != SourceMediaItemId);
+            if (string.IsNullOrWhiteSpace(_search))
+                return otherItems;
+
+            return otherItems.Where(i =>
+                (i.Title != null && i.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)) ||
+                (i.Subtitle != null && i.Subtitle.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    private void SelectAll()
+    {
+        foreach (var item in FilteredItems)
+        {
+            _selectedTargetItems.Add(item);
+        }
+    }
+
+    private void ClearAll()
+    {
+        _selectedTargetItems.Clear();
+    }
+
+    private async Task Submit()
+    {
+        if (!_selectedTargetItems.Any())
+        {
+            Snackbar.Add("Please select at least one media item.", Severity.Warning);
+            return;
+        }
+
+        var skipIds = SelectedSkips.Select(s => s.Id).ToList();
+        var targetIds = _selectedTargetItems.Select(i => i.MediaItemId).ToList();
+
+        var command = new CopyMediaSkipsToItems(SourceMediaItemId, skipIds, targetIds);
+        var result = await Mediator.Send(command);
+
+        result.Match(
+            Left: error =>
+            {
+                Snackbar.Add($"Error replicating cutouts: {error.Value}", Severity.Error);
+                return LanguageExt.Unit.Default;
+            },
+            Right: _ =>
+            {
+                Snackbar.Add($"Cutouts replicated successfully to {targetIds.Count} item(s)!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+                return LanguageExt.Unit.Default;
+            });
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

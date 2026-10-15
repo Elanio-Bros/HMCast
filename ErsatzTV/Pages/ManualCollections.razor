@@ -1,88 +1,406 @@
-﻿@page "/media/collections"
+@page "/media/collections"
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Extensions
+@using ErsatzTV.Shared
 @implements IDisposable
 @inject IDialogService Dialog
 @inject IMediator Mediator
+@inject NavigationManager NavigationManager
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%" class="ml-6 mr-6">
-            <div style="margin-right: auto" class="d-none d-md-flex">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="media/collections/add">
-                    Add Collection
-                </MudButton>
-            </div>
-            <div style="align-items: center; display: flex; margin-left: auto;" class="d-md-none">
-                <div class="flex-grow-1"></div>
-                <MudMenu Icon="@Icons.Material.Filled.MoreVert">
-                    <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Add Collection" Href="media/collections/add"/>
-                </MudMenu>
-            </div>
-        </div>
-    </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Manual Collections</MudText>
-            <MudDivider Class="mb-6"/>
-            <MudTable Hover="true"
-                      @bind-RowsPerPage="@_collectionsRowsPerPage"
-                      ServerData="@(new Func<TableState, CancellationToken, Task<TableData<MediaCollectionViewModel>>>(ServerReloadCollections))"
-                      Dense="true"
-                      @ref="_collectionsTable">
-                <ColGroup>
-                    <MudHidden Breakpoint="Breakpoint.Xs">
-                        <col/>
-                        <col style="width: 120px;"/>
-                    </MudHidden>
-                </ColGroup>
-                <ToolBarContent>
-                    <MudTextField T="string"
-                                  ValueChanged="@(s => OnSearch(s))"
-                                  Placeholder="Search for manual collections"
-                                  Adornment="Adornment.Start"
-                                  AdornmentIcon="@Icons.Material.Filled.FilterList"
-                                  Clearable="true">
-                    </MudTextField>
-                </ToolBarContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Name">@context.Name</MudTd>
-                    <MudTd>
-                        <div style="align-items: center; display: flex;">
-                            <MudTooltip Text="Edit Collection">
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                               Href="@($"media/collections/{context.Id}")">
-                                </MudIconButton>
-                            </MudTooltip>
-                            <MudTooltip Text="Delete Collection">
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                               OnClick="@(_ => DeleteMediaCollection(context))">
-                                </MudIconButton>
-                            </MudTooltip>
-                        </div>
-                    </MudTd>
-                </RowTemplate>
-                <PagerContent>
-                    <MudTablePager/>
-                </PagerContent>
-            </MudTable>
-            <div class="mt-6"></div>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8 pb-10">
+            <!-- HEADER -->
+            <div class="mb-4">
+                <MudText Typo="Typo.h5" Class="font-weight-bold">Collections</MudText>
+                <MudText Typo="Typo.body2" Class="text-muted">Organize, curate, and blend media into manual, smart, multi, and rerun collections.</MudText>
+            </div>
+
+            <MudDivider Class="mb-4"/>
+
+            <!-- UNIFIED TABS -->
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_activeTab">
+                <!-- TAB 1: MANUAL -->
+                <MudTabPanel Text="Manual" Icon="@Icons.Material.Filled.Folder">
+                    <div class="pt-4">
+                        <MudText Typo="Typo.body2" Class="text-muted mb-3">
+                            Manually curated collections with individual movies, television shows, episodes, and media items.
+                        </MudText>
+                        <MudTable T="MediaCollectionViewModel"
+                                  Hover="true"
+                                  @bind-RowsPerPage="@_collectionsRowsPerPage"
+                                  ServerData="@(new Func<TableState, CancellationToken, Task<TableData<MediaCollectionViewModel>>>(ServerReloadCollections))"
+                                  Dense="false"
+                                  Elevation="0"
+                                  Outlined="true"
+                                  RowClass="cursor-pointer"
+                                  OnRowClick="@(args => NavigationManager.NavigateTo($"media/collections/{args.Item.Id}"))"
+                                  @ref="_collectionsTable">
+                            <ColGroup>
+                                <MudHidden Breakpoint="Breakpoint.Xs">
+                                    <col/>
+                                    <col style="width: 150px;"/>
+                                </MudHidden>
+                            </ColGroup>
+                            <ToolBarContent>
+                                <div class="d-flex justify-space-between align-center width-100">
+                                    <MudTextField T="string"
+                                                  ValueChanged="@(s => OnSearchManual(s))"
+                                                  Placeholder="Search manual collections..."
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                                  Clearable="true"
+                                                  Margin="Margin.Dense"
+                                                  Variant="Variant.Outlined"
+                                                  Style="max-width: 400px;">
+                                    </MudTextField>
+                                    <MudButton Variant="Variant.Filled" 
+                                               Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.Add" 
+                                               OnClick="OpenAddCollectionDialog"
+                                               Class="ml-4">
+                                        New Manual Collection
+                                    </MudButton>
+                                </div>
+                            </ToolBarContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Name" Class="py-3 px-4">
+                                    <div class="d-flex align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Primary" Class="mr-3" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@context.Name</MudText>
+                                            <MudText Typo="Typo.caption" Class="text-muted">
+                                                @($"{context.ItemCount} {(context.ItemCount == 1 ? "item" : "items")}{(context.UseCustomPlaybackOrder ? " • Custom playback order" : "")}")
+                                            </MudText>
+                                        </div>
+                                    </div>
+                                </MudTd>
+                                <MudTd Style="text-align: right;" Class="py-3 px-4">
+                                    <div style="align-items: center; display: flex; justify-content: flex-end; gap: 4px;" @onclick:stopPropagation="true">
+                                        <MudTooltip Text="Edit Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                           Size="Size.Small"
+                                                           OnClick="@(() => OpenEditCollectionDialog(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                        <MudTooltip Text="Delete Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(_ => DeleteMediaCollection(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                    </div>
+                                </MudTd>
+                            </RowTemplate>
+                            <PagerContent>
+                                <MudTablePager/>
+                            </PagerContent>
+                        </MudTable>
+                    </div>
+                </MudTabPanel>
+
+                <!-- TAB 2: SMART -->
+                <MudTabPanel Text="Smart" Icon="@Icons.Material.Filled.Bolt">
+                    <div class="pt-4">
+                        <MudText Typo="Typo.body2" Class="text-muted mb-3">
+                            Dynamic collections automatically generated and kept up-to-date using search query rules (genres, years, tags).
+                        </MudText>
+                        <MudTable T="SmartCollectionViewModel"
+                                  Hover="true"
+                                  @bind-RowsPerPage="@_smartCollectionsRowsPerPage"
+                                  ServerData="@(new Func<TableState, CancellationToken, Task<TableData<SmartCollectionViewModel>>>(ServerReloadSmartCollections))"
+                                  Dense="false"
+                                  Elevation="0"
+                                  Outlined="true"
+                                  RowClass="cursor-pointer"
+                                  OnRowClick="@(args => NavigationManager.NavigateTo($"media/smart-collections/{args.Item.Id}"))"
+                                  @ref="_smartCollectionsTable">
+                            <ColGroup>
+                                <MudHidden Breakpoint="Breakpoint.Xs">
+                                    <col/>
+                                    <col style="width: 150px;"/>
+                                </MudHidden>
+                            </ColGroup>
+                            <ToolBarContent>
+                                <div class="d-flex justify-space-between align-center width-100">
+                                    <MudTextField T="string"
+                                                  ValueChanged="@(s => OnSearchSmart(s))"
+                                                  Placeholder="Search smart collections..."
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                                  Clearable="true"
+                                                  Margin="Margin.Dense"
+                                                  Variant="Variant.Outlined"
+                                                  Style="max-width: 400px;">
+                                    </MudTextField>
+                                    <MudButton Variant="Variant.Filled" 
+                                               Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.Bolt" 
+                                               OnClick="OpenAddSmartCollectionDialog"
+                                               Class="ml-4">
+                                        New Smart Collection
+                                    </MudButton>
+                                </div>
+                            </ToolBarContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Name" Class="py-3 px-4">
+                                    <div class="d-flex align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Bolt" Color="Color.Secondary" Class="mr-3" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@context.Name</MudText>
+                                            <MudText Typo="Typo.caption" Class="text-muted">
+                                                @(string.IsNullOrWhiteSpace(context.Query) ? "All items" : context.Query)
+                                            </MudText>
+                                        </div>
+                                    </div>
+                                </MudTd>
+                                <MudTd Style="text-align: right;" Class="py-3 px-4">
+                                    <div style="align-items: center; display: flex; justify-content: flex-end; gap: 4px;" @onclick:stopPropagation="true">
+                                        <MudTooltip Text="Edit Smart Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                           Size="Size.Small"
+                                                           OnClick="@(() => OpenEditSmartCollectionDialog(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                        <MudTooltip Text="Search Smart Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Search"
+                                                           Size="Size.Small"
+                                                           Href="@context.Query.GetRelativeSearchQuery()">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                        <MudTooltip Text="Delete Smart Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(_ => DeleteSmartCollection(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                    </div>
+                                </MudTd>
+                            </RowTemplate>
+                            <PagerContent>
+                                <MudTablePager/>
+                            </PagerContent>
+                        </MudTable>
+                    </div>
+                </MudTabPanel>
+
+                <!-- TAB 3: MULTI -->
+                <MudTabPanel Text="Multi" Icon="@Icons.Material.Filled.PlaylistAdd">
+                    <div class="pt-4">
+                        <MudText Typo="Typo.body2" Class="text-muted mb-3">
+                            Weighted combinations of multiple collections or shows to blend content into channel schedules.
+                        </MudText>
+                        <MudTable T="MultiCollectionViewModel"
+                                  Hover="true"
+                                  @bind-RowsPerPage="@_multiCollectionsRowsPerPage"
+                                  ServerData="@(new Func<TableState, CancellationToken, Task<TableData<MultiCollectionViewModel>>>(ServerReloadMultiCollections))"
+                                  Dense="false"
+                                  Elevation="0"
+                                  Outlined="true"
+                                  RowClass="cursor-pointer"
+                                  OnRowClick="@(args => NavigationManager.NavigateTo($"media/multi-collections/{args.Item.Id}"))"
+                                  @ref="_multiCollectionsTable">
+                            <ColGroup>
+                                <MudHidden Breakpoint="Breakpoint.Xs">
+                                    <col/>
+                                    <col style="width: 150px;"/>
+                                </MudHidden>
+                            </ColGroup>
+                            <ToolBarContent>
+                                <div class="d-flex justify-space-between align-center width-100">
+                                    <MudTextField T="string"
+                                                  ValueChanged="@(s => OnSearchMulti(s))"
+                                                  Placeholder="Search multi collections..."
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                                  Clearable="true"
+                                                  Margin="Margin.Dense"
+                                                  Variant="Variant.Outlined"
+                                                  Style="max-width: 400px;">
+                                    </MudTextField>
+                                    <MudButton Variant="Variant.Filled" 
+                                               Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.PlaylistAdd" 
+                                               OnClick="OpenAddMultiCollectionDialog"
+                                               Class="ml-4">
+                                        New Multi Collection
+                                    </MudButton>
+                                </div>
+                            </ToolBarContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Name" Class="py-3 px-4">
+                                    <div class="d-flex align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Layers" Color="Color.Primary" Class="mr-3" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@context.Name</MudText>
+                                            <MudText Typo="Typo.caption" Class="text-muted">
+                                                @($"{((context.Items?.Count ?? 0) + (context.SmartItems?.Count ?? 0))} collections")
+                                            </MudText>
+                                        </div>
+                                    </div>
+                                </MudTd>
+                                <MudTd Style="text-align: right;" Class="py-3 px-4">
+                                    <div style="align-items: center; display: flex; justify-content: flex-end; gap: 4px;" @onclick:stopPropagation="true">
+                                        <MudTooltip Text="Edit Multi Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                           Size="Size.Small"
+                                                           OnClick="@(() => OpenEditMultiCollectionDialog(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                        <MudTooltip Text="Delete Multi Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(_ => DeleteMultiCollection(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                    </div>
+                                </MudTd>
+                            </RowTemplate>
+                            <PagerContent>
+                                <MudTablePager/>
+                            </PagerContent>
+                        </MudTable>
+                    </div>
+                </MudTabPanel>
+
+                <!-- TAB 4: RERUN -->
+                <MudTabPanel Text="Rerun" Icon="@Icons.Material.Filled.Repeat">
+                    <div class="pt-4">
+                        <MudText Typo="Typo.body2" Class="text-muted mb-3">
+                            Marathon collections that differentiate between first-run sequential episodes and reruns.
+                        </MudText>
+                        <MudTable T="RerunCollectionViewModel"
+                                  Hover="true"
+                                  @bind-RowsPerPage="@_rerunCollectionsRowsPerPage"
+                                  ServerData="@(new Func<TableState, CancellationToken, Task<TableData<RerunCollectionViewModel>>>(ServerReloadRerunCollections))"
+                                  Dense="false"
+                                  Elevation="0"
+                                  Outlined="true"
+                                  RowClass="cursor-pointer"
+                                  OnRowClick="@(args => NavigationManager.NavigateTo($"media/rerun-collections/{args.Item.Id}"))"
+                                  @ref="_rerunCollectionsTable">
+                            <ColGroup>
+                                <MudHidden Breakpoint="Breakpoint.Xs">
+                                    <col/>
+                                    <col style="width: 150px;"/>
+                                </MudHidden>
+                            </ColGroup>
+                            <ToolBarContent>
+                                <div class="d-flex justify-space-between align-center width-100">
+                                    <MudTextField T="string"
+                                                  ValueChanged="@(s => OnSearchRerun(s))"
+                                                  Placeholder="Search rerun collections..."
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                                  Clearable="true"
+                                                  Margin="Margin.Dense"
+                                                  Variant="Variant.Outlined"
+                                                  Style="max-width: 400px;">
+                                    </MudTextField>
+                                    <MudButton Variant="Variant.Filled" 
+                                               Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.Repeat" 
+                                               OnClick="OpenAddRerunCollectionDialog"
+                                               Class="ml-4">
+                                        New Rerun Collection
+                                    </MudButton>
+                                </div>
+                            </ToolBarContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Name" Class="py-3 px-4">
+                                    <div class="d-flex align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Repeat" Color="Color.Secondary" Class="mr-3" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@context.Name</MudText>
+                                            <MudText Typo="Typo.caption" Class="text-muted">
+                                                @GetRerunSourceDescription(context)
+                                            </MudText>
+                                        </div>
+                                    </div>
+                                </MudTd>
+                                <MudTd Style="text-align: right;" Class="py-3 px-4">
+                                    <div style="align-items: center; display: flex; justify-content: flex-end; gap: 4px;" @onclick:stopPropagation="true">
+                                        <MudTooltip Text="Edit Rerun Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                           Size="Size.Small"
+                                                           OnClick="@(() => OpenEditRerunCollectionDialog(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                        <MudTooltip Text="Delete Rerun Collection">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(_ => DeleteRerunCollection(context))">
+                                            </MudIconButton>
+                                        </MudTooltip>
+                                    </div>
+                                </MudTd>
+                            </RowTemplate>
+                            <PagerContent>
+                                <MudTablePager/>
+                            </PagerContent>
+                        </MudTable>
+                    </div>
+                </MudTabPanel>
+            </MudTabs>
         </MudContainer>
     </div>
 </MudForm>
 
 @code {
     private CancellationTokenSource _cts;
+    private int _activeTab;
 
+    // Collections (Manual)
     private MudTable<MediaCollectionViewModel> _collectionsTable;
-
     private int _collectionsRowsPerPage = 10;
-    private string _searchString;
+    private string _searchManualString;
+
+    // Smart Collections
+    private MudTable<SmartCollectionViewModel> _smartCollectionsTable;
+    private int _smartCollectionsRowsPerPage = 10;
+    private string _searchSmartString;
+
+    // Multi Collections
+    private MudTable<MultiCollectionViewModel> _multiCollectionsTable;
+    private int _multiCollectionsRowsPerPage = 10;
+    private string _searchMultiString;
+
+    // Rerun Collections
+    private MudTable<RerunCollectionViewModel> _rerunCollectionsTable;
+    private int _rerunCollectionsRowsPerPage = 10;
+    private string _searchRerunString;
 
     public void Dispose()
     {
         _cts?.Cancel();
         _cts?.Dispose();
+    }
+
+    protected override void OnInitialized()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("type", out var typeVal))
+        {
+            if (string.Equals(typeVal, "manual", StringComparison.OrdinalIgnoreCase)) _activeTab = 0;
+            else if (string.Equals(typeVal, "smart", StringComparison.OrdinalIgnoreCase)) _activeTab = 1;
+            else if (string.Equals(typeVal, "multi", StringComparison.OrdinalIgnoreCase)) _activeTab = 2;
+            else if (string.Equals(typeVal, "rerun", StringComparison.OrdinalIgnoreCase)) _activeTab = 3;
+        }
+        else if (query.TryGetValue("tab", out var tabVal) && int.TryParse(tabVal, out int tabIndex))
+        {
+            if (tabIndex >= 0 && tabIndex <= 3)
+            {
+                _activeTab = tabIndex;
+            }
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -96,10 +414,65 @@
         {
             _collectionsRowsPerPage = await Mediator.Send(new GetConfigElementByKey(ConfigElementKey.CollectionsPageSize), token)
                 .Map(maybeRows => maybeRows.Match(ce => int.TryParse(ce.Value, out int rows) ? rows : 10, () => 10));
+
+            _smartCollectionsRowsPerPage = await Mediator.Send(new GetConfigElementByKey(ConfigElementKey.SmartCollectionsPageSize), token)
+                .Map(maybeRows => maybeRows.Match(ce => int.TryParse(ce.Value, out int rows) ? rows : 10, () => 10));
+
+            _multiCollectionsRowsPerPage = await Mediator.Send(new GetConfigElementByKey(ConfigElementKey.MultiCollectionsPageSize), token)
+                .Map(maybeRows => maybeRows.Match(ce => int.TryParse(ce.Value, out int rows) ? rows : 10, () => 10));
+
+            _rerunCollectionsRowsPerPage = await Mediator.Send(new GetConfigElementByKey(ConfigElementKey.RerunCollectionsPageSize), token)
+                .Map(maybeRows => maybeRows.Match(ce => int.TryParse(ce.Value, out int rows) ? rows : 10, () => 10));
         }
         catch (OperationCanceledException)
         {
             // do nothing
+        }
+    }
+
+    // ================= MANUAL COLLECTIONS =================
+    private async Task<TableData<MediaCollectionViewModel>> ServerReloadCollections(TableState state, CancellationToken cancellationToken)
+    {
+        await Mediator.Send(new SaveConfigElementByKey(ConfigElementKey.CollectionsPageSize, state.PageSize.ToString()), cancellationToken);
+
+        PagedMediaCollectionsViewModel data = await Mediator.Send(new GetPagedCollections(_searchManualString, state.Page, state.PageSize), cancellationToken);
+        return new TableData<MediaCollectionViewModel> { TotalItems = data.TotalCount, Items = data.Page };
+    }
+
+    private void OnSearchManual(string query)
+    {
+        _searchManualString = query;
+        _collectionsTable?.ReloadServerData();
+    }
+
+    private async Task OpenAddCollectionDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        IDialogReference dialog = await Dialog.ShowAsync<CollectionDialog>("New Collection", options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false, Data: MediaCollectionViewModel collection })
+        {
+            NavigationManager.NavigateTo($"media/collections/{collection.Id}");
+        }
+    }
+
+    private async Task OpenEditCollectionDialog(MediaCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Id", collection.Id },
+            { "InitialName", collection.Name },
+            { "InitialUseCustomOrder", collection.UseCustomPlaybackOrder }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await Dialog.ShowAsync<CollectionDialog>("Edit Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_collectionsTable != null)
+            {
+                await _collectionsTable.ReloadServerData();
+            }
         }
     }
 
@@ -120,17 +493,203 @@
         }
     }
 
-    private async Task<TableData<MediaCollectionViewModel>> ServerReloadCollections(TableState state, CancellationToken cancellationToken)
+    // ================= SMART COLLECTIONS =================
+    private async Task<TableData<SmartCollectionViewModel>> ServerReloadSmartCollections(TableState state, CancellationToken cancellationToken)
     {
-        await Mediator.Send(new SaveConfigElementByKey(ConfigElementKey.CollectionsPageSize, state.PageSize.ToString()), cancellationToken);
+        await Mediator.Send(new SaveConfigElementByKey(ConfigElementKey.SmartCollectionsPageSize, state.PageSize.ToString()), cancellationToken);
 
-        PagedMediaCollectionsViewModel data = await Mediator.Send(new GetPagedCollections(_searchString, state.Page, state.PageSize), cancellationToken);
-        return new TableData<MediaCollectionViewModel> { TotalItems = data.TotalCount, Items = data.Page };
+        PagedSmartCollectionsViewModel data = await Mediator.Send(new GetPagedSmartCollections(_searchSmartString, state.Page, state.PageSize), cancellationToken);
+        return new TableData<SmartCollectionViewModel> { TotalItems = data.TotalCount, Items = data.Page };
     }
 
-    private void OnSearch(string query)
+    private void OnSearchSmart(string query)
     {
-        _searchString = query;
-        _collectionsTable.ReloadServerData();
+        _searchSmartString = query;
+        _smartCollectionsTable?.ReloadServerData();
     }
+
+    private async Task OpenAddSmartCollectionDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
+        IDialogReference dialog = await Dialog.ShowAsync<SmartCollectionDialog>("New Smart Collection", options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_smartCollectionsTable != null)
+            {
+                await _smartCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private async Task OpenEditSmartCollectionDialog(SmartCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Id", collection.Id },
+            { "InitialName", collection.Name },
+            { "InitialQuery", collection.Query }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
+        var dialog = await Dialog.ShowAsync<SmartCollectionDialog>("Edit Smart Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_smartCollectionsTable != null)
+            {
+                await _smartCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private async Task DeleteSmartCollection(SmartCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters { { "EntityType", "smart collection" }, { "EntityName", collection.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Delete Smart Collection", parameters, options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await Mediator.Send(new DeleteSmartCollection(collection.Id), _cts.Token);
+            if (_smartCollectionsTable != null)
+            {
+                await _smartCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    // ================= MULTI COLLECTIONS =================
+    private async Task<TableData<MultiCollectionViewModel>> ServerReloadMultiCollections(TableState state, CancellationToken cancellationToken)
+    {
+        await Mediator.Send(new SaveConfigElementByKey(ConfigElementKey.MultiCollectionsPageSize, state.PageSize.ToString()), cancellationToken);
+
+        PagedMultiCollectionsViewModel data = await Mediator.Send(new GetPagedMultiCollections(_searchMultiString, state.Page, state.PageSize), cancellationToken);
+        return new TableData<MultiCollectionViewModel> { TotalItems = data.TotalCount, Items = data.Page };
+    }
+
+    private void OnSearchMulti(string query)
+    {
+        _searchMultiString = query;
+        _multiCollectionsTable?.ReloadServerData();
+    }
+
+    private async Task OpenAddMultiCollectionDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        IDialogReference dialog = await Dialog.ShowAsync<MultiCollectionDialog>("New Multi Collection", options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_multiCollectionsTable != null)
+            {
+                await _multiCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private async Task OpenEditMultiCollectionDialog(MultiCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters { { "Id", collection.Id } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await Dialog.ShowAsync<MultiCollectionDialog>("Edit Multi Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_multiCollectionsTable != null)
+            {
+                await _multiCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private async Task DeleteMultiCollection(MultiCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters { { "EntityType", "multi collection" }, { "EntityName", collection.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Delete Multi Collection", parameters, options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await Mediator.Send(new DeleteMultiCollection(collection.Id), _cts.Token);
+            if (_multiCollectionsTable != null)
+            {
+                await _multiCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    // ================= RERUN COLLECTIONS =================
+    private async Task<TableData<RerunCollectionViewModel>> ServerReloadRerunCollections(TableState state, CancellationToken cancellationToken)
+    {
+        await Mediator.Send(new SaveConfigElementByKey(ConfigElementKey.RerunCollectionsPageSize, state.PageSize.ToString()), cancellationToken);
+
+        PagedRerunCollectionsViewModel data = await Mediator.Send(new GetPagedRerunCollections(_searchRerunString, state.Page, state.PageSize), cancellationToken);
+        return new TableData<RerunCollectionViewModel> { TotalItems = data.TotalCount, Items = data.Page };
+    }
+
+    private void OnSearchRerun(string query)
+    {
+        _searchRerunString = query;
+        _rerunCollectionsTable?.ReloadServerData();
+    }
+
+    private async Task OpenAddRerunCollectionDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        IDialogReference dialog = await Dialog.ShowAsync<RerunCollectionDialog>("New Rerun Collection", options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_rerunCollectionsTable != null)
+            {
+                await _rerunCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private async Task OpenEditRerunCollectionDialog(RerunCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters { { "Id", collection.Id } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await Dialog.ShowAsync<RerunCollectionDialog>("Edit Rerun Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            if (_rerunCollectionsTable != null)
+            {
+                await _rerunCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private async Task DeleteRerunCollection(RerunCollectionViewModel collection)
+    {
+        var parameters = new DialogParameters { { "EntityType", "rerun collection" }, { "EntityName", collection.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Delete Rerun Collection", parameters, options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await Mediator.Send(new DeleteRerunCollection(collection.Id), _cts.Token);
+            if (_rerunCollectionsTable != null)
+            {
+                await _rerunCollectionsTable.ReloadServerData();
+            }
+        }
+    }
+
+    private static string GetRerunSourceDescription(RerunCollectionViewModel vm) =>
+        vm.CollectionType switch
+        {
+            CollectionType.Collection => $"Collection: {vm.Collection?.Name ?? "None"}",
+            CollectionType.SmartCollection => $"Smart: {vm.SmartCollection?.Name ?? "None"}",
+            CollectionType.MultiCollection => $"Multi: {vm.MultiCollection?.Name ?? "None"}",
+            CollectionType.TelevisionShow => $"Show: {vm.MediaItem?.Name ?? "None"}",
+            CollectionType.TelevisionSeason => $"Season: {vm.MediaItem?.Name ?? "None"}",
+            CollectionType.Artist => $"Artist: {vm.MediaItem?.Name ?? "None"}",
+            _ => vm.CollectionType.ToString()
+        };
 }

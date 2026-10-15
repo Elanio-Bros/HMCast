@@ -1,0 +1,262 @@
+@page "/media/multi-collections/{Id:int}"
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Shared
+@using LanguageExt
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-10">
+
+            @* Top Navigation & Header *@
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Href="media/collections?tab=2" Class="mb-1">
+                    Back to Collections
+                </MudButton>
+
+                <div class="d-flex align-center gap-2">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Edit"
+                               OnClick="OpenEditDialog">
+                        Edit Multi Collection
+                    </MudButton>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="DeleteThisCollection" />
+                </div>
+            </div>
+
+            <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-4">
+                <div>
+                    <div class="d-flex align-center gap-2 mb-1">
+                        <MudIcon Icon="@Icons.Material.Filled.Layers" Color="Color.Primary" Size="Size.Medium" />
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">
+                            @(_data?.Name ?? "Loading Multi Collection...")
+                        </MudText>
+                    </div>
+                    <div class="d-flex align-center flex-wrap gap-2 mt-1">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">
+                            Multi Collection
+                        </MudChip>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
+                            @TotalCollectionsCount collections blended
+                        </MudText>
+                    </div>
+                </div>
+            </div>
+
+            @* Information Banner *@
+            <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Class="mb-6" Icon="@Icons.Material.Filled.Info">
+                Multi collections allow you to blend multiple manual and smart collections into a single source for channel schedules. Collections can be played sequentially, shuffled, or scheduled as cohesive groups.
+            </MudAlert>
+
+            @* Content Area *@
+            @if (_isLoading)
+            {
+                <div class="d-flex justify-center mt-12 mb-12">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+                </div>
+            }
+            else if (HasItems)
+            {
+                <MudText Typo="Typo.h6" Class="mb-3 font-weight-bold">
+                    Included Collections (@TotalCollectionsCount)
+                </MudText>
+
+                <MudTable Items="CombinedItems"
+                          Hover="true"
+                          Dense="false"
+                          Class="mb-5"
+                          Elevation="0"
+                          Outlined="true">
+                    <HeaderContent>
+                        <MudTh Style="width: 140px;">Kind</MudTh>
+                        <MudTh>Collection Name</MudTh>
+                        <MudTh Style="width: 180px;">Schedule As Group</MudTh>
+                        <MudTh Style="width: 160px;">Playback Order</MudTh>
+                        <MudTh Style="width: 120px; text-align: right;">Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Kind">
+                            @if (context.IsSmart)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Bolt">
+                                    Smart
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Folder">
+                                    Manual
+                                </MudChip>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Collection Name">
+                            <div class="d-flex align-center gap-2">
+                                <MudText Typo="Typo.subtitle2" Class="font-weight-medium">@context.Name</MudText>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Schedule As Group">
+                            @if (context.ScheduleAsGroup)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">
+                                    Yes (Group)
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">No (Mixed)</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Playback Order">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                                @context.PlaybackOrder.ToString()
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Actions" Style="text-align: right;">
+                            <MudTooltip Text="Inspect Collection">
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               Href="@context.TargetUrl" />
+                            </MudTooltip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            else
+            {
+                <MudPaper Class="pa-8 d-flex flex-column align-center justify-center text-center my-6" Elevation="0" Outlined="true" Style="border-radius: 8px;">
+                    <MudIcon Icon="@Icons.Material.Filled.LayersClear" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
+                    <MudText Typo="Typo.h6" Color="Color.Secondary">No collections added to this blend</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                        This multi collection currently contains no manual or smart collections.
+                    </MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="OpenEditDialog">
+                        Add Collections
+                    </MudButton>
+                </MudPaper>
+            }
+
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private readonly CancellationTokenSource _cts = new();
+    private MultiCollectionViewModel _data;
+    private bool _isLoading = true;
+
+    private class DisplayItem
+    {
+        public string Name { get; set; }
+        public bool IsSmart { get; set; }
+        public bool ScheduleAsGroup { get; set; }
+        public PlaybackOrder PlaybackOrder { get; set; }
+        public string TargetUrl { get; set; }
+    }
+
+    private int TotalCollectionsCount => (_data?.Items?.Count ?? 0) + (_data?.SmartItems?.Count ?? 0);
+    private bool HasItems => TotalCollectionsCount > 0;
+
+    private List<DisplayItem> CombinedItems
+    {
+        get
+        {
+            var list = new List<DisplayItem>();
+            if (_data?.Items != null)
+            {
+                list.AddRange(_data.Items.Select(i => new DisplayItem
+                {
+                    Name = i.Collection.Name,
+                    IsSmart = false,
+                    ScheduleAsGroup = i.ScheduleAsGroup,
+                    PlaybackOrder = i.PlaybackOrder,
+                    TargetUrl = $"media/collections/{i.Collection.Id}"
+                }));
+            }
+            if (_data?.SmartItems != null)
+            {
+                list.AddRange(_data.SmartItems.Select(i => new DisplayItem
+                {
+                    Name = i.SmartCollection.Name,
+                    IsSmart = true,
+                    ScheduleAsGroup = i.ScheduleAsGroup,
+                    PlaybackOrder = i.PlaybackOrder,
+                    TargetUrl = $"media/smart-collections/{i.SmartCollection.Id}"
+                }));
+            }
+            return list.OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync() => await RefreshData();
+
+    private async Task RefreshData()
+    {
+        _isLoading = true;
+        try
+        {
+            var maybe = await Mediator.Send(new GetMultiCollectionById(Id), _cts.Token);
+            maybe.Match(
+                mc => _data = mc,
+                () => NavigationManager.NavigateTo("404"));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading multi collection: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenEditDialog()
+    {
+        var parameters = new DialogParameters { { "Id", Id } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+        var dialog = await Dialog.ShowAsync<MultiCollectionDialog>("Edit Multi Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await RefreshData();
+        }
+    }
+
+    private async Task DeleteThisCollection()
+    {
+        if (_data == null) return;
+
+        var parameters = new DialogParameters { { "EntityType", "multi collection" }, { "EntityName", _data.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        var dialog = await Dialog.ShowAsync<DeleteDialog>("Delete Multi Collection", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await Mediator.Send(new DeleteMultiCollection(_data.Id), _cts.Token);
+            Snackbar.Add($"Multi collection '{_data.Name}' deleted.", Severity.Success);
+            NavigationManager.NavigateTo("media/collections?tab=2");
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}
