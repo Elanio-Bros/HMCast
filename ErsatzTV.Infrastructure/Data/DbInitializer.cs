@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Reflection;
 using Dapper;
 using ErsatzTV.Core.Domain;
@@ -109,6 +109,13 @@ public static class DbInitializer
 
         var defaultProfile = FFmpegProfile.New("1920x1080 x264 aac", resolutions[2]);
         await context.FFmpegProfiles.AddAsync(defaultProfile, cancellationToken);
+
+        var profile720p = FFmpegProfile.New("1280x720 x264 aac", resolutions[1]);
+        await context.FFmpegProfiles.AddAsync(profile720p, cancellationToken);
+
+        var profile480p = FFmpegProfile.New("720x480 x264 aac", resolutions[0]);
+        await context.FFmpegProfiles.AddAsync(profile480p, cancellationToken);
+
         await context.SaveChangesAsync(cancellationToken);
 
         var profileConfig = new ConfigElement
