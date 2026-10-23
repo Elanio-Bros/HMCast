@@ -43,6 +43,11 @@ public abstract record ProgramScheduleItemViewModel(
     string PreferredSubtitleLanguageCode,
     ChannelSubtitleMode? SubtitleMode)
 {
+    public ScheduleItemDurationMode DurationMode { get; init; } = ScheduleItemDurationMode.ContentDriven;
+    public TimeSpan? TargetDuration { get; init; }
+    public bool RespectMediaSkipChapters { get; init; } = true;
+    public bool FillCommercialGapsWithFillers { get; init; } = true;
+
     public string Name => CollectionType switch
     {
         CollectionType.Collection => Collection?.Name,

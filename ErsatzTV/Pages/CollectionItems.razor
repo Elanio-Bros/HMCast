@@ -157,7 +157,9 @@
                         <MudTh Style="width: 120px;">Type</MudTh>
                         @if (_data?.UseCustomPlaybackOrder == true)
                         {
-                            <MudTh Style="width: 120px; text-align: center;">Order</MudTh>
+                            <MudTh Style="width: 150px; text-align: center;">
+                                <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" Title="Alça de Arraste / Ordem Manual" /> Ordem
+                            </MudTh>
                         }
                         <MudTh Style="width: 200px; text-align: right;">Actions</MudTh>
                     </HeaderContent>
@@ -186,9 +188,12 @@
                         @if (_data?.UseCustomPlaybackOrder == true)
                         {
                             <MudTd DataLabel="Order" Style="text-align: center;">
-                                @if (context is MovieCardViewModel movie)
-                                {
-                                    <div class="d-inline-flex align-center gap-1">
+                                <div class="d-inline-flex align-center gap-1">
+                                    <MudTooltip Text="Alça de Reordenação Manual (::: Drag Handle)">
+                                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Style="cursor: grab;" Size="Size.Small" Color="Color.Default" Class="mr-1" />
+                                    </MudTooltip>
+                                    @if (context is MovieCardViewModel movie)
+                                    {
                                         <MudText Typo="Typo.caption" Class="font-weight-bold mr-1">#@(movie.CustomIndex + 1)</MudText>
                                         <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward"
                                                        Size="Size.Small"
@@ -198,8 +203,12 @@
                                                        Size="Size.Small"
                                                        Disabled="@(_orderedMovies.IndexOf(movie) >= _orderedMovies.Count - 1 || _savingOrder)"
                                                        OnClick="@(() => MoveMovieDown(movie))" />
-                                    </div>
-                                }
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Auto</MudText>
+                                    }
+                                </div>
                             </MudTd>
                         }
                         <MudTd DataLabel="Actions" Style="text-align: right;">

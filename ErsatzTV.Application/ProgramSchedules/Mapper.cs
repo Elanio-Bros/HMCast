@@ -14,8 +14,9 @@ internal static class Mapper
             programSchedule.RandomStartPoint,
             programSchedule.FixedStartTimeBehavior);
 
-    internal static ProgramScheduleItemViewModel ProjectToViewModel(ProgramScheduleItem programScheduleItem) =>
-        programScheduleItem switch
+    internal static ProgramScheduleItemViewModel ProjectToViewModel(ProgramScheduleItem programScheduleItem)
+    {
+        ProgramScheduleItemViewModel vm = programScheduleItem switch
         {
             ProgramScheduleItemDuration duration =>
                 new ProgramScheduleItemDurationViewModel(
@@ -265,4 +266,13 @@ internal static class Mapper
             _ => throw new NotSupportedException(
                 $"Unsupported program schedule item type {programScheduleItem.GetType().Name}")
         };
+
+        return vm with
+        {
+            DurationMode = programScheduleItem.DurationMode,
+            TargetDuration = programScheduleItem.TargetDuration,
+            RespectMediaSkipChapters = programScheduleItem.RespectMediaSkipChapters,
+            FillCommercialGapsWithFillers = programScheduleItem.FillCommercialGapsWithFillers
+        };
+    }
 }

@@ -41,7 +41,11 @@ public record ReplaceProgramScheduleItem(
     string PreferredAudioLanguageCode,
     string PreferredAudioTitle,
     string PreferredSubtitleLanguageCode,
-    ChannelSubtitleMode? SubtitleMode) : IProgramScheduleItemRequest;
+    ChannelSubtitleMode? SubtitleMode,
+    ScheduleItemDurationMode DurationMode = ScheduleItemDurationMode.ContentDriven,
+    TimeSpan? TargetDuration = null,
+    bool RespectMediaSkipChapters = true,
+    bool FillCommercialGapsWithFillers = true) : IProgramScheduleItemRequest;
 
 public record ReplaceProgramScheduleItems(int ProgramScheduleId, List<ReplaceProgramScheduleItem> Items) : IRequest<
     Either<BaseError, IEnumerable<ProgramScheduleItemViewModel>>>;

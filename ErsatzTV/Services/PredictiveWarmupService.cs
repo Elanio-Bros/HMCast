@@ -28,11 +28,22 @@ public class PredictiveWarmupService(
         // Aguarda o sistema inicializar antes de começar a varrer
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
 
+        int secondsCounter = 0;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await WarmUpPredictiveChannels(stoppingToken);
+                // HMCast 3.0: Loop de 1Hz para atualização contínua e precisa de seek em RAM (Zero-Delay < 200ms)
+                channelPreCacheService.UpdateAllSeeks();
+
+                // A cada 10 segundos: ciclo de varredura preditiva de novos canais e burst de rádio
+                if (secondsCounter % 10 == 0)
+                {
+                    await WarmUpPredictiveChannels(stoppingToken);
+                }
+
+                secondsCounter = (secondsCounter + 1) % 60;
             }
             catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
             {
@@ -43,8 +54,8 @@ public class PredictiveWarmupService(
                 logger.LogWarning(ex, "Error during predictive warmup cycle");
             }
 
-            // Ciclo de verificação a cada 10 segundos para lidar com o Burst
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            // Loop de 1Hz (1 segundo)
+            await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
         }
 
         logger.LogInformation("Predictive Warmup Service shutting down");

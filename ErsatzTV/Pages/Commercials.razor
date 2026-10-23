@@ -1,0 +1,168 @@
+@page "/media/commercials"
+@using ErsatzTV.Application.Filler
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Core.Domain.Filler
+@implements IDisposable
+@inject IDialogService Dialog
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudForm Style="max-height: 100%">
+    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+        <div class="d-flex align-center ml-6 mr-6" style="width: 100%;">
+            <MudText Typo="Typo.h6" Class="mr-4">Comerciais &amp; Vinhetas</MudText>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Href="media/filler/presets/add">
+                Novo Preset Comercial
+            </MudButton>
+            <MudSpacer />
+            <MudChip T="string" Color="Color.Info" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.Campaign">
+                HMCast 3.0 Commercial Engine
+            </MudChip>
+        </div>
+    </MudPaper>
+
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            <div class="d-flex align-center justify-space-between mb-4">
+                <div>
+                    <MudText Typo="Typo.h5" Class="mb-1">Gestão Profissional de Comerciais &amp; Vinhetas</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Configure blocos de publicidade, vinhetas institucionais (Preroll/Midroll/Postroll), fillers de preenchimento e pads temporais.
+                    </MudText>
+                </div>
+                <div class="d-flex gap-2">
+                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">Preroll</MudChip>
+                    <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Filled">Midroll</MudChip>
+                    <MudChip T="string" Color="Color.Tertiary" Size="Size.Small" Variant="Variant.Filled">Postroll</MudChip>
+                    <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Filler / Pad</MudChip>
+                </div>
+            </div>
+
+            <MudDivider Class="mb-6"/>
+
+            <MudTable Hover="true"
+                      @bind-RowsPerPage="@_rowsPerPage"
+                      ServerData="@(new Func<TableState, CancellationToken, Task<TableData<FillerPresetViewModel>>>(ServerReloadPresets))"
+                      Dense="true"
+                      @ref="_table">
+                <ColGroup>
+                    <MudHidden Breakpoint="Breakpoint.Xs">
+                        <col style="width: 40px;"/>
+                        <col/>
+                        <col style="width: 200px;"/>
+                        <col style="width: 160px;"/>
+                        <col style="width: 140px;"/>
+                    </MudHidden>
+                </ColGroup>
+                <HeaderContent>
+                    <MudTh><MudIcon Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" /></MudTh>
+                    <MudTh>Nome do Preset</MudTh>
+                    <MudTh>Tipo de Comercial</MudTh>
+                    <MudTh>Pad / Duração</MudTh>
+                    <MudTh Style="text-align: right;">Ações</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Ícone">
+                        <MudIcon Icon="@Icons.Material.Filled.Tv" Color="Color.Primary" Size="Size.Small" />
+                    </MudTd>
+                    <MudTd DataLabel="Nome">
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.Name</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Tipo">
+                        @{
+                            var kind = context.FillerKind;
+                            Color chipColor = kind switch
+                            {
+                                FillerKind.PreRoll => Color.Primary,
+                                FillerKind.MidRoll => Color.Secondary,
+                                FillerKind.PostRoll => Color.Tertiary,
+                                FillerKind.Tail => Color.Warning,
+                                FillerKind.Fallback => Color.Error,
+                                _ => Color.Default
+                            };
+                        }
+                        <MudChip T="string" Color="@chipColor" Size="Size.Small" Variant="Variant.Filled">
+                            @kind.ToString()
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Pad">
+                        @if (context.PadToNearestMinute.HasValue)
+                        {
+                            <MudText Typo="Typo.body2">Até @context.PadToNearestMinute min</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Tempo Exato</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Ações" Style="text-align: right;">
+                        <div class="d-inline-flex align-center gap-1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Default"
+                                           Href="@($"media/filler/presets/{context.Id}")" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeletePreset(context))" />
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private int _rowsPerPage = 10;
+    private MudTable<FillerPresetViewModel> _table;
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+
+    private async Task<TableData<FillerPresetViewModel>> ServerReloadPresets(TableState state, CancellationToken cancellationToken)
+    {
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+        List<FillerPresetViewModel> presets = await Mediator.Send(new GetAllFillerPresets(), linkedCts.Token);
+        IOrderedEnumerable<FillerPresetViewModel> ordered = presets.OrderBy(p => p.Name);
+        return new TableData<FillerPresetViewModel>
+        {
+            TotalItems = presets.Count,
+            Items = ordered.Skip(state.Page * state.PageSize).Take(state.PageSize)
+        };
+    }
+
+    private async Task DeletePreset(FillerPresetViewModel preset)
+    {
+        var parameters = new DialogParameters<ISnackbar>
+        {
+            { "ContentText", $"Tem certeza de que deseja excluir o preset comercial '{preset.Name}'?" },
+            { "ButtonText", "Excluir" },
+            { "Color", Color.Error }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        IDialogReference dialog = await Dialog.ShowAsync<MudDialog>("Excluir Comercial", parameters, options);
+        DialogResult result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await Mediator.Send(new DeleteFillerPreset(preset.Id), _cts.Token);
+            if (_table != null)
+            {
+                await _table.ReloadServerData();
+            }
+            Snackbar.Add($"Preset '{preset.Name}' removido com sucesso.", Severity.Success);
+        }
+    }
+}

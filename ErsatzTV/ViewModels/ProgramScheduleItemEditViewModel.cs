@@ -214,6 +214,34 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
     public GuideMode GuideMode { get; set; }
     public FixedStartTimeBehavior DurationBehavior { get; set; } = ErsatzTV.Core.Scheduling.FixedStartTimeBehavior.WaitUntilNext;
     public bool RespectMediaSkipChapters { get; set; } = true;
+    public ScheduleItemDurationMode DurationMode { get; set; } = ScheduleItemDurationMode.ContentDriven;
+    private TimeSpan? _targetDuration;
+    public TimeSpan? TargetDuration
+    {
+        get => DurationMode == ScheduleItemDurationMode.FixedTimeBlock ? _targetDuration : null;
+        set => _targetDuration = value;
+    }
+    public int TargetDurationHours
+    {
+        get => _targetDuration?.Hours ?? 0;
+        set
+        {
+            _targetDuration = TimeSpan.FromHours(value) + TimeSpan.FromMinutes(_targetDuration?.Minutes ?? 0);
+            OnPropertyChanged(nameof(TargetDuration));
+            OnPropertyChanged(nameof(TargetDurationHours));
+        }
+    }
+    public int TargetDurationMinutes
+    {
+        get => _targetDuration?.Minutes ?? 0;
+        set
+        {
+            _targetDuration = TimeSpan.FromHours(_targetDuration?.Hours ?? 0) + TimeSpan.FromMinutes(value);
+            OnPropertyChanged(nameof(TargetDuration));
+            OnPropertyChanged(nameof(TargetDurationMinutes));
+        }
+    }
+    public bool FillCommercialGapsWithFillers { get; set; } = true;
 
     public event PropertyChangedEventHandler PropertyChanged;
 

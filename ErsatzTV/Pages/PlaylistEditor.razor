@@ -1,4 +1,4 @@
-﻿@page "/media/playlists/{Id:int}"
+@page "/media/playlists/{Id:int}"
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
 @using ErsatzTV.Application.Scheduling
@@ -48,6 +48,7 @@
 <MudTable Hover="true" Items="_playlist.Items.OrderBy(i => i.Index)" Dense="true" @bind-SelectedItem="_selectedItem" RowClassFunc="@SelectedRowClassFunc">
     <ColGroup>
         <MudHidden Breakpoint="Breakpoint.Xs">
+            <col style="width: 40px;"/>
             <col/>
             <col/>
             <col/>
@@ -58,6 +59,7 @@
         </MudHidden>
     </ColGroup>
     <HeaderContent>
+        <MudTh><MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" Title="Ordem / Arraste" /></MudTh>
         <MudTh>Item Type</MudTh>
         <MudTh>Item</MudTh>
         <MudTh>Playback Order</MudTh>
@@ -67,6 +69,11 @@
         <MudTh/>
     </HeaderContent>
     <RowTemplate>
+        <MudTd Class="drag-handle" Style="cursor: grab;">
+            <MudTooltip Text="Alça de Reordenação Manual (Arraste ou use as setas)">
+                <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Color="Color.Default" Size="Size.Small" />
+            </MudTooltip>
+        </MudTd>
         <MudTd DataLabel="Item Type">
             <MudText Typo="@(context == _selectedItem ? Typo.subtitle2 : Typo.body2)">
                 @context.ItemType

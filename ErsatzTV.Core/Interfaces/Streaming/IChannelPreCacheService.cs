@@ -12,5 +12,6 @@ public interface IChannelPreCacheService
     Task WarmupChannel(string channelNumber, CancellationToken cancellationToken);
     Task WarmupAllPreCacheChannels(CancellationToken cancellationToken);
     void UpdateSeek(string channelNumber, TimeSpan newSeek);
+    void UpdateAllSeeks();
     void Invalidate(string channelNumber);
 }

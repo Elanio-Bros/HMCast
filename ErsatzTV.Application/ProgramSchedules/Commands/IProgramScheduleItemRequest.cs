@@ -40,4 +40,8 @@ public interface IProgramScheduleItemRequest
     string PreferredAudioTitle { get; }
     string PreferredSubtitleLanguageCode { get; }
     ChannelSubtitleMode? SubtitleMode { get; }
+    ScheduleItemDurationMode DurationMode { get; }
+    TimeSpan? TargetDuration { get; }
+    bool RespectMediaSkipChapters { get; }
+    bool FillCommercialGapsWithFillers { get; }
 }

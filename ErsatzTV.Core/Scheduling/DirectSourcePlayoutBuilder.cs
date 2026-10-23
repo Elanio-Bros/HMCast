@@ -52,17 +52,45 @@ public class DirectSourcePlayoutBuilder : IDirectSourcePlayoutBuilder
             return PlayoutBuildResult.Empty;
         }
 
-        // Aplicar regras de DeliveryMode
-        if (playout.DeliveryMode == PlayoutDeliveryMode.Shuffle)
+        // Aplicar regras dos 4 modos de PlayoutDeliveryMode (HMCast 3.0)
+        int itemIndex = 0;
+
+        switch (playout.DeliveryMode)
         {
-            var random = new Random(playout.Seed);
-            mediaItems = mediaItems.OrderBy(_ => random.Next()).ToList();
+            case PlayoutDeliveryMode.Shuffle:
+                var random = new Random(playout.Seed);
+                mediaItems = mediaItems.OrderBy(_ => random.Next()).ToList();
+                break;
+
+            case PlayoutDeliveryMode.Conseguinte:
+                // Retoma a reprodução sequencial a partir do último item tocado
+                if (referenceData?.ExistingItems?.Count > 0)
+                {
+                    int? lastMediaId = referenceData.ExistingItems
+                        .OrderBy(i => i.Finish)
+                        .LastOrDefault()?.MediaItemId;
+
+                    if (lastMediaId.HasValue)
+                    {
+                        int found = mediaItems.FindIndex(m => m.Id == lastMediaId.Value);
+                        if (found >= 0)
+                        {
+                            itemIndex = (found + 1) % mediaItems.Count;
+                        }
+                    }
+                }
+                break;
+
+            case PlayoutDeliveryMode.PlayOnce:
+            case PlayoutDeliveryMode.Loop:
+            default:
+                // Modo sequencial / loop padrão iniciando do índice 0
+                break;
         }
 
         DateTimeOffset current = start;
         DateTimeOffset targetEnd = start.AddDays(Math.Max(1, playout.DaysToBuild));
         var itemsToAdd = new List<PlayoutItem>();
-        int itemIndex = 0;
 
         while (current < targetEnd && !cancellationToken.IsCancellationRequested)
         {

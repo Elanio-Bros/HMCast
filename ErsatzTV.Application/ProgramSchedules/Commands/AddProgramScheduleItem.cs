@@ -41,7 +41,11 @@ public record AddProgramScheduleItem(
     string PreferredAudioLanguageCode,
     string PreferredAudioTitle,
     string PreferredSubtitleLanguageCode,
-    ChannelSubtitleMode? SubtitleMode) : IRequest<Either<BaseError, ProgramScheduleItemViewModel>>,
+    ChannelSubtitleMode? SubtitleMode,
+    ScheduleItemDurationMode DurationMode = ScheduleItemDurationMode.ContentDriven,
+    TimeSpan? TargetDuration = null,
+    bool RespectMediaSkipChapters = true,
+    bool FillCommercialGapsWithFillers = true) : IRequest<Either<BaseError, ProgramScheduleItemViewModel>>,
     IProgramScheduleItemRequest
 {
     public static AddProgramScheduleItem ForMediaItem(int scheduleId, CollectionType collectionType, int mediaItemId)

@@ -141,6 +141,25 @@ public class ChannelPreCacheService : IChannelPreCacheService
         }
     }
 
+    public void UpdateAllSeeks()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        foreach (KeyValuePair<string, PreCachedChannelSession> kvp in _sessions)
+        {
+            if (now < kvp.Value.ItemFinish)
+            {
+                TimeSpan newSeek = now > kvp.Value.CurrentItem.Start
+                    ? now - kvp.Value.CurrentItem.Start
+                    : TimeSpan.Zero;
+                _sessions[kvp.Key] = kvp.Value with { CurrentSeek = newSeek };
+            }
+            else
+            {
+                _sessions.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+
     public void Invalidate(string channelNumber)
     {
         _sessions.TryRemove(channelNumber, out _);

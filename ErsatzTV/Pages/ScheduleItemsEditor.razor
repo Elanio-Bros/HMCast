@@ -89,6 +89,7 @@
         <MudTh>Start Time</MudTh>
         <MudTh>Collection</MudTh>
         <MudTh>Playout Mode</MudTh>
+        <MudTh>Bloco / Duração 24h</MudTh>
         <MudTh/>
     </HeaderContent>
     <RowTemplate>
@@ -128,6 +129,20 @@
                     @context.PlayoutMode
                 }
             </MudText>
+        </MudTd>
+        <MudTd DataLabel="Bloco / Duração 24h">
+            @if (context.DurationMode == ScheduleItemDurationMode.FixedTimeBlock)
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">
+                    Bloco @(context.TargetDuration.HasValue ? context.TargetDuration.Value.ToString(@"hh\:mm") : "00:30")
+                </MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined">
+                    Conteúdo
+                </MudChip>
+            }
         </MudTd>
         <MudTd>
             <div class="d-flex">
@@ -183,6 +198,36 @@
             <MudSelectItem T="FixedStartTimeBehavior?" Value="FixedStartTimeBehavior.Strict">Strict - Always Wait For Exact Start Time</MudSelectItem>
             <MudSelectItem T="FixedStartTimeBehavior?" Value="FixedStartTimeBehavior.Flexible">Flexible - Start As Soon As Possible After Start Time</MudSelectItem>
         </MudSelect>
+    </MudStack>
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Modo de Duração (Grade 24h)</MudText>
+        </div>
+        <MudSelect @bind-Value="_selectedItem.DurationMode" For="@(() => _selectedItem.DurationMode)">
+            <MudSelectItem Value="ScheduleItemDurationMode.ContentDriven">Duração Natural do Conteúdo</MudSelectItem>
+            <MudSelectItem Value="ScheduleItemDurationMode.FixedTimeBlock">Bloco Fixo de Tempo (ex: 30m, 1h)</MudSelectItem>
+        </MudSelect>
+    </MudStack>
+    @if (_selectedItem.DurationMode == ScheduleItemDurationMode.FixedTimeBlock)
+    {
+        <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+            <div class="d-flex">
+                <MudText>Duração Alvo do Bloco</MudText>
+            </div>
+            <div class="d-flex align-center gap-4">
+                <MudNumericField T="int" @bind-Value="_selectedItem.TargetDurationHours" Label="Horas" Min="0" Max="23" Margin="Margin.Dense" Variant="Variant.Outlined" Style="width: 120px;" />
+                <MudNumericField T="int" @bind-Value="_selectedItem.TargetDurationMinutes" Label="Minutos" Min="0" Max="59" Margin="Margin.Dense" Variant="Variant.Outlined" Style="width: 120px;" />
+            </div>
+        </MudStack>
+    }
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Controle de Comerciais &amp; Cutouts</MudText>
+        </div>
+        <div class="d-flex flex-column gap-2">
+            <MudSwitch T="bool" @bind-Value="_selectedItem.RespectMediaSkipChapters" Color="Color.Primary" Label="Respeitar Capítulos de Abertura/Encerramento (MediaSkip)" />
+            <MudSwitch T="bool" @bind-Value="_selectedItem.FillCommercialGapsWithFillers" Color="Color.Primary" Label="Preencher Lacunas do Bloco com Comerciais / Vinhetas" />
+        </div>
     </MudStack>
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
@@ -931,7 +976,11 @@
             PreferredSubtitleLanguageCode = item.PreferredSubtitleLanguageCode,
             SubtitleMode = item.SubtitleMode,
             Watermarks = item.Watermarks,
-            GraphicsElements = item.GraphicsElements
+            GraphicsElements = item.GraphicsElements,
+            DurationMode = item.DurationMode,
+            TargetDuration = item.TargetDuration,
+            RespectMediaSkipChapters = item.RespectMediaSkipChapters,
+            FillCommercialGapsWithFillers = item.FillCommercialGapsWithFillers
         };
 
         switch (item)
@@ -1014,7 +1063,11 @@
             MultipleCount = item.MultipleCount,
             PlayoutDuration = item.PlayoutDuration,
             TailMode = item.TailMode,
-            DiscardToFillAttempts = item.DiscardToFillAttempts
+            DiscardToFillAttempts = item.DiscardToFillAttempts,
+            DurationMode = item.DurationMode,
+            TargetDuration = item.TargetDuration,
+            RespectMediaSkipChapters = item.RespectMediaSkipChapters,
+            FillCommercialGapsWithFillers = item.FillCommercialGapsWithFillers
         };
 
         foreach (ProgramScheduleItemEditViewModel i in _schedule.Items.Filter(si => si.Index >= newItem.Index))
@@ -1089,7 +1142,11 @@
             item.PreferredAudioLanguageCode,
             item.PreferredAudioTitle,
             item.PreferredSubtitleLanguageCode,
-            item.SubtitleMode)).ToList();
+            item.SubtitleMode,
+            item.DurationMode,
+            item.TargetDuration,
+            item.RespectMediaSkipChapters,
+            item.FillCommercialGapsWithFillers)).ToList();
 
         Seq<BaseError> errorMessages = await Mediator.Send(new ReplaceProgramScheduleItems(Id, items), _cts.Token).Map(e => e.LeftToSeq());
 

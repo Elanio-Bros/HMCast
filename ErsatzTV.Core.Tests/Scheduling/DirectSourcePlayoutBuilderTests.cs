@@ -152,4 +152,56 @@ public class DirectSourcePlayoutBuilderTests
             buildResult.AddedItems[1].MediaItemId.ShouldBe(202);
         }
     }
+
+    [Test]
+    public async Task Build_Should_Continue_Sequentially_When_DeliveryMode_Is_Conseguinte()
+    {
+        var movie1 = new Movie
+        {
+            Id = 301,
+            MediaVersions = new List<MediaVersion> { new() { Duration = TimeSpan.FromHours(1) } }
+        };
+        var movie2 = new Movie
+        {
+            Id = 302,
+            MediaVersions = new List<MediaVersion> { new() { Duration = TimeSpan.FromHours(1) } }
+        };
+
+        var items = new List<MediaItem> { movie1, movie2 };
+        _mediaCollectionRepository.GetItems(60).Returns(items);
+
+        var playout = new Playout
+        {
+            Id = 4,
+            SourceId = 60,
+            SourceKind = ProgramScheduleSourceKind.Collection,
+            DeliveryMode = PlayoutDeliveryMode.Conseguinte,
+            DaysToBuild = 1
+        };
+
+        var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        // O último item tocado foi o movie1 (301), então deve continuar a partir do movie2 (302)
+        var existingItem = new PlayoutItem
+        {
+            MediaItemId = 301,
+            Start = start.AddHours(-1).UtcDateTime,
+            Finish = start.UtcDateTime
+        };
+        var referenceData = new PlayoutReferenceData(new Channel(Guid.NewGuid()), [existingItem], null, [], [], TimeSpan.Zero);
+
+        var result = await _builder.Build(
+            start,
+            playout,
+            referenceData,
+            PlayoutBuildMode.Continue,
+            CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        foreach (PlayoutBuildResult buildResult in result.RightToSeq())
+        {
+            buildResult.AddedItems.Count.ShouldBeGreaterThan(0);
+            // O primeiro item adicionado deve ser o 302 (o próximo conseguinte)
+            buildResult.AddedItems[0].MediaItemId.ShouldBe(302);
+        }
+    }
 }

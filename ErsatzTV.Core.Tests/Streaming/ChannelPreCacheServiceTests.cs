@@ -229,6 +229,45 @@ public class ChannelPreCacheServiceTests
     }
 
     [Test]
+    public async Task UpdateAllSeeks_Should_Advance_Seek_For_Active_Sessions()
+    {
+        var channel = new Channel(Guid.NewGuid())
+        {
+            Id = 7,
+            Number = "7.1",
+            IdleBehavior = ChannelIdleBehavior.PreCache,
+            IsEnabled = true
+        };
+
+        var now = DateTimeOffset.UtcNow;
+        var item = new PlayoutItem
+        {
+            Start = now.AddMinutes(-10).UtcDateTime,
+            Finish = now.AddMinutes(20).UtcDateTime
+        };
+
+        var playout = new Playout
+        {
+            IsEnabled = true,
+            Items = new List<PlayoutItem> { item }
+        };
+
+        channel.Playouts = new List<Playout> { playout };
+        _channelRepository.GetByNumber("7.1").Returns(channel);
+
+        await _service.WarmupChannel("7.1", CancellationToken.None);
+
+        _service.UpdateAllSeeks();
+
+        var maybeSession = _service.GetPreCachedSession("7.1");
+        maybeSession.IsSome.ShouldBeTrue();
+        foreach (PreCachedChannelSession s in maybeSession)
+        {
+            s.CurrentSeek.TotalMinutes.ShouldBeGreaterThan(9);
+        }
+    }
+
+    [Test]
     public async Task Performance_ZeroDelay_Access_Should_Return_In_Sub_Millisecond()
     {
         // TASK-4.2: Validação de performance e prontidão imediata do buffer

@@ -334,6 +334,11 @@ public abstract class ProgramScheduleItemCommandBase
             _ => throw new NotSupportedException($"Unsupported playout mode {item.PlayoutMode}")
         };
 
+        result.DurationMode = item.DurationMode;
+        result.TargetDuration = item.TargetDuration;
+        result.RespectMediaSkipChapters = item.RespectMediaSkipChapters;
+        result.FillCommercialGapsWithFillers = item.FillCommercialGapsWithFillers;
+
         foreach (int watermarkId in item.WatermarkIds)
         {
             result.ProgramScheduleItemWatermarks ??= [];
