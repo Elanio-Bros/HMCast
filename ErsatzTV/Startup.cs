@@ -440,9 +440,19 @@ public class Startup
                 {
                     TvContext.IsSqlite = false;
 
+                    ServerVersion serverVersion;
+                    try
+                    {
+                        serverVersion = ServerVersion.AutoDetect(mySqlConnectionString);
+                    }
+                    catch
+                    {
+                        serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
+                    }
+
                     options.UseMySql(
                         mySqlConnectionString,
-                        ServerVersion.AutoDetect(mySqlConnectionString),
+                        serverVersion,
                         o =>
                         {
                             o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
@@ -469,9 +479,19 @@ public class Startup
 
             if (databaseProvider == Provider.MySql.Name)
             {
+                ServerVersion serverVersion;
+                try
+                {
+                    serverVersion = ServerVersion.AutoDetect(mySqlConnectionString);
+                }
+                catch
+                {
+                    serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
+                }
+
                 options.UseMySql(
                     mySqlConnectionString,
-                    ServerVersion.AutoDetect(mySqlConnectionString),
+                    serverVersion,
                     o =>
                     {
                         o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);

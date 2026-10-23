@@ -256,36 +256,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.ToTable("Artwork", (string)null);
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.BlockItemGraphicsElement", b =>
-                {
-                    b.Property<int>("BlockItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("GraphicsElementId")
-                        .HasColumnType("int");
-
-                    b.HasKey("BlockItemId", "GraphicsElementId");
-
-                    b.HasIndex("GraphicsElementId");
-
-                    b.ToTable("BlockItemGraphicsElement");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.BlockItemWatermark", b =>
-                {
-                    b.Property<int>("BlockItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("WatermarkId")
-                        .HasColumnType("int");
-
-                    b.HasKey("BlockItemId", "WatermarkId");
-
-                    b.HasIndex("WatermarkId");
-
-                    b.ToTable("BlockItemWatermark");
-                });
-
             modelBuilder.Entity("ErsatzTV.Core.Domain.Channel", b =>
                 {
                     b.Property<int>("Id")
@@ -319,6 +289,11 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.Property<int?>("MirrorSourceChannelId")
                         .HasColumnType("int");
+
+                    b.Property<int>("Mode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("MusicVideoCreditsMode")
                         .HasColumnType("int");
@@ -354,6 +329,9 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.Property<string>("PreferredSubtitleLanguageCode")
                         .HasColumnType("longtext");
+
+                    b.Property<int?>("ScreenLayoutId")
+                        .HasColumnType("int");
 
                     b.Property<bool>("ShowInEpg")
                         .ValueGeneratedOnAdd()
@@ -404,9 +382,57 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.HasIndex("Number")
                         .IsUnique();
 
+                    b.HasIndex("ScreenLayoutId");
+
                     b.HasIndex("WatermarkId");
 
                     b.ToTable("Channel", (string)null);
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelFallbackSlate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CustomMessage")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CustomTitle")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("IsLoop")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("MediaItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PlaylistId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId")
+                        .IsUnique();
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.HasIndex("PlaylistId");
+
+                    b.ToTable("ChannelFallbackSlate", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelWatermark", b =>
@@ -510,11 +536,55 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<int?>("CustomIndex")
                         .HasColumnType("int");
 
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int");
+
                     b.HasKey("CollectionId", "MediaItemId");
 
                     b.HasIndex("MediaItemId");
 
                     b.ToTable("CollectionItem", (string)null);
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.CommercialPreset", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MediaItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("longtext");
+
+                    b.Property<int?>("PadSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlaybackOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("StrictDuration")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<TimeSpan?>("TargetDuration")
+                        .HasColumnType("time(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.ToTable("CommercialPreset", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.ConfigElement", b =>
@@ -537,36 +607,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .IsUnique();
 
                     b.ToTable("ConfigElement", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.DecoGraphicsElement", b =>
-                {
-                    b.Property<int>("DecoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("GraphicsElementId")
-                        .HasColumnType("int");
-
-                    b.HasKey("DecoId", "GraphicsElementId");
-
-                    b.HasIndex("GraphicsElementId");
-
-                    b.ToTable("DecoGraphicsElement");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.DecoWatermark", b =>
-                {
-                    b.Property<int>("DecoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("WatermarkId")
-                        .HasColumnType("int");
-
-                    b.HasKey("DecoId", "WatermarkId");
-
-                    b.HasIndex("WatermarkId");
-
-                    b.ToTable("DecoWatermark");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.Director", b =>
@@ -724,6 +764,51 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.HasIndex("EpisodeId");
 
                     b.ToTable("EpisodeMetadata", (string)null);
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ExternalCollection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AutoSync")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ExternalId")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("LastSync")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SyncFrequencyHours")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.ToTable("ExternalCollection", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.FFmpegProfile", b =>
@@ -1328,6 +1413,21 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<int>("LibraryPathId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("ShowCut")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("ShowFinish")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("ShowIntro")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("ShowPreview")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("ShowRecap")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<int>("State")
                         .HasColumnType("int");
 
@@ -1338,6 +1438,36 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.ToTable("MediaItem", (string)null);
 
                     b.UseTptMappingStrategy();
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.MediaSkip", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<TimeSpan>("End")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MediaItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.Property<TimeSpan>("Start")
+                        .HasColumnType("time(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.ToTable("MediaSkip", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.MediaSource", b =>
@@ -1959,6 +2089,32 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.ToTable("PlaylistItem", (string)null);
                 });
 
+            modelBuilder.Entity("ErsatzTV.Core.Domain.PlaylistItemCommercial", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CommercialPresetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Placement")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlaylistItemId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommercialPresetId");
+
+                    b.HasIndex("PlaylistItemId");
+
+                    b.ToTable("PlaylistItemCommercial", (string)null);
+                });
+
             modelBuilder.Entity("ErsatzTV.Core.Domain.Playout", b =>
                 {
                     b.Property<int>("Id")
@@ -1967,17 +2123,29 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("CalendarMode")
+                        .HasColumnType("int");
+
                     b.Property<int>("ChannelId")
                         .HasColumnType("int");
 
                     b.Property<TimeSpan?>("DailyRebuildTime")
                         .HasColumnType("time(6)");
 
-                    b.Property<int?>("DecoId")
+                    b.Property<int>("DaysToBuild")
                         .HasColumnType("int");
+
+                    b.Property<int>("DeliveryMode")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<DateTimeOffset?>("OnDemandCheckpoint")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<int>("PlayoutMode")
+                        .HasColumnType("int");
 
                     b.Property<int?>("ProgramScheduleId")
                         .HasColumnType("int");
@@ -1988,16 +2156,25 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<int>("ScheduleKind")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ScreenLayoutId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Seed")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SourceKind")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ChannelId");
 
-                    b.HasIndex("DecoId");
-
                     b.HasIndex("ProgramScheduleId");
+
+                    b.HasIndex("ScreenLayoutId");
 
                     b.ToTable("Playout", (string)null);
                 });
@@ -2019,6 +2196,54 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.HasKey("PlayoutId");
 
                     b.ToTable("PlayoutBuildStatus", (string)null);
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.PlayoutCalendarRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<TimeSpan?>("DailyEndTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeSpan?>("DailyStartTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("DaysOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("EndDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Index")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlayoutId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RecurringEndDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RecurringEndMonth")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RecurringStartDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RecurringStartMonth")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("StartDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayoutId");
+
+                    b.ToTable("PlayoutCalendarRule", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.PlayoutGap", b =>
@@ -2196,9 +2421,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<int>("PlayoutId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RerunCollectionId")
-                        .HasColumnType("int");
-
                     b.Property<string>("SearchQuery")
                         .HasColumnType("longtext");
 
@@ -2216,8 +2438,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.HasIndex("PlaylistId");
 
                     b.HasIndex("PlayoutId");
-
-                    b.HasIndex("RerunCollectionId");
 
                     b.HasIndex("SmartCollectionId");
 
@@ -2391,6 +2611,9 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<int>("ProgramScheduleId")
                         .HasColumnType("int");
 
+                    b.Property<string>("SpecificDates")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("StartDay")
                         .HasColumnType("int");
 
@@ -2426,11 +2649,17 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<string>("CustomTitle")
                         .HasColumnType("longtext");
 
+                    b.Property<int>("DurationMode")
+                        .HasColumnType("int");
+
                     b.Property<string>("FakeCollectionKey")
                         .HasColumnType("longtext");
 
                     b.Property<int?>("FallbackFillerId")
                         .HasColumnType("int");
+
+                    b.Property<bool>("FillCommercialGapsWithFillers")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<int>("FillWithGroupMode")
                         .HasColumnType("int");
@@ -2442,6 +2671,9 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("Index")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ItemCount")
                         .HasColumnType("int");
 
                     b.Property<int?>("MarathonBatchSize")
@@ -2489,7 +2721,10 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<int>("ProgramScheduleId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RerunCollectionId")
+                    b.Property<bool>("RespectMediaSkipChapters")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("ScreenLayoutId")
                         .HasColumnType("int");
 
                     b.Property<string>("SearchQuery")
@@ -2504,11 +2739,17 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<TimeSpan?>("StartTime")
                         .HasColumnType("time(6)");
 
+                    b.Property<int>("StartType")
+                        .HasColumnType("int");
+
                     b.Property<int?>("SubtitleMode")
                         .HasColumnType("int");
 
                     b.Property<int?>("TailFillerId")
                         .HasColumnType("int");
+
+                    b.Property<TimeSpan?>("TargetDuration")
+                        .HasColumnType("time(6)");
 
                     b.HasKey("Id");
 
@@ -2530,7 +2771,7 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.HasIndex("ProgramScheduleId");
 
-                    b.HasIndex("RerunCollectionId");
+                    b.HasIndex("ScreenLayoutId");
 
                     b.HasIndex("SmartCollectionId");
 
@@ -2539,6 +2780,32 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.ToTable("ProgramScheduleItem", (string)null);
 
                     b.UseTptMappingStrategy();
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ProgramScheduleItemCommercial", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CommercialPresetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Placement")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProgramScheduleItemId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommercialPresetId");
+
+                    b.HasIndex("ProgramScheduleItemId");
+
+                    b.ToTable("ProgramScheduleItemCommercial", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.ProgramScheduleItemGraphicsElement", b =>
@@ -2619,56 +2886,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.ToTable("RemoteStreamMetadata", (string)null);
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.RerunCollection", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CollectionType")
-                        .HasColumnType("int");
-
-                    b.Property<int>("FirstRunPlaybackOrder")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MediaItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MultiCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.Property<int>("RerunPlaybackOrder")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("SmartCollectionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CollectionId");
-
-                    b.HasIndex("MediaItemId");
-
-                    b.HasIndex("MultiCollectionId");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.HasIndex("SmartCollectionId");
-
-                    b.ToTable("RerunCollection", (string)null);
-                });
-
             modelBuilder.Entity("ErsatzTV.Core.Domain.Resolution", b =>
                 {
                     b.Property<int>("Id")
@@ -2696,360 +2913,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.ToTable("Resolution", (string)null);
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Block", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BlockGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("DateUpdated")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("Minutes")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.Property<int>("StopScheduling")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BlockGroupId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("Block", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.BlockGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("BlockGroup", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.BlockItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BlockId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CollectionType")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("DisableWatermarks")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IncludeInProgramGuide")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("Index")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MediaItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MultiCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PlaybackOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SearchQuery")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("SearchTitle")
-                        .HasColumnType("longtext");
-
-                    b.Property<int?>("SmartCollectionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BlockId");
-
-                    b.HasIndex("CollectionId");
-
-                    b.HasIndex("MediaItemId");
-
-                    b.HasIndex("MultiCollectionId");
-
-                    b.HasIndex("SmartCollectionId");
-
-                    b.ToTable("BlockItem", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Deco", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BreakContentMode")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DeadAirFallbackCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DeadAirFallbackCollectionType")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DeadAirFallbackMediaItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DeadAirFallbackMode")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DeadAirFallbackMultiCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DeadAirFallbackSmartCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DecoGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DefaultFillerCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DefaultFillerCollectionType")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DefaultFillerMediaItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DefaultFillerMode")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DefaultFillerMultiCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DefaultFillerSmartCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("DefaultFillerTrimToFit")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("GraphicsElementsMode")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.Property<bool>("UseGraphicsElementsDuringFiller")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("UseWatermarkDuringFiller")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<int>("WatermarkMode")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeadAirFallbackCollectionId");
-
-                    b.HasIndex("DeadAirFallbackMediaItemId");
-
-                    b.HasIndex("DeadAirFallbackMultiCollectionId");
-
-                    b.HasIndex("DeadAirFallbackSmartCollectionId");
-
-                    b.HasIndex("DefaultFillerCollectionId");
-
-                    b.HasIndex("DefaultFillerMediaItemId");
-
-                    b.HasIndex("DefaultFillerMultiCollectionId");
-
-                    b.HasIndex("DefaultFillerSmartCollectionId");
-
-                    b.HasIndex("DecoGroupId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("Deco", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoBreakContent", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CollectionType")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DecoId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MediaItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MultiCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Placement")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PlaylistId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("SmartCollectionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CollectionId");
-
-                    b.HasIndex("DecoId");
-
-                    b.HasIndex("MediaItemId");
-
-                    b.HasIndex("MultiCollectionId");
-
-                    b.HasIndex("PlaylistId");
-
-                    b.HasIndex("SmartCollectionId");
-
-                    b.ToTable("DecoBreakContent", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("DecoGroup", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("DateUpdated")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("DecoTemplateGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DecoTemplateGroupId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("DecoTemplate", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplateGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("DecoTemplateGroup", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplateItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("DecoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DecoTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<TimeSpan>("EndTime")
-                        .HasColumnType("time(6)");
-
-                    b.Property<TimeSpan>("StartTime")
-                        .HasColumnType("time(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DecoId");
-
-                    b.HasIndex("DecoTemplateId");
-
-                    b.ToTable("DecoTemplateItem", (string)null);
-                });
-
             modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.PlayoutHistory", b =>
                 {
                     b.Property<int>("Id")
@@ -3057,9 +2920,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("BlockId")
-                        .HasColumnType("int");
 
                     b.Property<string>("ChildKey")
                         .HasColumnType("longtext");
@@ -3093,136 +2953,12 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BlockId");
-
                     b.HasIndex("PlayoutId");
 
                     b.ToTable("PlayoutHistory", (string)null);
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.PlayoutTemplate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("DateUpdated")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DaysOfMonth")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("DaysOfWeek")
-                        .HasColumnType("longtext");
-
-                    b.Property<int?>("DecoTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EndDay")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EndMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("EndYear")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Index")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("LimitToDateRange")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("MonthsOfYear")
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("PlayoutId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StartDay")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StartMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StartYear")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TemplateId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DecoTemplateId");
-
-                    b.HasIndex("PlayoutId");
-
-                    b.HasIndex("TemplateId");
-
-                    b.ToTable("PlayoutTemplate", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.RerunHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("MediaItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PlayoutId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RerunCollectionId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("When")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MediaItemId");
-
-                    b.HasIndex("PlayoutId");
-
-                    b.HasIndex("RerunCollectionId");
-
-                    b.ToTable("RerunHistory", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Template", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("DateUpdated")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
-
-                    b.Property<int>("TemplateGroupId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TemplateGroupId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("Template", (string)null);
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.TemplateGroup", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayout", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -3231,19 +2967,14 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Name")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .UseCollation("utf8mb4_general_ci");
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("TemplateGroup", (string)null);
+                    b.ToTable("ScreenLayout", (string)null);
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.TemplateItem", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayoutElement", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -3251,22 +2982,90 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("BlockId")
+                    b.Property<string>("ContentPath")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("ElementType")
                         .HasColumnType("int");
 
-                    b.Property<TimeSpan>("StartTime")
-                        .HasColumnType("time(6)");
+                    b.Property<int>("FadeInMs")
+                        .HasColumnType("int");
 
-                    b.Property<int>("TemplateId")
+                    b.Property<int>("FadeOutMs")
+                        .HasColumnType("int");
+
+                    b.Property<double>("Height")
+                        .HasColumnType("double");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("longtext");
+
+                    b.Property<double>("Opacity")
+                        .HasColumnType("double");
+
+                    b.Property<int?>("ParentElementId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ScreenLayoutId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TextContent")
+                        .HasColumnType("longtext");
+
+                    b.Property<double>("Width")
+                        .HasColumnType("double");
+
+                    b.Property<double>("X")
+                        .HasColumnType("double");
+
+                    b.Property<double>("Y")
+                        .HasColumnType("double");
+
+                    b.Property<int>("ZIndex")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BlockId");
+                    b.HasIndex("ParentElementId");
 
-                    b.HasIndex("TemplateId");
+                    b.HasIndex("ScreenLayoutId");
 
-                    b.ToTable("TemplateItem", (string)null);
+                    b.ToTable("ScreenLayoutElement", (string)null);
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayoutRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ElementId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OffsetSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ScreenLayoutId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Trigger")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ElementId");
+
+                    b.HasIndex("ScreenLayoutId");
+
+                    b.ToTable("ScreenLayoutRule", (string)null);
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.SeasonMetadata", b =>
@@ -4172,9 +3971,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                 {
                     b.HasBaseType("ErsatzTV.Core.Domain.ProgramScheduleItem");
 
-                    b.Property<string>("Count")
-                        .HasColumnType("longtext");
-
                     b.Property<int>("MultipleMode")
                         .HasColumnType("int");
 
@@ -4510,44 +4306,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.BlockItemGraphicsElement", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.BlockItem", "BlockItem")
-                        .WithMany("BlockItemGraphicsElements")
-                        .HasForeignKey("BlockItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.GraphicsElement", "GraphicsElement")
-                        .WithMany("BlockItemGraphicsElements")
-                        .HasForeignKey("GraphicsElementId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("BlockItem");
-
-                    b.Navigation("GraphicsElement");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.BlockItemWatermark", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.BlockItem", "BlockItem")
-                        .WithMany("BlockItemWatermarks")
-                        .HasForeignKey("BlockItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.ChannelWatermark", "Watermark")
-                        .WithMany("BlockItemWatermarks")
-                        .HasForeignKey("WatermarkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("BlockItem");
-
-                    b.Navigation("Watermark");
-                });
-
             modelBuilder.Entity("ErsatzTV.Core.Domain.Channel", b =>
                 {
                     b.HasOne("ErsatzTV.Core.Domain.FFmpegProfile", "FFmpegProfile")
@@ -4566,6 +4324,11 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .HasForeignKey("MirrorSourceChannelId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayout", "ScreenLayout")
+                        .WithMany()
+                        .HasForeignKey("ScreenLayoutId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ErsatzTV.Core.Domain.ChannelWatermark", "Watermark")
                         .WithMany()
                         .HasForeignKey("WatermarkId")
@@ -4577,7 +4340,41 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.Navigation("MirrorSourceChannel");
 
+                    b.Navigation("ScreenLayout");
+
                     b.Navigation("Watermark");
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelFallbackSlate", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.Channel", "Channel")
+                        .WithOne("FallbackSlate")
+                        .HasForeignKey("ErsatzTV.Core.Domain.ChannelFallbackSlate", "ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ErsatzTV.Core.Domain.Playlist", "Playlist")
+                        .WithMany()
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Channel");
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("MediaItem");
+
+                    b.Navigation("Playlist");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.CollectionItem", b =>
@@ -4599,42 +4396,21 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("MediaItem");
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.DecoGraphicsElement", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.CommercialPreset", b =>
                 {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Deco", "Deco")
-                        .WithMany("DecoGraphicsElements")
-                        .HasForeignKey("DecoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("ErsatzTV.Core.Domain.GraphicsElement", "GraphicsElement")
-                        .WithMany("DecoGraphicsElements")
-                        .HasForeignKey("GraphicsElementId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Deco");
+                    b.Navigation("Collection");
 
-                    b.Navigation("GraphicsElement");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.DecoWatermark", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Deco", "Deco")
-                        .WithMany("DecoWatermarks")
-                        .HasForeignKey("DecoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.ChannelWatermark", "Watermark")
-                        .WithMany("DecoWatermarks")
-                        .HasForeignKey("WatermarkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Deco");
-
-                    b.Navigation("Watermark");
+                    b.Navigation("MediaItem");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.Director", b =>
@@ -4691,6 +4467,16 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .IsRequired();
 
                     b.Navigation("Episode");
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ExternalCollection", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Collection");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.FFmpegProfile", b =>
@@ -4916,6 +4702,17 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .IsRequired();
 
                     b.Navigation("LibraryPath");
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.MediaSkip", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
+                        .WithMany("MediaSkips")
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.MediaStream", b =>
@@ -5157,6 +4954,25 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("SmartCollection");
                 });
 
+            modelBuilder.Entity("ErsatzTV.Core.Domain.PlaylistItemCommercial", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.CommercialPreset", "CommercialPreset")
+                        .WithMany()
+                        .HasForeignKey("CommercialPresetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ErsatzTV.Core.Domain.PlaylistItem", "PlaylistItem")
+                        .WithMany("Commercials")
+                        .HasForeignKey("PlaylistItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CommercialPreset");
+
+                    b.Navigation("PlaylistItem");
+                });
+
             modelBuilder.Entity("ErsatzTV.Core.Domain.Playout", b =>
                 {
                     b.HasOne("ErsatzTV.Core.Domain.Channel", "Channel")
@@ -5165,15 +4981,15 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Deco", "Deco")
-                        .WithMany("Playouts")
-                        .HasForeignKey("DecoId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ErsatzTV.Core.Domain.ProgramSchedule", "ProgramSchedule")
                         .WithMany("Playouts")
                         .HasForeignKey("ProgramScheduleId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayout", "ScreenLayout")
+                        .WithMany()
+                        .HasForeignKey("ScreenLayoutId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.OwnsOne("ErsatzTV.Core.Domain.PlayoutAnchor", "Anchor", b1 =>
                         {
@@ -5240,9 +5056,9 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.Navigation("Channel");
 
-                    b.Navigation("Deco");
-
                     b.Navigation("ProgramSchedule");
+
+                    b.Navigation("ScreenLayout");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.PlayoutBuildStatus", b =>
@@ -5250,6 +5066,17 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.HasOne("ErsatzTV.Core.Domain.Playout", "Playout")
                         .WithOne("BuildStatus")
                         .HasForeignKey("ErsatzTV.Core.Domain.PlayoutBuildStatus", "PlayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Playout");
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.PlayoutCalendarRule", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.Playout", "Playout")
+                        .WithMany("CalendarRules")
+                        .HasForeignKey("PlayoutId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -5352,11 +5179,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ErsatzTV.Core.Domain.RerunCollection", "RerunCollection")
-                        .WithMany()
-                        .HasForeignKey("RerunCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "SmartCollection")
                         .WithMany()
                         .HasForeignKey("SmartCollectionId")
@@ -5395,8 +5217,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("Playlist");
 
                     b.Navigation("Playout");
-
-                    b.Navigation("RerunCollection");
 
                     b.Navigation("SmartCollection");
                 });
@@ -5532,10 +5352,10 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                         .HasForeignKey("ProgramScheduleId")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("ErsatzTV.Core.Domain.RerunCollection", "RerunCollection")
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayout", "ScreenLayout")
                         .WithMany()
-                        .HasForeignKey("RerunCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .HasForeignKey("ScreenLayoutId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "SmartCollection")
                         .WithMany()
@@ -5565,11 +5385,30 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.Navigation("ProgramSchedule");
 
-                    b.Navigation("RerunCollection");
+                    b.Navigation("ScreenLayout");
 
                     b.Navigation("SmartCollection");
 
                     b.Navigation("TailFiller");
+                });
+
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ProgramScheduleItemCommercial", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.CommercialPreset", "CommercialPreset")
+                        .WithMany()
+                        .HasForeignKey("CommercialPresetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ErsatzTV.Core.Domain.ProgramScheduleItem", "ProgramScheduleItem")
+                        .WithMany("Commercials")
+                        .HasForeignKey("ProgramScheduleItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CommercialPreset");
+
+                    b.Navigation("ProgramScheduleItem");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.ProgramScheduleItemGraphicsElement", b =>
@@ -5621,325 +5460,52 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("RemoteStream");
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.RerunCollection", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
-                        .WithMany()
-                        .HasForeignKey("CollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
-                        .WithMany()
-                        .HasForeignKey("MediaItemId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MultiCollection", "MultiCollection")
-                        .WithMany()
-                        .HasForeignKey("MultiCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "SmartCollection")
-                        .WithMany()
-                        .HasForeignKey("SmartCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Collection");
-
-                    b.Navigation("MediaItem");
-
-                    b.Navigation("MultiCollection");
-
-                    b.Navigation("SmartCollection");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Block", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.BlockGroup", "BlockGroup")
-                        .WithMany("Blocks")
-                        .HasForeignKey("BlockGroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("BlockGroup");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.BlockItem", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Block", "Block")
-                        .WithMany("Items")
-                        .HasForeignKey("BlockId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
-                        .WithMany()
-                        .HasForeignKey("CollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
-                        .WithMany()
-                        .HasForeignKey("MediaItemId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MultiCollection", "MultiCollection")
-                        .WithMany()
-                        .HasForeignKey("MultiCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "SmartCollection")
-                        .WithMany()
-                        .HasForeignKey("SmartCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Block");
-
-                    b.Navigation("Collection");
-
-                    b.Navigation("MediaItem");
-
-                    b.Navigation("MultiCollection");
-
-                    b.Navigation("SmartCollection");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Deco", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Collection", "DeadAirFallbackCollection")
-                        .WithMany()
-                        .HasForeignKey("DeadAirFallbackCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "DeadAirFallbackMediaItem")
-                        .WithMany()
-                        .HasForeignKey("DeadAirFallbackMediaItemId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MultiCollection", "DeadAirFallbackMultiCollection")
-                        .WithMany()
-                        .HasForeignKey("DeadAirFallbackMultiCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "DeadAirFallbackSmartCollection")
-                        .WithMany()
-                        .HasForeignKey("DeadAirFallbackSmartCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.DecoGroup", "DecoGroup")
-                        .WithMany("Decos")
-                        .HasForeignKey("DecoGroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.Collection", "DefaultFillerCollection")
-                        .WithMany()
-                        .HasForeignKey("DefaultFillerCollectionId");
-
-                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "DefaultFillerMediaItem")
-                        .WithMany()
-                        .HasForeignKey("DefaultFillerMediaItemId");
-
-                    b.HasOne("ErsatzTV.Core.Domain.MultiCollection", "DefaultFillerMultiCollection")
-                        .WithMany()
-                        .HasForeignKey("DefaultFillerMultiCollectionId");
-
-                    b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "DefaultFillerSmartCollection")
-                        .WithMany()
-                        .HasForeignKey("DefaultFillerSmartCollectionId");
-
-                    b.Navigation("DeadAirFallbackCollection");
-
-                    b.Navigation("DeadAirFallbackMediaItem");
-
-                    b.Navigation("DeadAirFallbackMultiCollection");
-
-                    b.Navigation("DeadAirFallbackSmartCollection");
-
-                    b.Navigation("DecoGroup");
-
-                    b.Navigation("DefaultFillerCollection");
-
-                    b.Navigation("DefaultFillerMediaItem");
-
-                    b.Navigation("DefaultFillerMultiCollection");
-
-                    b.Navigation("DefaultFillerSmartCollection");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoBreakContent", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
-                        .WithMany()
-                        .HasForeignKey("CollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Deco", "Deco")
-                        .WithMany("BreakContent")
-                        .HasForeignKey("DecoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
-                        .WithMany()
-                        .HasForeignKey("MediaItemId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.MultiCollection", "MultiCollection")
-                        .WithMany()
-                        .HasForeignKey("MultiCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.Playlist", "Playlist")
-                        .WithMany()
-                        .HasForeignKey("PlaylistId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ErsatzTV.Core.Domain.SmartCollection", "SmartCollection")
-                        .WithMany()
-                        .HasForeignKey("SmartCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Collection");
-
-                    b.Navigation("Deco");
-
-                    b.Navigation("MediaItem");
-
-                    b.Navigation("MultiCollection");
-
-                    b.Navigation("Playlist");
-
-                    b.Navigation("SmartCollection");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplate", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.DecoTemplateGroup", "DecoTemplateGroup")
-                        .WithMany("DecoTemplates")
-                        .HasForeignKey("DecoTemplateGroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DecoTemplateGroup");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplateItem", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Deco", "Deco")
-                        .WithMany()
-                        .HasForeignKey("DecoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.DecoTemplate", "DecoTemplate")
-                        .WithMany("Items")
-                        .HasForeignKey("DecoTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Deco");
-
-                    b.Navigation("DecoTemplate");
-                });
-
             modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.PlayoutHistory", b =>
                 {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Block", "Block")
-                        .WithMany("PlayoutHistory")
-                        .HasForeignKey("BlockId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("ErsatzTV.Core.Domain.Playout", "Playout")
                         .WithMany("PlayoutHistory")
                         .HasForeignKey("PlayoutId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Block");
-
                     b.Navigation("Playout");
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.PlayoutTemplate", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayoutElement", b =>
                 {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.DecoTemplate", "DecoTemplate")
-                        .WithMany("PlayoutTemplates")
-                        .HasForeignKey("DecoTemplateId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayoutElement", "ParentElement")
+                        .WithMany("ChildElements")
+                        .HasForeignKey("ParentElementId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("ErsatzTV.Core.Domain.Playout", "Playout")
-                        .WithMany("Templates")
-                        .HasForeignKey("PlayoutId")
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayout", "ScreenLayout")
+                        .WithMany("Elements")
+                        .HasForeignKey("ScreenLayoutId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Template", "Template")
-                        .WithMany("PlayoutTemplates")
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Navigation("ParentElement");
 
-                    b.Navigation("DecoTemplate");
-
-                    b.Navigation("Playout");
-
-                    b.Navigation("Template");
+                    b.Navigation("ScreenLayout");
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.RerunHistory", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayoutRule", b =>
                 {
-                    b.HasOne("ErsatzTV.Core.Domain.MediaItem", "MediaItem")
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayoutElement", "Element")
                         .WithMany()
-                        .HasForeignKey("MediaItemId")
+                        .HasForeignKey("ElementId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ErsatzTV.Core.Domain.Playout", "Playout")
-                        .WithMany()
-                        .HasForeignKey("PlayoutId")
+                    b.HasOne("ErsatzTV.Core.Domain.ScreenLayout", "ScreenLayout")
+                        .WithMany("Rules")
+                        .HasForeignKey("ScreenLayoutId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ErsatzTV.Core.Domain.RerunCollection", "RerunCollection")
-                        .WithMany()
-                        .HasForeignKey("RerunCollectionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Navigation("Element");
 
-                    b.Navigation("MediaItem");
-
-                    b.Navigation("Playout");
-
-                    b.Navigation("RerunCollection");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Template", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.TemplateGroup", "TemplateGroup")
-                        .WithMany("Templates")
-                        .HasForeignKey("TemplateGroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TemplateGroup");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.TemplateItem", b =>
-                {
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Block", "Block")
-                        .WithMany("TemplateItems")
-                        .HasForeignKey("BlockId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ErsatzTV.Core.Domain.Scheduling.Template", "Template")
-                        .WithMany("Items")
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Block");
-
-                    b.Navigation("Template");
+                    b.Navigation("ScreenLayout");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.SeasonMetadata", b =>
@@ -6588,15 +6154,13 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                 {
                     b.Navigation("Artwork");
 
+                    b.Navigation("FallbackSlate");
+
                     b.Navigation("Playouts");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelWatermark", b =>
                 {
-                    b.Navigation("BlockItemWatermarks");
-
-                    b.Navigation("DecoWatermarks");
-
                     b.Navigation("PlayoutItemWatermarks");
 
                     b.Navigation("ProgramScheduleItemWatermarks");
@@ -6632,10 +6196,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.GraphicsElement", b =>
                 {
-                    b.Navigation("BlockItemGraphicsElements");
-
-                    b.Navigation("DecoGraphicsElements");
-
                     b.Navigation("PlayoutItemGraphicsElements");
 
                     b.Navigation("ProgramScheduleItemGraphicsElements");
@@ -6682,6 +6242,8 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
             modelBuilder.Entity("ErsatzTV.Core.Domain.MediaItem", b =>
                 {
                     b.Navigation("CollectionItems");
+
+                    b.Navigation("MediaSkips");
 
                     b.Navigation("TraktListItems");
                 });
@@ -6780,9 +6342,16 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("Playlists");
                 });
 
+            modelBuilder.Entity("ErsatzTV.Core.Domain.PlaylistItem", b =>
+                {
+                    b.Navigation("Commercials");
+                });
+
             modelBuilder.Entity("ErsatzTV.Core.Domain.Playout", b =>
                 {
                     b.Navigation("BuildStatus");
+
+                    b.Navigation("CalendarRules");
 
                     b.Navigation("FillGroupIndices");
 
@@ -6795,8 +6364,6 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("ProgramScheduleAlternates");
 
                     b.Navigation("ProgramScheduleAnchors");
-
-                    b.Navigation("Templates");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.PlayoutItem", b =>
@@ -6817,6 +6384,8 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.ProgramScheduleItem", b =>
                 {
+                    b.Navigation("Commercials");
+
                     b.Navigation("ProgramScheduleItemGraphicsElements");
 
                     b.Navigation("ProgramScheduleItemWatermarks");
@@ -6839,65 +6408,16 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Navigation("Tags");
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Block", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayout", b =>
                 {
-                    b.Navigation("Items");
+                    b.Navigation("Elements");
 
-                    b.Navigation("PlayoutHistory");
-
-                    b.Navigation("TemplateItems");
+                    b.Navigation("Rules");
                 });
 
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.BlockGroup", b =>
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ScreenLayoutElement", b =>
                 {
-                    b.Navigation("Blocks");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.BlockItem", b =>
-                {
-                    b.Navigation("BlockItemGraphicsElements");
-
-                    b.Navigation("BlockItemWatermarks");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Deco", b =>
-                {
-                    b.Navigation("BreakContent");
-
-                    b.Navigation("DecoGraphicsElements");
-
-                    b.Navigation("DecoWatermarks");
-
-                    b.Navigation("Playouts");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoGroup", b =>
-                {
-                    b.Navigation("Decos");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplate", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("PlayoutTemplates");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.DecoTemplateGroup", b =>
-                {
-                    b.Navigation("DecoTemplates");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.Template", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("PlayoutTemplates");
-                });
-
-            modelBuilder.Entity("ErsatzTV.Core.Domain.Scheduling.TemplateGroup", b =>
-                {
-                    b.Navigation("Templates");
+                    b.Navigation("ChildElements");
                 });
 
             modelBuilder.Entity("ErsatzTV.Core.Domain.SeasonMetadata", b =>

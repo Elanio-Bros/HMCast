@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.Scheduling;
 using Newtonsoft.Json;
@@ -22,7 +23,14 @@ public abstract class ProgramScheduleItem
     public TimeSpan? TargetDuration { get; set; }
 
     // Quantidade de Itens (Unificado: substitui a divisão One vs Multiple)
-    public int? Count { get; set; }
+    public int? ItemCount { get; set; }
+
+    [NotMapped]
+    public int? Count
+    {
+        get => ItemCount;
+        set => ItemCount = value;
+    }
 
     // Integração Nativa de Cutouts (MediaSkip)
     public bool RespectMediaSkipChapters { get; set; } = true;
