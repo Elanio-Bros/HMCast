@@ -19,4 +19,5 @@ public class PlaylistItem
     public int? Count { get; set; }
     public bool PlayAll { get; set; }
     public bool IncludeInProgramGuide { get; set; }
+    public List<PlaylistItemCommercial> Commercials { get; set; } = new();
 }

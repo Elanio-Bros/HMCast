@@ -113,6 +113,9 @@ public class TvContext : DbContext
     public DbSet<LanguageCode> LanguageCodes { get; set; }
     public DbSet<TraktList> TraktLists { get; set; }
     public DbSet<FillerPreset> FillerPresets { get; set; }
+    public DbSet<CommercialPreset> CommercialPresets { get; set; }
+    public DbSet<ProgramScheduleItemCommercial> ProgramScheduleItemCommercials { get; set; }
+    public DbSet<PlaylistItemCommercial> PlaylistItemCommercials { get; set; }
     public DbSet<Subtitle> Subtitles { get; set; }
     public DbSet<GraphicsElement> GraphicsElements { get; set; }
     public DbSet<MediaSkip> MediaSkips { get; set; }
