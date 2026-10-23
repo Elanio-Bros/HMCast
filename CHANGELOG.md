@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [26.11.4] - 2026-10-23
 ### Added
 - Add `Upload Results` button to playback troubleshooting
   - Results are encrypted on your ErsatzTV server so only the ErsatzTV maintainer can read them
@@ -3684,7 +3686,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial release to facilitate testing outside of Docker.
 
 
-[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.3...HEAD
+[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.4...HEAD
+[26.11.4]: https://github.com/ErsatzTV/legacy/compare/v26.11.3...v26.11.4
 [26.11.3]: https://github.com/ErsatzTV/legacy/compare/v26.11.2...v26.11.3
 [26.11.2]: https://github.com/ErsatzTV/legacy/compare/v26.11.1...v26.11.2
 [26.11.1]: https://github.com/ErsatzTV/legacy/compare/v26.11.0...v26.11.1
