@@ -102,19 +102,7 @@ public class TvContext : DbContext
     public DbSet<PlayoutItem> PlayoutItems { get; set; }
     public DbSet<PlayoutGap> PlayoutGaps { get; set; }
     public DbSet<PlayoutProgramScheduleAnchor> PlayoutProgramScheduleItemAnchors { get; set; }
-    public DbSet<PlayoutTemplate> PlayoutTemplates { get; set; }
     public DbSet<PlayoutBuildStatus> PlayoutBuildStatus { get; set; }
-    public DbSet<BlockGroup> BlockGroups { get; set; }
-    public DbSet<Block> Blocks { get; set; }
-    public DbSet<BlockItem> BlockItems { get; set; }
-    public DbSet<TemplateGroup> TemplateGroups { get; set; }
-    public DbSet<Template> Templates { get; set; }
-    public DbSet<TemplateItem> TemplateItems { get; set; }
-    public DbSet<DecoGroup> DecoGroups { get; set; }
-    public DbSet<Deco> Decos { get; set; }
-    public DbSet<DecoTemplateGroup> DecoTemplateGroups { get; set; }
-    public DbSet<DecoTemplate> DecoTemplates { get; set; }
-    public DbSet<DecoTemplateItem> DecoTemplateItems { get; set; }
     public DbSet<PlaylistGroup> PlaylistGroups { get; set; }
     public DbSet<Playlist> Playlists { get; set; }
     public DbSet<PlaylistItem> PlaylistItems { get; set; }
@@ -156,15 +144,9 @@ public class TvContext : DbContext
         if (!string.IsNullOrEmpty(collation))
         {
             modelBuilder.Entity<ArtistMetadata>().Property(b => b.Title).UseCollation(collation);
-            modelBuilder.Entity<Block>().Property(b => b.Name).UseCollation(collation);
-            modelBuilder.Entity<BlockGroup>().Property(b => b.Name).UseCollation(collation);
             modelBuilder.Entity<Channel>().Property(c => c.Name).UseCollation(collation);
             modelBuilder.Entity<ChannelWatermark>().Property(c => c.Name).UseCollation(collation);
             modelBuilder.Entity<Collection>().Property(c => c.Name).UseCollation(collation);
-            modelBuilder.Entity<Deco>().Property(d => d.Name).UseCollation(collation);
-            modelBuilder.Entity<DecoGroup>().Property(d => d.Name).UseCollation(collation);
-            modelBuilder.Entity<DecoTemplate>().Property(d => d.Name).UseCollation(collation);
-            modelBuilder.Entity<DecoTemplateGroup>().Property(d => d.Name).UseCollation(collation);
             modelBuilder.Entity<FillerPreset>().Property(fp => fp.Name).UseCollation(collation);
             modelBuilder.Entity<MetadataGuid>().Property(mg => mg.Guid).UseCollation(collation);
             modelBuilder.Entity<MovieMetadata>().Property(mm => mm.Title).UseCollation(collation);
@@ -173,8 +155,6 @@ public class TvContext : DbContext
             modelBuilder.Entity<ProgramSchedule>().Property(ps => ps.Name).UseCollation(collation);
             modelBuilder.Entity<ShowMetadata>().Property(sm => sm.Title).UseCollation(collation);
             modelBuilder.Entity<SmartCollection>().Property(sc => sc.Name).UseCollation(collation);
-            modelBuilder.Entity<Template>().Property(t => t.Name).UseCollation(collation);
-            modelBuilder.Entity<TemplateGroup>().Property(t => t.Name).UseCollation(collation);
             modelBuilder.Entity<TraktList>().Property(t => t.Name).UseCollation(collation);
         }
 

@@ -14,8 +14,7 @@ public class ErasePlayoutItemsHandler(IDbContextFactory<TvContext> dbContextFact
         Option<Playout> maybePlayout = await dbContext.Playouts
             .TagWithCallSite()
             .AsNoTracking()
-            .Filter(p => p.ScheduleKind == PlayoutScheduleKind.Block ||
-                         p.ScheduleKind == PlayoutScheduleKind.Sequential ||
+            .Filter(p => p.ScheduleKind == PlayoutScheduleKind.Sequential ||
                          p.ScheduleKind == PlayoutScheduleKind.Scripted)
             .SingleOrDefaultAsync(p => p.Id == request.PlayoutId, cancellationToken);
 

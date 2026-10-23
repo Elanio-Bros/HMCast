@@ -583,8 +583,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -711,7 +709,7 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
         };
 
         var referenceData =
-            new PlayoutReferenceData(playout.Channel, Option<Deco>.None, [], [], playout.ProgramSchedule, [], [],
+            new PlayoutReferenceData(playout.Channel, [], playout.ProgramSchedule, [], [],
                 TimeSpan.Zero);
 
         IConfigElementRepository configRepo = Substitute.For<IConfigElementRepository>();
@@ -836,7 +834,7 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
         };
 
         var referenceData =
-            new PlayoutReferenceData(playout.Channel, Option<Deco>.None, [], [], playout.ProgramSchedule, [], [],
+            new PlayoutReferenceData(playout.Channel, [], playout.ProgramSchedule, [], [],
                 TimeSpan.Zero);
 
         IConfigElementRepository configRepo = Substitute.For<IConfigElementRepository>();

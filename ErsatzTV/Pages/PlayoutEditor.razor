@@ -1,4 +1,4 @@
-﻿@page "/playouts/add"
+@page "/playouts/add"
 @page "/playouts/add/{kind}"
 @using System.Globalization
 @using ErsatzTV.Application.Channels
@@ -58,12 +58,6 @@
                             <MudText>Scripted Schedule</MudText>
                         </div>
                         <MudTextField @bind-Value="_model.ScheduleFile" For="@(() => _model.ScheduleFile)"/>
-                    </MudStack>
-                    break;
-                case PlayoutKind.Block:
-                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-                        <div class="d-flex"></div>
-                        <MudText Typo="Typo.caption" Style="font-weight: normal">Block templates are added later</MudText>
                     </MudStack>
                     break;
                 default:

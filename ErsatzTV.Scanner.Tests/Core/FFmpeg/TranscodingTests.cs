@@ -378,7 +378,6 @@ public class TranscodingTests
         WatermarkSelector watermarkSelector = new WatermarkSelector(
             new MockFileSystem(),
             mockImageCache,
-            new DecoSelector(),
             LoggerFactory.CreateLogger<WatermarkSelector>());
 
         List<WatermarkOptions> watermarks = [];
@@ -714,7 +713,6 @@ public class TranscodingTests
         WatermarkSelector watermarkSelector = new WatermarkSelector(
             new RealFileSystem(),
             mockImageCache,
-            new DecoSelector(),
             LoggerFactory.CreateLogger<WatermarkSelector>());
 
         List<WatermarkOptions> watermarks = [];

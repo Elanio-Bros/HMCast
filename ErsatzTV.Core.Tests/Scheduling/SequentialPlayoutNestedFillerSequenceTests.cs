@@ -80,7 +80,7 @@ public class SequentialPlayoutNestedFillerSequenceTests
             };
             var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
             var reference = new PlayoutReferenceData(
-                channel, Option<Deco>.None, [], [], null, [], [], TimeSpan.Zero);
+                channel, [], null, [], [], TimeSpan.Zero);
 
             var result = await builder.Build(start, playout, reference, PlayoutBuildMode.Reset, cancellationToken);
 

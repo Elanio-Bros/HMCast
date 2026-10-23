@@ -24,7 +24,6 @@
                     </ActivatorContent>
                     <ChildContent>
                         <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Classic Schedule" Href="playouts/add"/>
-                        <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Block Schedule" Href="@($"playouts/add/{PlayoutKind.Block}")"/>
                         <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Sequential Schedule" Href="@($"playouts/add/{PlayoutKind.Sequential}")"/>
                         <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Scripted Schedule" Href="@($"playouts/add/{PlayoutKind.Scripted}")"/>
                         <MudMenuItem Icon="@Icons.Material.Filled.Warning" Label="JSON (dizqueTV) Schedule" Href="@($"playouts/add/{PlayoutKind.ExternalJson}")"/>
@@ -38,7 +37,6 @@
                 <div class="flex-grow-1"></div>
                 <MudMenu Icon="@Icons.Material.Filled.MoreVert">
                     <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Add Classic Playout" Href="playouts/add"/>
-                    <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Add Block Playout" Href="@($"playouts/add/{PlayoutKind.Block}")"/>
                     <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Add Sequential Playout" Href="@($"playouts/add/{PlayoutKind.Sequential}")"/>
                     <MudMenuItem Icon="@Icons.Material.Filled.Add" Label="Add Scripted Playout" Href="@($"playouts/add/{PlayoutKind.Scripted}")"/>
                     <MudMenuItem Icon="@Icons.Material.Filled.Warning" Label="Add JSON (dizqueTV) Playout" Href="@($"playouts/add/{PlayoutKind.ExternalJson}")"/>
@@ -102,9 +100,6 @@
                     <MudTd Class="d-none d-md-table-cell">
                         @switch (context.ScheduleKind)
                         {
-                            case PlayoutScheduleKind.Block:
-                                <span>Block</span>
-                                break;
                             case PlayoutScheduleKind.Sequential:
                                 <span>Sequential</span>
                                 break;
@@ -184,22 +179,6 @@
                                     </MudIconButton>
                                 </MudTooltip>
                                 <MudTooltip Text="Reset Playout">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                                   Disabled="@EntityLocker.IsPlayoutLocked(context.PlayoutId)"
-                                                   OnClick="@(_ => ResetPlayout(context))">
-                                    </MudIconButton>
-                                </MudTooltip>
-                                <div style="width: 48px"></div>
-                            }
-                            else if (context.ScheduleKind == PlayoutScheduleKind.Block)
-                            {
-                                <MudTooltip Text="Edit Playout">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                                   Disabled="@EntityLocker.IsPlayoutLocked(context.PlayoutId)"
-                                                   Href="@($"playouts/block/{context.PlayoutId}")">
-                                    </MudIconButton>
-                                </MudTooltip>
-                                <MudTooltip Text="Refresh Playout">
                                     <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                                                    Disabled="@EntityLocker.IsPlayoutLocked(context.PlayoutId)"
                                                    OnClick="@(_ => ResetPlayout(context))">
@@ -374,8 +353,8 @@
 
     private async Task PlayoutSelected(PlayoutNameViewModel playout)
     {
-        // only show details for classic, block, sequential and scripted schedules
-        _selectedPlayoutId = playout.ScheduleKind is PlayoutScheduleKind.Classic or PlayoutScheduleKind.Block or PlayoutScheduleKind.Sequential or PlayoutScheduleKind.Scripted
+        // only show details for classic, sequential and scripted schedules
+        _selectedPlayoutId = playout.ScheduleKind is PlayoutScheduleKind.Classic or PlayoutScheduleKind.Sequential or PlayoutScheduleKind.Scripted
             ? playout.PlayoutId
             : null;
 

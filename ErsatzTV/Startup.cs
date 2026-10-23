@@ -39,7 +39,6 @@ using ErsatzTV.Core.Jellyfin;
 using ErsatzTV.Core.Metadata;
 using ErsatzTV.Core.Plex;
 using ErsatzTV.Core.Scheduling;
-using ErsatzTV.Core.Scheduling.BlockScheduling;
 using ErsatzTV.Core.Scheduling.Engine;
 using ErsatzTV.Core.Scheduling.ScriptedScheduling;
 using ErsatzTV.Core.Scheduling.YamlScheduling;
@@ -906,9 +905,6 @@ public class Startup
         services.AddScoped<ILocalStatisticsProvider, LocalStatisticsProvider>();
         services.AddScoped<IExternalJsonPlayoutItemProvider, ExternalJsonPlayoutItemProvider>();
         services.AddScoped<IPlayoutBuilder, PlayoutBuilder>();
-        services.AddScoped<IBlockPlayoutBuilder, BlockPlayoutBuilder>();
-        services.AddScoped<IBlockPlayoutPreviewBuilder, BlockPlayoutPreviewBuilder>();
-        services.AddScoped<IBlockPlayoutFillerBuilder, BlockPlayoutFillerBuilder>();
         services.AddScoped<ISequentialPlayoutBuilder, SequentialPlayoutBuilder>();
         services.AddScoped<IScriptedPlayoutBuilder, ScriptedPlayoutBuilder>();
         services.AddScoped<ISchedulingEngine, SchedulingEngine>();
@@ -947,7 +943,6 @@ public class Startup
         services.AddScoped<IGraphicsElementLoader, GraphicsElementLoader>();
         services.AddScoped<IGraphicsEngineContextFactory, GraphicsEngineContextFactory>();
         services.AddScoped<TemplateFunctions>();
-        services.AddScoped<IDecoSelector, DecoSelector>();
         services.AddScoped<IWatermarkSelector, WatermarkSelector>();
         services.AddScoped<IGraphicsElementSelector, GraphicsElementSelector>();
         services.AddScoped<IHlsInitSegmentCache, HlsInitSegmentCache>();

@@ -138,8 +138,6 @@ public class PlaylistAnchorRefreshTests : PlayoutBuilderTestBase
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
-            [],
             [],
             schedule,
             [],

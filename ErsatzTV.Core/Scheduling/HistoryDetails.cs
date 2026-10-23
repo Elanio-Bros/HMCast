@@ -13,23 +13,6 @@ internal static class HistoryDetails
         NullValueHandling = NullValueHandling.Ignore
     };
 
-    public static string KeyForBlockItem(BlockItem blockItem)
-    {
-        dynamic key = new
-        {
-            blockItem.BlockId,
-            blockItem.PlaybackOrder,
-            blockItem.CollectionType,
-            blockItem.CollectionId,
-            blockItem.MultiCollectionId,
-            blockItem.SmartCollectionId,
-            blockItem.MediaItemId,
-            blockItem.SearchQuery
-        };
-
-        return JsonConvert.SerializeObject(key, Formatting.None, JsonSettings);
-    }
-
     public static string KeyForYamlContent(YamlPlayoutContentItem contentItem)
     {
         var key = new Dictionary<string, object>
@@ -104,37 +87,7 @@ internal static class HistoryDetails
         return JsonConvert.SerializeObject(key, Formatting.None, JsonSettings);
     }
 
-    public static string ForBreakContent(DecoBreakContent breakContent)
-    {
-        dynamic key = new
-        {
-            DecoBreakContentId = breakContent.Id,
-            PlaybackOrder = PlaybackOrder.Shuffle,
-            breakContent.CollectionType,
-            breakContent.CollectionId,
-            breakContent.MultiCollectionId,
-            breakContent.SmartCollectionId,
-            breakContent.MediaItemId,
-            breakContent.PlaylistId
-        };
 
-        return JsonConvert.SerializeObject(key, Formatting.None, JsonSettings);
-    }
-
-    public static string ForDefaultFiller(Deco deco)
-    {
-        dynamic key = new
-        {
-            DecoId = deco.Id,
-            PlaybackOrder = PlaybackOrder.Shuffle,
-            CollectionType = deco.DefaultFillerCollectionType,
-            CollectionId = deco.DefaultFillerCollectionId,
-            MultiCollectionId = deco.DefaultFillerMultiCollectionId,
-            SmartCollectionId = deco.DefaultFillerSmartCollectionId
-        };
-
-        return JsonConvert.SerializeObject(key, Formatting.None, JsonSettings);
-    }
 
     public static string ForMediaItem(MediaItem mediaItem)
     {

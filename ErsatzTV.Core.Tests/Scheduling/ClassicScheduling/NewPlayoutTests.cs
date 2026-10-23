@@ -73,8 +73,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -679,8 +677,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -796,8 +792,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -964,8 +958,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1091,8 +1083,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1217,8 +1207,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1344,8 +1332,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1476,8 +1462,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1608,8 +1592,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1749,8 +1731,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1883,8 +1863,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -1983,8 +1961,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
         var referenceData =
             new PlayoutReferenceData(
                 playout.Channel,
-                Option<Deco>.None,
-                [],
                 [],
                 playout.ProgramSchedule,
                 [],
@@ -2160,8 +2136,6 @@ public class NewPlayoutTests : PlayoutBuilderTestBase
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
-            [],
             [],
             playout.ProgramSchedule,
             [],

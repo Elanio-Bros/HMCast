@@ -41,15 +41,12 @@ public class PreviewPlaylistPlayoutHandler(
             },
             ProgramScheduleAnchors = [],
             ProgramScheduleAlternates = [],
-            FillGroupIndices = [],
-            Templates = []
+            FillGroupIndices = []
         };
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
             playout.Items,
-            playout.Templates.ToList(),
             playout.ProgramSchedule,
             playout.ProgramScheduleAlternates.ToList(),
             playout.PlayoutHistory.ToList(),

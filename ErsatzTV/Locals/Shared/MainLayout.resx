@@ -103,18 +103,7 @@
     <data name="ButtonSchedulingSchedules" xml:space="preserve">
         <value>Schedules</value>
     </data>
-    <data name="ButtonSchedulingBlocks" xml:space="preserve">
-        <value>Blocks</value>
-    </data>
-    <data name="ButtonSchedulingTemplates" xml:space="preserve">
-        <value>Templates</value>
-    </data>
-    <data name="ButtonSchedulingDecos" xml:space="preserve">
-        <value>Decos</value>
-    </data>
-    <data name="ButtonSchedulingDecoTemplates" xml:space="preserve">
-        <value>Deco Templates</value>
-    </data>
+
     <data name="ButtonSchedulingPlayouts" xml:space="preserve">
         <value>Playouts</value>
     </data>

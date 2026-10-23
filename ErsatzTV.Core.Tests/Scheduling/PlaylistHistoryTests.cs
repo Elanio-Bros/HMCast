@@ -4,7 +4,6 @@ using ErsatzTV.Core.Domain.Scheduling;
 using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Interfaces.Scheduling;
 using ErsatzTV.Core.Scheduling;
-using ErsatzTV.Core.Scheduling.BlockScheduling;
 using ErsatzTV.Core.Scheduling.Engine;
 using ErsatzTV.Core.Scheduling.YamlScheduling;
 using ErsatzTV.Core.Scheduling.YamlScheduling.Handlers;
@@ -145,51 +144,6 @@ public class PlaylistHistoryTests
             $"build 1 played [{string.Join(", ", playedInBuildOne)}]");
     }
 
-    // the block scheduler restores playlist filler with its own copy of the same 3 lines
-    [Test]
-    public async Task Block_Playlist_Filler_Should_Resume_Where_The_Previous_Build_Stopped()
-    {
-        const int PLAYLIST_ID = 7;
-        const int BUILD_ONE_COUNT = 11;
-        const int COMPARE_COUNT = 8;
-        const string HISTORY_KEY = "block-playlist-filler";
-
-        IMediaCollectionRepository repo = FakePlaylistRepository(PLAYLIST_ID, collections: 3, itemsPerCollection: 4);
-
-        PlaylistEnumerator buildOne = (PlaylistEnumerator)await BlockPlayoutEnumerator.PlaylistForFiller(
-            repo,
-            PLAYLIST_ID,
-            Start,
-            PlayoutSeed,
-            [],
-            seedOffset: 0,
-            HISTORY_KEY,
-            _cancellationToken);
-
-        var history = new List<PlayoutHistory>();
-        DateTimeOffset currentTime = Start;
-        for (var i = 0; i < BUILD_ONE_COUNT; i++)
-        {
-            history.Add(BlockFillerHistoryFor(buildOne, HISTORY_KEY, currentTime));
-            buildOne.MoveNext(currentTime);
-            currentTime += ItemDuration;
-        }
-
-        List<int> expected = Take(buildOne, COMPARE_COUNT);
-
-        var buildTwo = (PlaylistEnumerator)await BlockPlayoutEnumerator.PlaylistForFiller(
-            repo,
-            PLAYLIST_ID,
-            currentTime,
-            PlayoutSeed,
-            history,
-            seedOffset: 0,
-            HISTORY_KEY,
-            _cancellationToken);
-
-        Take(buildTwo, COMPARE_COUNT).ShouldBe(expected);
-    }
-
     // one ResetState call for each child would put every child back to the cycle start, so the second
     // child would discard the position of the first
     [Test]
@@ -222,42 +176,6 @@ public class PlaylistHistoryTests
         ApplyScriptedHistory(engine, history, currentTime, HISTORY_KEY, itemMap, buildTwo);
 
         ChildItemIds(buildTwo).ShouldBe(expected, "at least one child was rewound to the cycle start");
-    }
-
-    // the index of the primary history row is the cycle position of the playlist, not the slot number
-    // of the current child
-    [Test]
-    public async Task Playlist_Should_Restore_Its_Cycle_Position_From_History()
-    {
-        const int BUILD_ONE_COUNT = 7;
-
-        IMediaCollectionRepository repo = FakePlaylistRepository(playlistId: 1, collections: 3, itemsPerCollection: 4);
-        Dictionary<PlaylistItem, List<MediaItem>> itemMap = await repo.GetPlaylistItemMap(1, _cancellationToken);
-
-        PlaylistEnumerator buildOne = await CreatePlaylistEnumerator(repo, itemMap, _cancellationToken);
-
-        DateTimeOffset currentTime = Start;
-        var history = new List<PlayoutHistory>();
-        for (var i = 0; i < BUILD_ONE_COUNT; i++)
-        {
-            history.Add(BlockFillerHistoryFor(buildOne, "playlist", currentTime));
-            buildOne.MoveNext(currentTime);
-            currentTime += ItemDuration;
-        }
-
-        int expectedPlaylistIndex = buildOne.State.Index;
-
-        var buildTwo = (PlaylistEnumerator)await BlockPlayoutEnumerator.PlaylistForFiller(
-            repo,
-            1,
-            currentTime,
-            PlayoutSeed,
-            history,
-            seedOffset: 0,
-            "playlist",
-            _cancellationToken);
-
-        buildTwo.State.Index.ShouldBe(expectedPlaylistIndex);
     }
 
     // the scripted scheduler reaches the same 3 lines through SchedulingEngine.ApplyPlaylistHistory
@@ -471,8 +389,6 @@ public class PlaylistHistoryTests
         engine.WithReferenceData(
             new PlayoutReferenceData(
                 new Channel(Guid.NewGuid()) { Id = 1, Number = "1", Name = "Playlist history test" },
-                Option<Deco>.None,
-                [],
                 [],
                 null,
                 [],
@@ -485,23 +401,6 @@ public class PlaylistHistoryTests
             itemMap.ToImmutableDictionary(x => CollectionKey.ForPlaylistItem(x.Key), x => x.Value),
             enumerator);
     }
-
-    // BlockPlayoutFillerBuilder writes one row for each item and no child rows, so the index of the
-    // playlist is the only position it saves
-    private static PlayoutHistory BlockFillerHistoryFor(
-        PlaylistEnumerator enumerator,
-        string historyKey,
-        DateTimeOffset startTime) =>
-        new()
-        {
-            PlaybackOrder = PlaybackOrder.Shuffle,
-            Index = enumerator.State.Index,
-            When = startTime.UtcDateTime,
-            Finish = (startTime + ItemDuration).UtcDateTime,
-            Key = historyKey,
-            Details = HistoryDetails.ForMediaItem(
-                enumerator.Current.IfNone(() => throw new InvalidOperationException("no current item")))
-        };
 
     private static List<int> Take(PlaylistEnumerator enumerator, int count)
     {

@@ -13,7 +13,6 @@ namespace ErsatzTV.Core.FFmpeg;
 public class WatermarkSelector(
     IFileSystem fileSystem,
     IImageCache imageCache,
-    IDecoSelector decoSelector,
     ILogger<WatermarkSelector> logger)
     : IWatermarkSelector
 {
@@ -39,106 +38,6 @@ public class WatermarkSelector(
         {
             log.LogDebug("Watermark is disabled by playout item");
             return result;
-        }
-
-        DecoEntries decoEntries = decoSelector.GetDecoEntries(playoutItem.Playout, now);
-
-        // first, check deco template / active deco
-        foreach (Deco templateDeco in decoEntries.TemplateDeco)
-        {
-            var done = false;
-
-            switch (templateDeco.WatermarkMode)
-            {
-                case DecoMode.Merge:
-                    if (playoutItem.FillerKind is FillerKind.None || templateDeco.UseWatermarkDuringFiller)
-                    {
-                        log.LogDebug("Watermark will come from template deco (merge)");
-                        result.AddRange(
-                            OptionsForWatermarks(channel, templateDeco.DecoWatermarks.Map(dwm => dwm.Watermark), log));
-                        break;
-                    }
-
-                    log.LogDebug("Watermark is disabled by template deco during filler");
-                    result.Clear();
-                    done = true;
-                    break;
-                case DecoMode.Override:
-                    if (playoutItem.FillerKind is FillerKind.None || templateDeco.UseWatermarkDuringFiller)
-                    {
-                        log.LogDebug("Watermark will come from template deco (replace)");
-                        result.AddRange(
-                            OptionsForWatermarks(channel, templateDeco.DecoWatermarks.Map(dwm => dwm.Watermark), log));
-                        done = true;
-                        break;
-                    }
-
-                    log.LogDebug("Watermark is disabled by template deco during filler");
-                    result.Clear();
-                    done = true;
-                    break;
-                case DecoMode.Disable:
-                    log.LogDebug("Watermark is disabled by template deco");
-                    done = true;
-                    break;
-                case DecoMode.Inherit:
-                    log.LogDebug("Watermark will inherit from playout deco");
-                    break;
-            }
-
-            if (done)
-            {
-                return result;
-            }
-        }
-
-        // second, check playout deco
-        foreach (Deco playoutDeco in decoEntries.PlayoutDeco)
-        {
-            var done = false;
-
-            switch (playoutDeco.WatermarkMode)
-            {
-                case DecoMode.Merge:
-                    if (playoutItem.FillerKind is FillerKind.None || playoutDeco.UseWatermarkDuringFiller)
-                    {
-                        log.LogDebug("Watermark will come from playout deco (merge)");
-                        result.AddRange(
-                            OptionsForWatermarks(channel, playoutDeco.DecoWatermarks.Map(dwm => dwm.Watermark), log));
-                        break;
-                    }
-
-                    log.LogDebug("Watermark is disabled by playout deco during filler");
-                    result.Clear();
-                    done = true;
-                    break;
-                case DecoMode.Override:
-                    if (playoutItem.FillerKind is FillerKind.None || playoutDeco.UseWatermarkDuringFiller)
-                    {
-                        log.LogDebug("Watermark will come from playout deco (replace)");
-                        result.AddRange(
-                            OptionsForWatermarks(channel, playoutDeco.DecoWatermarks.Map(dwm => dwm.Watermark), log));
-                        done = true;
-                        break;
-                    }
-
-                    log.LogDebug("Watermark is disabled by playout deco during filler");
-                    result.Clear();
-                    done = true;
-                    break;
-                case DecoMode.Disable:
-                    log.LogDebug("Watermark is disabled by playout deco");
-                    done = true;
-                    break;
-                case DecoMode.Inherit:
-                    log.LogDebug("Watermark will inherit from channel and/or global setting");
-                    break;
-            }
-
-            if (done)
-            {
-                return result;
-            }
         }
 
         if (playoutItem.Watermarks.Count > 0)
@@ -351,71 +250,6 @@ public class WatermarkSelector(
                 default:
                     throw new NotSupportedException("Unsupported watermark image source");
             }
-        }
-
-        return Option<WatermarkOptions>.None;
-    }
-
-    private List<WatermarkOptions> OptionsForWatermarks(
-        Channel channel,
-        IEnumerable<ChannelWatermark> watermarks,
-        ILogger<WatermarkSelector> log)
-    {
-        var result = new List<WatermarkOptions>();
-
-        foreach (var watermark in watermarks)
-        {
-            result.AddRange(GetWatermarkOptions(channel, watermark, log));
-        }
-
-        return result;
-    }
-
-    private Option<WatermarkOptions> GetWatermarkOptions(
-        Channel channel,
-        ChannelWatermark watermark,
-        ILogger<WatermarkSelector> log)
-    {
-        switch (watermark.ImageSource)
-        {
-            // used for song progress overlay
-            case ChannelWatermarkImageSource.Resource:
-                return new WatermarkOptions(
-                    watermark,
-                    Path.Combine(FileSystemLayout.ResourcesCacheFolder, watermark.Image),
-                    Option<int>.None);
-            case ChannelWatermarkImageSource.Custom:
-                // bad form validation makes this possible
-                if (string.IsNullOrWhiteSpace(watermark.Image))
-                {
-                    log.LogWarning(
-                        "Watermark {Name} has custom image configured with no image; ignoring",
-                        watermark.Name);
-                    break;
-                }
-
-                string customPath = imageCache.GetPathForImage(
-                    watermark.Image,
-                    ArtworkKind.Watermark,
-                    Option<int>.None);
-                return new WatermarkOptions(
-                    watermark,
-                    customPath,
-                    None);
-            case ChannelWatermarkImageSource.ChannelLogo:
-                string channelPath = ChannelLogoGenerator.GenerateChannelLogoUrl(channel);
-                Option<Artwork> maybeLogoArtwork =
-                    Optional(channel.Artwork.Find(a => a.ArtworkKind == ArtworkKind.Logo));
-                foreach (var logoArtwork in maybeLogoArtwork)
-                {
-                    channelPath = Artwork.IsExternalUrl(logoArtwork.Path)
-                        ? logoArtwork.Path
-                        : imageCache.GetPathForImage(logoArtwork.Path, ArtworkKind.Logo, Option<int>.None);
-                }
-
-                return new WatermarkOptions(watermark, channelPath, None);
-            default:
-                throw new NotSupportedException("Unsupported watermark image source");
         }
 
         return Option<WatermarkOptions>.None;

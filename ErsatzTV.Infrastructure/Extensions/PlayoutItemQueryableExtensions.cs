@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace ErsatzTV.Infrastructure.Extensions;
@@ -22,31 +22,9 @@ public static class PlayoutItemQueryableExtensions
     /// </summary>
     public static IQueryable<PlayoutItem> IncludeForNextPlayout(this IQueryable<PlayoutItem> dbSet) =>
         dbSet
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Deco)
-            .ThenInclude(d => d.DecoWatermarks)
-            .ThenInclude(d => d.Watermark)
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Deco)
-            .ThenInclude(d => d.DecoGraphicsElements)
-            .ThenInclude(d => d.GraphicsElement)
             .Include(i => i.Watermarks)
             .Include(i => i.PlayoutItemGraphicsElements)
             .ThenInclude(pige => pige.GraphicsElement)
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Templates)
-            .ThenInclude(t => t.DecoTemplate)
-            .ThenInclude(t => t.Items)
-            .ThenInclude(i => i.Deco)
-            .ThenInclude(d => d.DecoWatermarks)
-            .ThenInclude(d => d.Watermark)
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Templates)
-            .ThenInclude(t => t.DecoTemplate)
-            .ThenInclude(t => t.Items)
-            .ThenInclude(i => i.Deco)
-            .ThenInclude(d => d.DecoGraphicsElements)
-            .ThenInclude(d => d.GraphicsElement)
             .Include(i => i.MediaItem)
             .ThenInclude(mi => mi.LibraryPath)
             .ThenInclude(lp => lp.Library)

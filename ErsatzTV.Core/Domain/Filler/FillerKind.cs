@@ -1,4 +1,4 @@
-﻿namespace ErsatzTV.Core.Domain.Filler;
+namespace ErsatzTV.Core.Domain.Filler;
 
 public enum FillerKind
 {
@@ -9,7 +9,5 @@ public enum FillerKind
     Tail = 4,
     Fallback = 5,
 
-    GuideMode = 99,
-
-    DecoDefault = 100
+    GuideMode = 99
 }

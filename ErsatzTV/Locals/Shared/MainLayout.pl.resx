@@ -96,18 +96,7 @@
     <data name="ButtonSchedulingSchedules" xml:space="preserve">
         <value>Harmonogramy</value>
     </data>
-    <data name="ButtonSchedulingBlocks" xml:space="preserve">
-        <value>Bloki</value>
-    </data>
-    <data name="ButtonSchedulingTemplates" xml:space="preserve">
-        <value>Szablony</value>
-    </data>
-    <data name="ButtonSchedulingDecos" xml:space="preserve">
-        <value>Dekoracje</value>
-    </data>
-    <data name="ButtonSchedulingDecoTemplates" xml:space="preserve">
-        <value>Szablony dekoracji</value>
-    </data>
+
     <data name="ButtonSchedulingPlayouts" xml:space="preserve">
         <value>Plany emisji</value>
     </data>

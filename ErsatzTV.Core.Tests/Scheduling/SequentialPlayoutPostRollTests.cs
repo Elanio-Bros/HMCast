@@ -88,7 +88,7 @@ public class SequentialPlayoutPostRollTests
             for (var build = 0; build < 3; build++)
             {
                 var reference = new PlayoutReferenceData(
-                    channel, Option<Deco>.None, items, [], null, [], history, TimeSpan.Zero);
+                    channel, items, null, [], history, TimeSpan.Zero);
                 var result = await builder.Build(
                     start.AddDays(build), playout, reference,
                     build == 0 ? PlayoutBuildMode.Reset : PlayoutBuildMode.Continue,

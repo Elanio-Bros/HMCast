@@ -213,30 +213,7 @@ namespace ErsatzTV.Locals.Shared {
                 return ResourceManager.GetString("ButtonSchedulingSchedules", resourceCulture);
             }
         }
-        
-        internal static string ButtonSchedulingBlocks {
-            get {
-                return ResourceManager.GetString("ButtonSchedulingBlocks", resourceCulture);
-            }
-        }
-        
-        internal static string ButtonSchedulingTemplates {
-            get {
-                return ResourceManager.GetString("ButtonSchedulingTemplates", resourceCulture);
-            }
-        }
-        
-        internal static string ButtonSchedulingDecos {
-            get {
-                return ResourceManager.GetString("ButtonSchedulingDecos", resourceCulture);
-            }
-        }
-        
-        internal static string ButtonSchedulingDecoTemplates {
-            get {
-                return ResourceManager.GetString("ButtonSchedulingDecoTemplates", resourceCulture);
-            }
-        }
+
         
         internal static string ButtonSchedulingPlayouts {
             get {

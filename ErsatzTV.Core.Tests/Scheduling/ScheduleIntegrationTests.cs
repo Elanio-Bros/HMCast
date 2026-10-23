@@ -409,27 +409,6 @@ public class ScheduleIntegrationTests
             .FirstOrDefaultAsync();
 
         List<PlayoutItem> existingItems = [];
-        List<PlayoutTemplate> playoutTemplates = [];
-
-        if (scheduleKind is PlayoutScheduleKind.Block)
-        {
-            existingItems = await dbContext.PlayoutItems
-                .AsNoTracking()
-                .Where(pi => pi.PlayoutId == playoutId)
-                .ToListAsync();
-
-            playoutTemplates = await dbContext.PlayoutTemplates
-                .AsNoTracking()
-                .Where(pt => pt.PlayoutId == playoutId)
-                .Include(t => t.Template)
-                .ThenInclude(t => t.Items)
-                .ThenInclude(i => i.Block)
-                .ThenInclude(b => b.Items)
-                .Include(t => t.DecoTemplate)
-                .ThenInclude(t => t.Items)
-                .ThenInclude(i => i.Deco)
-                .ToListAsync();
-        }
 
         ProgramSchedule programSchedule = await dbContext.ProgramSchedules
             .AsNoTracking()
@@ -497,9 +476,7 @@ public class ScheduleIntegrationTests
 
         return new PlayoutReferenceData(
             channel,
-            Option<Deco>.None,
             existingItems,
-            playoutTemplates,
             programSchedule,
             programScheduleAlternates,
             playoutHistory,

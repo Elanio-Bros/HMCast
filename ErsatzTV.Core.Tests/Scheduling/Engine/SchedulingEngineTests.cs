@@ -94,8 +94,6 @@ public class SchedulingEngineTests
     private static PlayoutReferenceData ReferenceData() =>
         new(
             new Channel(Guid.Empty) { Id = 1 },
-            Option<Deco>.None,
-            [],
             [],
             new ProgramSchedule(),
             [],

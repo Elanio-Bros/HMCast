@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -36,11 +36,6 @@ public class PlayoutConfiguration : IEntityTypeConfiguration<Playout>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(p => p.FillGroupIndices)
-            .WithOne(i => i.Playout)
-            .HasForeignKey(i => i.PlayoutId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(p => p.Templates)
             .WithOne(i => i.Playout)
             .HasForeignKey(i => i.PlayoutId)
             .OnDelete(DeleteBehavior.Cascade);

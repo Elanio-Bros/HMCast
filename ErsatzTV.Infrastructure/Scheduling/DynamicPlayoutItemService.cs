@@ -26,8 +26,7 @@ public class DynamicPlayoutItemService(
     IArtistRepository artistRepository,
     IPlexPathReplacementService plexPathReplacementService,
     IJellyfinPathReplacementService jellyfinPathReplacementService,
-    IEmbyPathReplacementService embyPathReplacementService,
-    IDecoSelector decoSelector) : IDynamicPlayoutItemService
+    IEmbyPathReplacementService embyPathReplacementService) : IDynamicPlayoutItemService
 {
     private static readonly Random FallbackRandom = new();
 
@@ -49,22 +48,6 @@ public class DynamicPlayoutItemService(
 
         Option<Playout> maybePlayout = await dbContext.Playouts
             .AsNoTracking()
-
-            // get playout deco
-            .Include(p => p.Deco)
-            .ThenInclude(d => d.DecoWatermarks)
-            .ThenInclude(d => d.Watermark)
-            .Include(p => p.Deco)
-            .ThenInclude(d => d.DecoGraphicsElements)
-            .ThenInclude(d => d.GraphicsElement)
-
-            // get playout templates (and deco templates/decos)
-            .Include(p => p.Templates)
-            .ThenInclude(t => t.DecoTemplate)
-            .ThenInclude(t => t.Items)
-            .ThenInclude(i => i.Deco)
-            .ThenInclude(d => d.DecoWatermarks)
-            .ThenInclude(d => d.Watermark)
             .SelectOneAsync(
                 p => p.ChannelId,
                 p => p.ChannelId == (channel.MirrorSourceChannelId ?? channel.Id),
@@ -100,45 +83,19 @@ public class DynamicPlayoutItemService(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        Option<FillerPreset> maybeFallback = Option<FillerPreset>.None;
+        // check for channel fallback
+        Option<FillerPreset> maybeFallback = await dbContext.FillerPresets
+            .SelectOneAsync(w => w.Id, w => w.Id == channel.FallbackFillerId, cancellationToken);
 
-        DeadAirFallbackResult decoDeadAirFallback = GetDecoDeadAirFallback(playout, now);
-        switch (decoDeadAirFallback)
+        // then check for global fallback
+        if (maybeFallback.IsNone)
         {
-            case CustomDeadAirFallback custom:
-                maybeFallback = new FillerPreset
-                {
-                    // always allow watermarks here
-                    // deco settings will disable watermarks if appropriate
-                    AllowWatermarks = true,
-
-                    CollectionType = custom.CollectionType,
-                    CollectionId = custom.CollectionId,
-                    MediaItemId = custom.MediaItemId,
-                    MultiCollectionId = custom.MultiCollectionId,
-                    SmartCollectionId = custom.SmartCollectionId
-                };
-                break;
-            case DisableDeadAirFallback:
-                // do nothing
-                break;
-            case InheritDeadAirFallback:
-                // check for channel fallback
-                maybeFallback = await dbContext.FillerPresets
-                    .SelectOneAsync(w => w.Id, w => w.Id == channel.FallbackFillerId, cancellationToken);
-
-                // then check for global fallback
-                if (maybeFallback.IsNone)
-                {
-                    maybeFallback = await dbContext.ConfigElements
-                        .GetValue<int>(ConfigElementKey.FFmpegGlobalFallbackFillerId, cancellationToken)
-                        .BindT(fillerId => dbContext.FillerPresets.SelectOneAsync(
-                            w => w.Id,
-                            w => w.Id == fillerId,
-                            cancellationToken));
-                }
-
-                break;
+            maybeFallback = await dbContext.ConfigElements
+                .GetValue<int>(ConfigElementKey.FFmpegGlobalFallbackFillerId, cancellationToken)
+                .BindT(fillerId => dbContext.FillerPresets.SelectOneAsync(
+                    w => w.Id,
+                    w => w.Id == fillerId,
+                    cancellationToken));
         }
 
 
@@ -317,68 +274,4 @@ public class DynamicPlayoutItemService(
 
         return new PlayoutItemDoesNotExistOnDisk(path);
     }
-
-    private DeadAirFallbackResult GetDecoDeadAirFallback(Playout playout, DateTimeOffset now)
-    {
-        DecoEntries decoEntries = decoSelector.GetDecoEntries(playout, now);
-
-        // first, check deco template / active deco
-        foreach (Deco templateDeco in decoEntries.TemplateDeco)
-        {
-            switch (templateDeco.DeadAirFallbackMode)
-            {
-                case DecoMode.Override:
-                    //_logger.LogDebug("Dead air fallback will come from template deco (override)");
-                    return new CustomDeadAirFallback(
-                        templateDeco.DeadAirFallbackCollectionType,
-                        templateDeco.DeadAirFallbackCollectionId,
-                        templateDeco.DeadAirFallbackMediaItemId,
-                        templateDeco.DeadAirFallbackMultiCollectionId,
-                        templateDeco.DeadAirFallbackSmartCollectionId);
-                case DecoMode.Disable:
-                    //_logger.LogDebug("Dead air fallback is disabled by template deco");
-                    return new DisableDeadAirFallback();
-                case DecoMode.Inherit:
-                    //_logger.LogDebug("Dead air fallback will inherit from playout deco");
-                    break;
-            }
-        }
-
-        // second, check playout deco
-        foreach (Deco playoutDeco in decoEntries.PlayoutDeco)
-        {
-            switch (playoutDeco.DeadAirFallbackMode)
-            {
-                case DecoMode.Override:
-                    //_logger.LogDebug("Dead air fallback will come from playout deco (override)");
-                    return new CustomDeadAirFallback(
-                        playoutDeco.DeadAirFallbackCollectionType,
-                        playoutDeco.DeadAirFallbackCollectionId,
-                        playoutDeco.DeadAirFallbackMediaItemId,
-                        playoutDeco.DeadAirFallbackMultiCollectionId,
-                        playoutDeco.DeadAirFallbackSmartCollectionId);
-                case DecoMode.Disable:
-                    //_logger.LogDebug("Dead air fallback is disabled by playout deco");
-                    return new DisableDeadAirFallback();
-                case DecoMode.Inherit:
-                    //_logger.LogDebug("Dead air fallback will inherit from channel and/or global setting");
-                    break;
-            }
-        }
-
-        return new InheritDeadAirFallback();
-    }
-
-    private abstract record DeadAirFallbackResult;
-
-    private sealed record InheritDeadAirFallback : DeadAirFallbackResult;
-
-    private sealed record DisableDeadAirFallback : DeadAirFallbackResult;
-
-    private sealed record CustomDeadAirFallback(
-        CollectionType CollectionType,
-        int? CollectionId,
-        int? MediaItemId,
-        int? MultiCollectionId,
-        int? SmartCollectionId) : DeadAirFallbackResult;
 }

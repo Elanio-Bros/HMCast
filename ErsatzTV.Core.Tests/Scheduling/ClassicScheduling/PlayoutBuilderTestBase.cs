@@ -90,8 +90,6 @@ public abstract class PlayoutBuilderTestBase
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
-            [],
             [],
             playout.ProgramSchedule,
             [],
@@ -203,8 +201,6 @@ public abstract class PlayoutBuilderTestBase
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
-            [],
             [],
             playout.ProgramSchedule,
             [],

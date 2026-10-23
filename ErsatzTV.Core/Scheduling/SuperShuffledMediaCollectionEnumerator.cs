@@ -1,17 +1,17 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Extensions;
 using ErsatzTV.Core.Interfaces.Scheduling;
 
-namespace ErsatzTV.Core.Scheduling.BlockScheduling;
+namespace ErsatzTV.Core.Scheduling;
 
-public class BlockPlayoutShuffledMediaCollectionEnumerator : IMediaCollectionEnumerator
+public class SuperShuffledMediaCollectionEnumerator : IMediaCollectionEnumerator
 {
     private readonly Lazy<Option<TimeSpan>> _lazyMinimumDuration;
     private readonly int _mediaItemCount;
     private readonly IList<GroupedMediaItem> _mediaItems;
     private IList<MediaItem> _shuffled;
 
-    public BlockPlayoutShuffledMediaCollectionEnumerator(
+    public SuperShuffledMediaCollectionEnumerator(
         IList<GroupedMediaItem> mediaItems,
         CollectionEnumeratorState state)
     {
@@ -41,7 +41,7 @@ public class BlockPlayoutShuffledMediaCollectionEnumerator : IMediaCollectionEnu
         }
     }
 
-    public string SchedulingContextName => "Block Shuffle";
+    public string SchedulingContextName => "Shuffle";
 
     public CollectionEnumeratorState State { get; }
 

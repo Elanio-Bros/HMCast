@@ -71,35 +71,9 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
         Either<BaseError, PlayoutItemWithPath> maybePlayoutItem = await dbContext.PlayoutItems
             .AsNoTracking()
 
-            // get playout deco
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Deco)
-            .ThenInclude(d => d.DecoWatermarks)
-            .ThenInclude(d => d.Watermark)
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Deco)
-            .ThenInclude(d => d.DecoGraphicsElements)
-            .ThenInclude(d => d.GraphicsElement)
-
             // get graphics elements
             .Include(i => i.PlayoutItemGraphicsElements)
             .ThenInclude(pige => pige.GraphicsElement)
-
-            // get playout templates (and deco templates/decos)
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Templates)
-            .ThenInclude(t => t.DecoTemplate)
-            .ThenInclude(t => t.Items)
-            .ThenInclude(i => i.Deco)
-            .ThenInclude(d => d.DecoWatermarks)
-            .ThenInclude(d => d.Watermark)
-            .Include(i => i.Playout)
-            .ThenInclude(p => p.Templates)
-            .ThenInclude(t => t.DecoTemplate)
-            .ThenInclude(t => t.Items)
-            .ThenInclude(i => i.Deco)
-            .ThenInclude(d => d.DecoGraphicsElements)
-            .ThenInclude(d => d.GraphicsElement)
             .Include(i => i.MediaItem)
             .ThenInclude(mi => (mi as Episode).EpisodeMetadata)
             .ThenInclude(em => em.Subtitles)

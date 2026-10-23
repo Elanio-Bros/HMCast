@@ -88,8 +88,6 @@ public class RefreshPlayoutTests : PlayoutBuilderTestBase
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
-            [],
             [],
             playout.ProgramSchedule,
             [],

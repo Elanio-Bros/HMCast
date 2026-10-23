@@ -27,7 +27,6 @@ public class WatermarkSelectorChannelLogoTests
         return new WatermarkSelector(
             mockFileSystem,
             fakeImageCache,
-            new DecoSelector(),
             NullLogger<WatermarkSelector>.Instance);
     }
 
@@ -114,7 +113,6 @@ public class WatermarkSelectorChannelLogoTests
         var selector = new WatermarkSelector(
             mockFileSystem,
             fakeImageCache,
-            new DecoSelector(),
             NullLogger<WatermarkSelector>.Instance);
 
         Channel channel = ChannelWithLogo(new Artwork { ArtworkKind = ArtworkKind.Logo, Path = "logo.png" });

@@ -7,8 +7,6 @@ public class PlayoutHistory
     public int PlayoutId { get; set; }
     public Playout Playout { get; set; }
 
-    public int? BlockId { get; set; }
-    public Block Block { get; set; }
     public PlaybackOrder PlaybackOrder { get; set; }
     public int Index { get; set; }
 
@@ -37,7 +35,6 @@ public class PlayoutHistory
         new()
         {
             PlayoutId = PlayoutId,
-            BlockId = BlockId,
             PlaybackOrder = PlaybackOrder,
             Index = Index,
             Seed = Seed,

@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain.Scheduling;
+using ErsatzTV.Core.Domain.Scheduling;
 using ErsatzTV.FFmpeg.State;
 
 namespace ErsatzTV.Core.Domain;
@@ -25,10 +25,6 @@ public class ChannelWatermark
     public List<PlayoutItemWatermark> PlayoutItemWatermarks { get; set; }
     public List<ProgramScheduleItem> ProgramScheduleItems { get; set; }
     public List<ProgramScheduleItemWatermark> ProgramScheduleItemWatermarks { get; set; }
-    public List<BlockItem> BlockItems { get; set; }
-    public List<BlockItemWatermark> BlockItemWatermarks { get; set; }
-    public List<Deco> Decos { get; set; }
-    public List<DecoWatermark> DecoWatermarks { get; set; }
     public int ZIndex { get; set; }
 
     // for unit testing

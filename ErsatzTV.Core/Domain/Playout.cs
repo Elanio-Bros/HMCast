@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain.Scheduling;
+using ErsatzTV.Core.Domain.Scheduling;
 
 namespace ErsatzTV.Core.Domain;
 
@@ -17,12 +17,9 @@ public class Playout
     public PlayoutAnchor Anchor { get; set; }
     public List<PlayoutProgramScheduleAnchor> ProgramScheduleAnchors { get; set; }
     public List<PlayoutScheduleItemFillGroupIndex> FillGroupIndices { get; set; }
-    public ICollection<PlayoutTemplate> Templates { get; set; }
     public ICollection<PlayoutHistory> PlayoutHistory { get; set; }
     public int Seed { get; set; }
     public TimeSpan? DailyRebuildTime { get; set; }
-    public int? DecoId { get; set; }
-    public Deco Deco { get; set; }
     public DateTimeOffset? OnDemandCheckpoint { get; set; }
     public PlayoutBuildStatus BuildStatus { get; set; }
 }

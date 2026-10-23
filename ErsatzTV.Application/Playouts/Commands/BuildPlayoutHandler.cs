@@ -19,8 +19,6 @@ namespace ErsatzTV.Application.Playouts;
 
 public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseError, Unit>>
 {
-    private readonly IBlockPlayoutBuilder _blockPlayoutBuilder;
-    private readonly IBlockPlayoutFillerBuilder _blockPlayoutFillerBuilder;
     private readonly IDbContextFactory<TvContext> _dbContextFactory;
     private readonly IEntityLocker _entityLocker;
     private readonly IExternalJsonPlayoutBuilder _externalJsonPlayoutBuilder;
@@ -36,8 +34,6 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
     public BuildPlayoutHandler(
         IDbContextFactory<TvContext> dbContextFactory,
         IPlayoutBuilder playoutBuilder,
-        IBlockPlayoutBuilder blockPlayoutBuilder,
-        IBlockPlayoutFillerBuilder blockPlayoutFillerBuilder,
         ISequentialPlayoutBuilder sequentialPlayoutBuilder,
         IScriptedPlayoutBuilder scriptedPlayoutBuilder,
         IExternalJsonPlayoutBuilder externalJsonPlayoutBuilder,
@@ -50,8 +46,6 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
     {
         _dbContextFactory = dbContextFactory;
         _playoutBuilder = playoutBuilder;
-        _blockPlayoutBuilder = blockPlayoutBuilder;
-        _blockPlayoutFillerBuilder = blockPlayoutFillerBuilder;
         _sequentialPlayoutBuilder = sequentialPlayoutBuilder;
         _scriptedPlayoutBuilder = scriptedPlayoutBuilder;
         _externalJsonPlayoutBuilder = externalJsonPlayoutBuilder;
@@ -167,25 +161,7 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
 
             switch (playout.ScheduleKind)
             {
-                case PlayoutScheduleKind.Block:
-                    buildResult = await _blockPlayoutBuilder.Build(
-                        request.Start,
-                        playout,
-                        referenceData,
-                        request.Mode,
-                        cancellationToken);
 
-                    foreach (var result in buildResult.RightToSeq())
-                    {
-                        buildResult = await _blockPlayoutFillerBuilder.Build(
-                            playout,
-                            referenceData,
-                            result,
-                            request.Mode,
-                            cancellationToken);
-                    }
-
-                    break;
                 case PlayoutScheduleKind.Sequential:
                     buildResult = await _sequentialPlayoutBuilder.Build(
                         request.Start,
@@ -458,43 +434,7 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
             }
         }
 
-        Option<Deco> deco = Option<Deco>.None;
         List<PlayoutItem> existingItems = [];
-        List<PlayoutTemplate> playoutTemplates = [];
-
-        if (scheduleKind is PlayoutScheduleKind.Block)
-        {
-            deco = await dbContext.Decos
-                .AsNoTracking()
-                .Include(d => d.BreakContent)
-                .Where(d => d.Playouts.Any(p => p.Id == playoutId))
-                .FirstOrDefaultAsync()
-                .Map(Optional);
-
-            existingItems = await dbContext.PlayoutItems
-                .AsNoTracking()
-                .Where(pi => pi.PlayoutId == playoutId)
-                .ToListAsync();
-
-            playoutTemplates = await dbContext.PlayoutTemplates
-                .AsNoTracking()
-                .Where(pt => pt.PlayoutId == playoutId)
-                .Include(t => t.Template)
-                .ThenInclude(t => t.Items)
-                .ThenInclude(i => i.Block)
-                .ThenInclude(b => b.Items)
-                .ThenInclude(i => i.BlockItemWatermarks)
-                .Include(t => t.Template)
-                .ThenInclude(t => t.Items)
-                .ThenInclude(i => i.Block)
-                .ThenInclude(b => b.Items)
-                .ThenInclude(i => i.BlockItemGraphicsElements)
-                .Include(t => t.DecoTemplate)
-                .ThenInclude(t => t.Items)
-                .ThenInclude(i => i.Deco)
-                .ThenInclude(d => d.BreakContent)
-                .ToListAsync();
-        }
 
         ProgramSchedule programSchedule = await dbContext.ProgramSchedules
             .AsNoTracking()
@@ -562,9 +502,7 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
 
         return new PlayoutReferenceData(
             channel,
-            deco,
             existingItems,
-            playoutTemplates,
             programSchedule,
             programScheduleAlternates,
             playoutHistory,

@@ -30,7 +30,6 @@ public class ResetAllPlayoutsHandler(
                     }
 
                     break;
-                case PlayoutScheduleKind.Block:
                 case PlayoutScheduleKind.Sequential:
                 case PlayoutScheduleKind.Scripted:
                     if (!locker.IsPlayoutLocked(playout.Id))

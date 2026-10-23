@@ -32,14 +32,6 @@ public class ProcessSchedulingContextHandler(IDbContextFactory<TvContext> dbCont
                     return await GetClassicDetails(classicContext, cancellationToken);
                 }
             }
-            else if (doc.RootElement.TryGetProperty(nameof(BlockSchedulingContext.BlockId), out _))
-            {
-                var blockContext = JsonSerializer.Deserialize<BlockSchedulingContext>(request.SerializedContext, Options);
-                if (blockContext is not null && blockContext.BlockId > 0)
-                {
-                    return await GetBlockDetails(blockContext, cancellationToken);
-                }
-            }
         }
         catch (JsonException)
         {
@@ -134,53 +126,6 @@ public class ProcessSchedulingContextHandler(IDbContextFactory<TvContext> dbCont
         return JsonSerializer.Serialize(context, Options);
     }
 
-    private async Task<Option<string>> GetBlockDetails(BlockSchedulingContext blockContext, CancellationToken cancellationToken)
-    {
-        await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        var block = await dbContext.Blocks
-            .AsNoTracking()
-            .Include(b => b.BlockGroup)
-            .SingleOrDefaultAsync(s => s.Id == blockContext.BlockId, cancellationToken);
-
-        var blockItem = await dbContext.BlockItems
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(si => si.Collection)
-            .Include(si => si.MultiCollection)
-            .Include(si => si.SmartCollection)
-            .SingleOrDefaultAsync(s => s.Id == blockContext.BlockItemId, cancellationToken);
-
-        BlockContextBlockItem item;
-        if (blockItem is not null)
-        {
-            string collectionName = blockItem.CollectionType switch
-            {
-                CollectionType.Collection => blockItem.Collection.Name,
-                CollectionType.MultiCollection => blockItem.MultiCollection.Name,
-                CollectionType.SmartCollection => blockItem.SmartCollection.Name,
-                _ => null
-            };
-
-            item = new BlockContextBlockItem(blockItem.Id, blockItem.CollectionType, collectionName);
-        }
-        else
-        {
-            item = new BlockContextBlockItem(blockContext.BlockItemId, null, null);
-        }
-
-        var context = new BlockContext(
-            new ContextScheduler("Block", null),
-            new BlockContextBlock(
-                blockContext.BlockId,
-                block?.BlockGroup?.Name ?? string.Empty,
-                block?.Name ?? string.Empty),
-            item,
-            new ContextEnumerator(blockContext.Enumerator, blockContext.Seed, blockContext.Index));
-
-        return JsonSerializer.Serialize(context, Options);
-    }
-
     private sealed record ClassicContext(
         ContextScheduler Scheduler,
         ClassicContextSchedule Schedule,
@@ -203,14 +148,4 @@ public class ProcessSchedulingContextHandler(IDbContextFactory<TvContext> dbCont
         string CollectionName);
 
     private sealed record ContextEnumerator(string Name, int Seed, int Index);
-
-    private sealed record BlockContext(
-        ContextScheduler Scheduler,
-        BlockContextBlock Block,
-        BlockContextBlockItem BlockItem,
-        ContextEnumerator Enumerator);
-
-    private sealed record BlockContextBlock(int Id, string Group, string Name);
-
-    private sealed record BlockContextBlockItem(int Id, CollectionType? CollectionType, string CollectionName);
 }

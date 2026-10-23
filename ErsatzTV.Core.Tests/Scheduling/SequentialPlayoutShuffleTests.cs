@@ -271,9 +271,7 @@ public class SequentialPlayoutShuffleTests
     {
         var referenceData = new PlayoutReferenceData(
             channel,
-            Option<Deco>.None,
             existingItems,
-            [],
             null,
             [],
             history,

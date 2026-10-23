@@ -199,8 +199,6 @@ public class AlternateScheduleAnchorTests : PlayoutBuilderTestBase
 
         var referenceData = new PlayoutReferenceData(
             playout.Channel,
-            Option<Deco>.None,
-            [],
             [],
             primarySchedule,
             alternates,

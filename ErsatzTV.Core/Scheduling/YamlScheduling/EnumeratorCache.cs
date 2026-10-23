@@ -1,7 +1,6 @@
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Interfaces.Scheduling;
-using ErsatzTV.Core.Scheduling.BlockScheduling;
 using ErsatzTV.Core.Scheduling.Engine;
 using ErsatzTV.Core.Scheduling.YamlScheduling.Models;
 using Microsoft.Extensions.Logging;
@@ -197,7 +196,7 @@ public class EnumeratorCache(IMediaCollectionRepository mediaCollectionRepositor
                 List<GroupedMediaItem> groupedMediaItems = keepMultiPartEpisodesTogether
                     ? MultiPartEpisodeGrouper.GroupMediaItems(items, false)
                     : items.Map(mi => new GroupedMediaItem(mi, null)).ToList();
-                return new BlockPlayoutShuffledMediaCollectionEnumerator(groupedMediaItems, state);
+                return new SuperShuffledMediaCollectionEnumerator(groupedMediaItems, state);
         }
 
         return Option<IMediaCollectionEnumerator>.None;
