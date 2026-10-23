@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.Extensions;
 using ErsatzTV.Core.Interfaces.Scheduling;
@@ -65,9 +65,10 @@ public class PlayoutModeSchedulerDuration(ILogger logger)
             // remember when we need to finish this duration item
             if (nextState.DurationFinish.IsNone)
             {
+                TimeSpan blockDuration = scheduleItem.TargetDuration ?? scheduleItem.PlayoutDuration;
                 nextState = nextState with
                 {
-                    DurationFinish = itemStartTime + scheduleItem.PlayoutDuration
+                    DurationFinish = itemStartTime + blockDuration
                 };
 
                 // Logger.LogDebug("Setting duration finish to {DurationFinish}", nextState.DurationFinish);

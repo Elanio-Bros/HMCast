@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Scheduling;
+using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Interfaces.Scheduling;
 //using ErsatzTV.Core.Scheduling.Engine;
@@ -41,8 +42,13 @@ public class SequentialPlayoutBuilder(
 
         PlayoutBuildResult result = PlayoutBuildResult.Empty;
 
-        if (!fileSystem.File.Exists(playout.ScheduleFile))
+        if (playout.SourceKind == ProgramScheduleSourceKind.Playlist || string.IsNullOrWhiteSpace(playout.ScheduleFile) || !fileSystem.File.Exists(playout.ScheduleFile))
         {
+            if (playout.SourceId.HasValue || playout.SourceKind == ProgramScheduleSourceKind.Playlist)
+            {
+                return await BuildFromDatabasePlaylist(start, playout, referenceData, mode, cancellationToken);
+            }
+
             logger.LogWarning("Sequential schedule file {File} does not exist; aborting.", playout.ScheduleFile);
             return BaseError.New($"Sequential schedule file {playout.ScheduleFile} does not exist");
         }
@@ -690,5 +696,124 @@ public class SequentialPlayoutBuilder(
         }
 
         return result;
+    }
+
+    private async Task<Either<BaseError, PlayoutBuildResult>> BuildFromDatabasePlaylist(
+        DateTimeOffset start,
+        Playout playout,
+        PlayoutReferenceData referenceData,
+        PlayoutBuildMode mode,
+        CancellationToken cancellationToken)
+    {
+        int playlistId = playout.SourceId ?? 0;
+        if (playlistId <= 0)
+        {
+            logger.LogWarning("Playout {PlayoutId} has no Playlist SourceId configured; aborting.", playout.Id);
+            return PlayoutBuildResult.Empty;
+        }
+
+        Dictionary<PlaylistItem, List<MediaItem>> itemMap =
+            await mediaCollectionRepository.GetPlaylistItemMap(playlistId, cancellationToken);
+
+        if (itemMap == null || itemMap.Count == 0)
+        {
+            logger.LogWarning("Playlist {PlaylistId} for playout {PlayoutId} has no items; aborting.", playlistId, playout.Id);
+            return PlayoutBuildResult.Empty;
+        }
+
+        var orderedPlaylistItems = itemMap.Keys.OrderBy(k => k.Index).ToList();
+        var mediaQueue = new List<MediaItem>();
+
+        foreach (PlaylistItem playlistItem in orderedPlaylistItems)
+        {
+            if (!itemMap.TryGetValue(playlistItem, out List<MediaItem> items) || items == null || items.Count == 0)
+            {
+                continue;
+            }
+
+            List<MediaItem> sortedItems = playlistItem.PlaybackOrder switch
+            {
+                PlaybackOrder.Shuffle or PlaybackOrder.Random => items.OrderBy(_ => new Random(playout.Seed).Next()).ToList(),
+                _ => items
+            };
+
+            if (playlistItem.Count.HasValue && !playlistItem.PlayAll && playlistItem.Count.Value > 0)
+            {
+                sortedItems = sortedItems.Take(playlistItem.Count.Value).ToList();
+            }
+
+            mediaQueue.AddRange(sortedItems);
+        }
+
+        if (mediaQueue.Count == 0)
+        {
+            logger.LogWarning("Playlist {PlaylistId} resolved 0 media items; aborting.", playlistId);
+            return PlayoutBuildResult.Empty;
+        }
+
+        int daysToBuild = playout.DaysToBuild > 0 ? playout.DaysToBuild : await GetDaysToBuild(cancellationToken);
+        DateTimeOffset targetEnd = start.AddDays(daysToBuild);
+
+        var itemsToAdd = new List<PlayoutItem>();
+        DateTimeOffset current = start;
+        int queueIndex = 0;
+
+        while (current < targetEnd && !cancellationToken.IsCancellationRequested)
+        {
+            MediaItem mediaItem = mediaQueue[queueIndex % mediaQueue.Count];
+            TimeSpan duration = GetMediaDuration(mediaItem);
+            if (duration <= TimeSpan.Zero)
+            {
+                duration = TimeSpan.FromMinutes(30);
+            }
+
+            DateTimeOffset itemFinish = current.Add(duration);
+
+            var playoutItem = new PlayoutItem
+            {
+                PlayoutId = playout.Id,
+                MediaItemId = mediaItem.Id,
+                Start = current.UtcDateTime,
+                Finish = itemFinish.UtcDateTime,
+                FillerKind = FillerKind.None
+            };
+
+            itemsToAdd.Add(playoutItem);
+            current = itemFinish;
+            queueIndex++;
+
+            if (playout.DeliveryMode == PlayoutDeliveryMode.PlayOnce && queueIndex >= mediaQueue.Count)
+            {
+                break;
+            }
+        }
+
+        logger.LogInformation(
+            "Built {Count} items for database playlist playout {PlayoutId} ({DeliveryMode})",
+            itemsToAdd.Count,
+            playout.Id,
+            playout.DeliveryMode);
+
+        PlayoutBuildResult result = PlayoutBuildResult.Empty with
+        {
+            AddedItems = itemsToAdd,
+            RemoveBefore = start,
+            ClearItems = mode is PlayoutBuildMode.Reset
+        };
+
+        return result;
+    }
+
+    private static TimeSpan GetMediaDuration(MediaItem mediaItem)
+    {
+        return mediaItem switch
+        {
+            Movie m => m.MediaVersions?.FirstOrDefault()?.Duration ?? TimeSpan.Zero,
+            Episode e => e.MediaVersions?.FirstOrDefault()?.Duration ?? TimeSpan.Zero,
+            MusicVideo mv => mv.MediaVersions?.FirstOrDefault()?.Duration ?? TimeSpan.Zero,
+            OtherVideo ov => ov.MediaVersions?.FirstOrDefault()?.Duration ?? TimeSpan.Zero,
+            Song s => s.MediaVersions?.FirstOrDefault()?.Duration ?? TimeSpan.Zero,
+            _ => TimeSpan.Zero
+        };
     }
 }

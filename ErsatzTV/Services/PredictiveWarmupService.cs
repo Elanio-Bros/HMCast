@@ -1,6 +1,7 @@
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.FFmpeg;
 using ErsatzTV.Core.Interfaces.Repositories;
+using ErsatzTV.Core.Interfaces.Streaming;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,16 +10,13 @@ using Microsoft.Extensions.Logging;
 namespace ErsatzTV.Services;
 
 /// <summary>
-/// Serviço de background responsável pelo Modo Preditivo (Ponto 9 do HMCast 3.0).
-/// Para canais com PlayoutMode = Predictive e sem espectadores ativos, este serviço
-/// dispara proativamente o pré-processamento HLS para o disco, mantendo o canal
-/// sempre "aquecido" para que espectadores entrem sem delay.
-/// Ciclo: a cada 10 segundos, varre canais preditivos e de Rádio (Burst).
-/// Para Rádio, olha os próximos 30s do PlayoutItem atual.
+/// Serviço de background responsável pelo Modo Preditivo e PreCache Zero-Delay (HMCast 3.0).
+/// Mantém canais com IdleBehavior = PreCache e canais de Rádio aquecidos em RAM com 0% GPU em repouso.
 /// </summary>
 public class PredictiveWarmupService(
     IServiceScopeFactory serviceScopeFactory,
     IFFmpegSegmenterService ffmpegSegmenterService,
+    IChannelPreCacheService channelPreCacheService,
     ILogger<PredictiveWarmupService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -58,6 +56,9 @@ public class PredictiveWarmupService(
         IChannelRepository channelRepository = scope.ServiceProvider.GetRequiredService<IChannelRepository>();
 
         List<Channel> allChannels = await channelRepository.GetAll(cancellationToken);
+
+        // PreCache Zero-Delay em memória RAM para canais configurados com PreCache (0% GPU em repouso)
+        await channelPreCacheService.WarmupAllPreCacheChannels(cancellationToken);
 
         List<Channel> predictiveChannels = allChannels
             .Where(c => c.IsEnabled && c.PlayoutMode == ChannelPlayoutMode.Predictive)

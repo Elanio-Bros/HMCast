@@ -44,6 +44,7 @@ using ErsatzTV.Core.Scheduling.ScriptedScheduling;
 using ErsatzTV.Core.Scheduling.YamlScheduling;
 using ErsatzTV.Core.Search;
 using ErsatzTV.Core.Security;
+using ErsatzTV.Core.Streaming;
 using ErsatzTV.Core.Trakt;
 using ErsatzTV.Core.Troubleshooting;
 using ErsatzTV.FFmpeg.Capabilities;
@@ -878,6 +879,7 @@ public class Startup
         services.AddSingleton<SystemStartup>();
         services.AddSingleton<ILanguageCodeCache, LanguageCodeCache>();
         services.AddSingleton<IHealthCheckService, HealthCheckService>();
+        services.AddSingleton<IChannelPreCacheService, ChannelPreCacheService>();
         AddChannel<IBackgroundServiceRequest>(services);
         AddChannel<IPlexBackgroundServiceRequest>(services);
         AddChannel<IJellyfinBackgroundServiceRequest>(services);
@@ -929,6 +931,11 @@ public class Startup
         services.AddScoped<IScriptedPlayoutBuilder, ScriptedPlayoutBuilder>();
         services.AddScoped<ISchedulingEngine, SchedulingEngine>();
         services.AddScoped<IExternalJsonPlayoutBuilder, ExternalJsonPlayoutBuilder>();
+        services.AddScoped<IDirectSourcePlayoutBuilder, DirectSourcePlayoutBuilder>();
+        services.AddScoped<IUniversalPlayoutRouter, UniversalPlayoutRouter>();
+        services.AddScoped<IPlayoutCalendarEvaluator, PlayoutCalendarEvaluator>();
+        services.AddScoped<IScreenLayoutEngine, ScreenLayoutEngine>();
+        services.AddScoped<IChannelFallbackSlateService, ChannelFallbackSlateService>();
         services.AddScoped<IPlayoutTimeShifter, PlayoutTimeShifter>();
         services.AddScoped<IPlayoutGapInserter, PlayoutGapInserter>();
         services.AddScoped<IImageCache, ImageCache>();
