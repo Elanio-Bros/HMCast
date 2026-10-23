@@ -39,7 +39,9 @@ internal static class Mapper
             channel.IdleBehavior,
             channel.IsEnabled,
             channel.ShowInEpg,
-            channel.Mode);
+            channel.Mode,
+            channel.PreCache,
+            channel.FallbackSlate?.Mode ?? FallbackSlateMode.Disabled);
 
     internal static ChannelResponseModel ProjectToResponseModel(Channel channel) =>
         new(

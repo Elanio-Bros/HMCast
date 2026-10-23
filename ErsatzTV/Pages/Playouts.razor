@@ -3,6 +3,7 @@
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.Playouts
 @using ErsatzTV.Application.ProgramSchedules
+@using ErsatzTV.Core.Domain
 @using ErsatzTV.Core.Notifications
 @using ErsatzTV.Core.Scheduling
 @using MediatR.Courier
@@ -78,9 +79,10 @@
                         Channel
                     </MudTh>
                     <MudTh Class="d-none d-md-table-cell">
-                        Default Schedule
+                        Default Schedule / Fonte
                     </MudTh>
-                    <MudTh Class="d-none d-md-table-cell">Schedule Kind</MudTh>
+                    <MudTh Class="d-none d-md-table-cell">Tipo</MudTh>
+                    <MudTh Class="d-none d-md-table-cell">Status Vigência</MudTh>
                     <MudTh/>
                 </HeaderContent>
                 <RowTemplate>
@@ -98,19 +100,24 @@
                         }
                     </MudTd>
                     <MudTd Class="d-none d-md-table-cell">
-                        @switch (context.ScheduleKind)
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                            @context.SourceKind
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Class="d-none d-md-table-cell">
+                        @switch (context.RuntimeStatus)
                         {
-                            case PlayoutScheduleKind.Sequential:
-                                <span>Sequential</span>
+                            case PlayoutRuntimeStatus.ActiveInTransmission:
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">No Ar</MudChip>
                                 break;
-                            case PlayoutScheduleKind.Scripted:
-                                <span>Scripted</span>
+                            case PlayoutRuntimeStatus.ScheduledFuture:
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule">Agendado</MudChip>
                                 break;
-                            case PlayoutScheduleKind.ExternalJson:
-                                <span>JSON (dizqueTV)</span>
+                            case PlayoutRuntimeStatus.OutOfPeriod:
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.HourglassEmpty">Fora de Vigência</MudChip>
                                 break;
                             default:
-                                <span></span>
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small">Desativado</MudChip>
                                 break;
                         }
                     </MudTd>

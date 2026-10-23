@@ -44,6 +44,7 @@ public class Channel
     public ChannelTranscodeMode TranscodeMode { get; set; }
     public ChannelIdleBehavior IdleBehavior { get; set; }
     public ChannelFallbackSlate FallbackSlate { get; set; }
+    public int PreCache { get; set; } = 2;
     public int? ScreenLayoutId { get; set; }
     public ScreenLayout ScreenLayout { get; set; }
     public ChannelMode Mode { get; set; }

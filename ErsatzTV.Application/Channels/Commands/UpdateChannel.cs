@@ -35,4 +35,6 @@ public record UpdateChannel(
     ChannelIdleBehavior IdleBehavior,
     bool IsEnabled,
     bool ShowInEpg,
-    ChannelMode Mode) : IRequest<Either<BaseError, ChannelViewModel>>;
+    ChannelMode Mode,
+    int PreCache = 2,
+    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled) : IRequest<Either<BaseError, ChannelViewModel>>;

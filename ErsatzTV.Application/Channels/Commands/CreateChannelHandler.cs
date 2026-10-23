@@ -102,8 +102,17 @@ public class CreateChannelHandler(
                 IdleBehavior = request.IdleBehavior,
                 IsEnabled = request.IsEnabled,
                 ShowInEpg = request.IsEnabled && request.ShowInEpg,
-                Mode = request.Mode
+                Mode = request.Mode,
+                PreCache = request.PreCache
             };
+
+            if (request.FallbackSlateMode != FallbackSlateMode.Disabled)
+            {
+                channel.FallbackSlate = new ChannelFallbackSlate
+                {
+                    Mode = request.FallbackSlateMode
+                };
+            }
 
             if (channel.PlayoutSource is ChannelPlayoutSource.Mirror)
             {

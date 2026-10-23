@@ -554,6 +554,30 @@
                       For="@(() => _selectedItem.DiscardToFillAttempts)"
                       Disabled="@(_selectedItem.PlayoutMode != PlayoutMode.Duration)"/>
     </MudStack>
+    @if (_selectedItem.PlayoutMode == PlayoutMode.Duration)
+    {
+        <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+            <div class="d-flex">
+                <MudText>Duration Mode</MudText>
+                <MudTooltip Text="WaitUntilNext: aguarda o término do item atual antes de transitar. CutOffCurrent: corta imediatamente no segundo exato do fim do bloco.">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
+                </MudTooltip>
+            </div>
+            <MudSelect @bind-Value="@_selectedItem.DurationBehavior" For="@(() => _selectedItem.DurationBehavior)">
+                <MudSelectItem Value="FixedStartTimeBehavior.WaitUntilNext">Wait Until Next</MudSelectItem>
+                <MudSelectItem Value="FixedStartTimeBehavior.CutOffCurrent">Cut Off Current</MudSelectItem>
+            </MudSelect>
+        </MudStack>
+        <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+            <div class="d-flex">
+                <MudText>Respect Cutouts (MediaSkip)</MudText>
+                <MudTooltip Text="Respeita pontos de corte de capítulos e vinhetas marcados com MediaSkip.">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
+                </MudTooltip>
+            </div>
+            <MudCheckBox @bind-Value="_selectedItem.RespectMediaSkipChapters" Dense="true" />
+        </MudStack>
+    }
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Custom Title</MudText>

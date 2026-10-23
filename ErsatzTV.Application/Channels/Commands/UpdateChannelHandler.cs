@@ -75,6 +75,18 @@ public class UpdateChannelHandler(
         c.IsEnabled = update.IsEnabled;
         c.ShowInEpg = update.IsEnabled && update.ShowInEpg;
         c.Mode = update.Mode;
+        c.PreCache = update.PreCache;
+        if (c.FallbackSlate == null)
+        {
+            if (update.FallbackSlateMode != FallbackSlateMode.Disabled)
+            {
+                c.FallbackSlate = new ChannelFallbackSlate { ChannelId = c.Id, Mode = update.FallbackSlateMode };
+            }
+        }
+        else
+        {
+            c.FallbackSlate.Mode = update.FallbackSlateMode;
+        }
         c.Artwork ??= [];
 
         if (!string.IsNullOrWhiteSpace(update.Logo?.Path))
@@ -198,6 +210,7 @@ public class UpdateChannelHandler(
         dbContext.Channels
             .Include(c => c.Artwork)
             .Include(c => c.Watermark)
+            .Include(c => c.FallbackSlate)
             .Include(c => c.Playouts)
             .SelectOneAsync(c => c.Id, c => c.Id == updateChannel.ChannelId, cancellationToken)
             .Map(o => o.ToValidation<BaseError>("Channel does not exist."));

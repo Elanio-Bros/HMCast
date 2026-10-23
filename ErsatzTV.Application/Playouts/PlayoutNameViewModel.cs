@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 
 namespace ErsatzTV.Application.Playouts;
 
@@ -11,7 +11,12 @@ public record PlayoutNameViewModel(
     string ScheduleName,
     string ScheduleFile,
     TimeSpan? DbDailyRebuildTime,
-    PlayoutBuildStatus BuildStatus)
+    PlayoutBuildStatus BuildStatus,
+    ProgramScheduleSourceKind SourceKind = ProgramScheduleSourceKind.Schedule,
+    bool IsEnabled = true,
+    PlayoutCalendarMode CalendarMode = PlayoutCalendarMode.AlwaysActive,
+    PlayoutDeliveryMode DeliveryMode = PlayoutDeliveryMode.Loop,
+    PlayoutRuntimeStatus RuntimeStatus = PlayoutRuntimeStatus.ActiveInTransmission)
 {
     public Option<TimeSpan> DailyRebuildTime => Optional(DbDailyRebuildTime);
 

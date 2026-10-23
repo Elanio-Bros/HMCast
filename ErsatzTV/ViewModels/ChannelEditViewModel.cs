@@ -66,6 +66,8 @@ public class ChannelEditViewModel
     public bool IsEnabled { get; set; }
     public bool ShowInEpg { get; set; }
     public ChannelMode Mode { get; set; }
+    public int PreCache { get; set; } = 2;
+    public FallbackSlateMode FallbackSlateMode { get; set; } = FallbackSlateMode.Disabled;
 
     public UpdateChannel ToUpdate() =>
         new(
@@ -101,7 +103,9 @@ public class ChannelEditViewModel
             IdleBehavior,
             IsEnabled,
             ShowInEpg,
-            Mode);
+            Mode,
+            PreCache,
+            FallbackSlateMode);
 
     public CreateChannel ToCreate() =>
         new(
@@ -136,5 +140,7 @@ public class ChannelEditViewModel
             IdleBehavior,
             IsEnabled,
             ShowInEpg,
-            Mode);
+            Mode,
+            PreCache,
+            FallbackSlateMode);
 }

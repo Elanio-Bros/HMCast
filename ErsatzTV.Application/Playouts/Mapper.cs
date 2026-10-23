@@ -15,7 +15,12 @@ internal static class Mapper
             playout.ProgramScheduleId == null ? string.Empty : playout.ProgramSchedule.Name,
             playout.ScheduleFile,
             playout.DailyRebuildTime,
-            playout.BuildStatus);
+            playout.BuildStatus,
+            playout.SourceKind,
+            playout.IsEnabled,
+            playout.CalendarMode,
+            playout.DeliveryMode,
+            playout.IsEnabled ? PlayoutRuntimeStatus.ActiveInTransmission : PlayoutRuntimeStatus.Disabled);
 
     internal static PlayoutItemViewModel ProjectToViewModel(PlayoutItem playoutItem) =>
         new(

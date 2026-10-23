@@ -146,6 +146,29 @@ else
 </MudStack>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
+        <MudText>Pre-Cache (Zero-Delay)</MudText>
+        <MudTooltip Text="Quantidade de blocos e segmentos em memória RAM preparados preventivamente para sintonização instantânea com 0 delay. Padrão: 2">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
+        </MudTooltip>
+    </div>
+    <MudNumericField T="int" @bind-Value="_model.PreCache" For="@(() => _model.PreCache)" Min="0" Max="5" />
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Fallback Slate (Contingência)</MudText>
+        <MudTooltip Text="Mecanismo de proteção contra tela preta ou hiatos na grade de programação.">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
+        </MudTooltip>
+    </div>
+    <MudSelect T="FallbackSlateMode" @bind-Value="_model.FallbackSlateMode" For="@(() => _model.FallbackSlateMode)">
+        <MudSelectItem Value="FallbackSlateMode.Disabled">Disabled</MudSelectItem>
+        <MudSelectItem Value="FallbackSlateMode.SingleMedia">Single Media (Cartão / Vídeo)</MudSelectItem>
+        <MudSelectItem Value="FallbackSlateMode.Collection">Collection</MudSelectItem>
+        <MudSelectItem Value="FallbackSlateMode.Playlist">Playlist</MudSelectItem>
+    </MudSelect>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
         <MudText>Streaming Engine</MudText>
     </div>
     <MudSelect @bind-Value="_model.StreamingEngine" For="@(() => _model.StreamingEngine)">
@@ -477,6 +500,8 @@ else
                         _model.IsEnabled = channelViewModel.IsEnabled;
                         _model.ShowInEpg = channelViewModel.ShowInEpg;
                         _model.Mode = channelViewModel.Mode;
+                        _model.PreCache = channelViewModel.PreCache;
+                        _model.FallbackSlateMode = channelViewModel.FallbackSlateMode;
                     },
                     () => NavigationManager.NavigateTo("404"));
             }
@@ -497,6 +522,8 @@ else
                 _model.StreamingMode = StreamingMode.TransportStreamHybrid;
                 _model.IsEnabled = true;
                 _model.ShowInEpg = true;
+                _model.PreCache = 2;
+                _model.FallbackSlateMode = FallbackSlateMode.Disabled;
             }
         }
         catch (OperationCanceledException)

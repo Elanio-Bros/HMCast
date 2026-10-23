@@ -1,0 +1,349 @@
+@page "/screen-layouts"
+@using System.Globalization
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@implements IDisposable
+@inject IDbContextFactory<TvContext> DbContextFactory
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
+        <div class="d-flex align-center gap-3">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddNewLayout">
+                Novo Layout
+            </MudButton>
+            @if (_selectedLayout != null)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Save" OnClick="@SaveCurrentLayout">
+                    Salvar Alterações
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="@DeleteCurrentLayout">
+                    Excluir
+                </MudButton>
+            }
+        </div>
+    </div>
+</MudPaper>
+
+<div class="d-flex flex-column" style="height: calc(100vh - 64px); overflow-y: auto">
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-12">
+        <div class="d-flex justify-space-between align-center mb-4">
+            <div>
+                <MudText Typo="Typo.h5">Screen Layout Studio</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">
+                    Compositor de sobreposições visuais, marcas d'água dinâmicas, vinhetas e réguas gráficas
+                </MudText>
+            </div>
+            @if (_layouts.Count > 0)
+            {
+                <MudSelect T="ScreenLayout" Value="@_selectedLayout" ValueChanged="@OnLayoutSelected" Label="Layout Ativo" Style="min-width: 260px;" Dense="true" Variant="Variant.Outlined">
+                    @foreach (ScreenLayout screenLayout in _layouts)
+                    {
+                        <MudSelectItem Value="@screenLayout">@screenLayout.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+        </div>
+
+        <MudDivider Class="mb-6"/>
+
+        @if (_selectedLayout == null)
+        {
+            <MudAlert Severity="Severity.Info" Class="my-4">
+                Nenhum Layout selecionado. Clique em <b>Novo Layout</b> acima para começar ou selecione um existente.
+            </MudAlert>
+        }
+        else
+        {
+            <MudGrid>
+                <!-- Canvas de Visualização 16:9 Simulada -->
+                <MudItem xs="12" lg="7">
+                    <MudCard Elevation="3" Class="pa-4" Style="background: #11141a; border-radius: 8px;">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6" Class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.LiveTv" Color="Color.Primary"/> Preview 16:9 Canvas
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <div style="position: relative; width: 100%; padding-top: 56.25%; background: radial-gradient(circle, #1a2230 0%, #0a0c10 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden;">
+                                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
+                                    @foreach (ScreenLayoutElement el in _selectedLayout.Elements.OrderBy(e => e.ZIndex))
+                                    {
+                                        string left = el.X <= 1.0 ? $"{el.X * 100}%" : $"{el.X}px";
+                                        string top = el.Y <= 1.0 ? $"{el.Y * 100}%" : $"{el.Y}px";
+                                        string w = el.Width <= 1.0 && el.Width > 0 ? $"{el.Width * 100}%" : (el.Width > 1 ? $"{el.Width}px" : "auto");
+                                        string h = el.Height <= 1.0 && el.Height > 0 ? $"{el.Height * 100}%" : (el.Height > 1 ? $"{el.Height}px" : "auto");
+                                        string opacity = el.Opacity.ToString("F2", CultureInfo.InvariantCulture);
+
+                                        <div style="position: absolute; left: @left; top: @top; width: @w; height: @h; opacity: @opacity; z-index: @el.ZIndex; border: 1px dashed rgba(66, 165, 245, 0.6); padding: 4px; pointer-events: none; background: rgba(0,0,0,0.3); border-radius: 4px;">
+                                            @if (el.ElementType == ScreenLayoutElementType.TextBanner)
+                                            {
+                                                <span style="color: #ffffff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 3px #000;">
+                                                    @(string.IsNullOrWhiteSpace(el.TextContent) ? el.Name : el.TextContent)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <div class="d-flex align-center gap-1" style="color: #42a5f5; font-size: 11px;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.BrandingWatermark" Size="Size.Small"/>
+                                                    <span>@el.Name</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+
+                <!-- Propriedades e Tabs de Elementos e Regras -->
+                <MudItem xs="12" lg="5">
+                    <MudCard Elevation="3" Class="pa-4">
+                        <MudTextField @bind-Value="_selectedLayout.Name" Label="Nome do Layout" Variant="Variant.Outlined" Class="mb-4" />
+
+                        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-4">
+                            <!-- ABA 1: ELEMENTOS -->
+                            <MudTabPanel Text="Elementos Gráficos" Icon="@Icons.Material.Filled.Layers">
+                                <div class="d-flex justify-space-between align-center mb-3">
+                                    <MudText Typo="Typo.subtitle2">Elementos (@_selectedLayout.Elements.Count)</MudText>
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddElement">
+                                        Adicionar
+                                    </MudButton>
+                                </div>
+
+                                <MudTable Items="_selectedLayout.Elements.OrderBy(e => e.ZIndex)" Dense="true" Hover="true" Elevation="0">
+                                    <HeaderContent>
+                                        <MudTh>Nome</MudTh>
+                                        <MudTh>Tipo</MudTh>
+                                        <MudTh>X/Y</MudTh>
+                                        <MudTh/>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.Name</MudTd>
+                                        <MudTd>@context.ElementType</MudTd>
+                                        <MudTd>@context.X.ToString("F2") / @context.Y.ToString("F2")</MudTd>
+                                        <MudTd Class="text-right">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveElement(context))"/>
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            </MudTabPanel>
+
+                            <!-- ABA 2: REGRAS & TRIGGERS -->
+                            <MudTabPanel Text="Regras &amp; Triggers" Icon="@Icons.Material.Filled.AutoAwesome">
+                                <div class="d-flex justify-space-between align-center mb-3">
+                                    <MudText Typo="Typo.subtitle2">Regras de Exibição (@_selectedLayout.Rules.Count)</MudText>
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddRule">
+                                        Adicionar
+                                    </MudButton>
+                                </div>
+
+                                <MudTable Items="_selectedLayout.Rules" Dense="true" Hover="true" Elevation="0">
+                                    <HeaderContent>
+                                        <MudTh>Trigger</MudTh>
+                                        <MudTh>Ação</MudTh>
+                                        <MudTh>Duração (s)</MudTh>
+                                        <MudTh/>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.Trigger</MudTd>
+                                        <MudTd>@context.Action</MudTd>
+                                        <MudTd>@context.DurationSeconds</MudTd>
+                                        <MudTd Class="text-right">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveRule(context))"/>
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            </MudTabPanel>
+                        </MudTabs>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudContainer>
+</div>
+
+@code {
+    private CancellationTokenSource _cts = new();
+    private List<ScreenLayout> _layouts = new();
+    private ScreenLayout _selectedLayout;
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLayoutsAsync();
+    }
+
+    private async Task LoadLayoutsAsync()
+    {
+        try
+        {
+            await using TvContext dbContext = await DbContextFactory.CreateDbContextAsync(_cts.Token);
+            _layouts = await dbContext.ScreenLayouts
+                .Include(l => l.Elements)
+                .Include(l => l.Rules)
+                .OrderBy(l => l.Name)
+                .ToListAsync(_cts.Token);
+
+            if (_layouts.Count > 0 && _selectedLayout == null)
+            {
+                _selectedLayout = _layouts[0];
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao carregar Screen Layouts: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void OnLayoutSelected(ScreenLayout layout)
+    {
+        _selectedLayout = layout;
+    }
+
+    private void AddNewLayout()
+    {
+        var newLayout = new ScreenLayout
+        {
+            Name = $"Novo Layout {_layouts.Count + 1}",
+            Elements = new List<ScreenLayoutElement>
+            {
+                new()
+                {
+                    Name = "Logo Principal",
+                    ElementType = ScreenLayoutElementType.LogoWatermark,
+                    X = 0.88,
+                    Y = 0.05,
+                    Width = 0.08,
+                    Height = 0.08,
+                    Opacity = 0.85,
+                    ZIndex = 10
+                }
+            },
+            Rules = new List<ScreenLayoutRule>
+            {
+                new()
+                {
+                    Trigger = ScreenLayoutRuleTrigger.Always,
+                    Action = ScreenLayoutRuleAction.Show
+                }
+            }
+        };
+
+        _layouts.Add(newLayout);
+        _selectedLayout = newLayout;
+    }
+
+    private void AddElement()
+    {
+        if (_selectedLayout == null) return;
+
+        var el = new ScreenLayoutElement
+        {
+            ScreenLayoutId = _selectedLayout.Id,
+            Name = $"Elemento {_selectedLayout.Elements.Count + 1}",
+            ElementType = ScreenLayoutElementType.TextBanner,
+            X = 0.05,
+            Y = 0.88,
+            TextContent = "HMCast 3.0 Transmissão ao Vivo",
+            Opacity = 1.0,
+            ZIndex = _selectedLayout.Elements.Count + 1
+        };
+
+        _selectedLayout.Elements.Add(el);
+    }
+
+    private void RemoveElement(ScreenLayoutElement element)
+    {
+        _selectedLayout?.Elements.Remove(element);
+    }
+
+    private void AddRule()
+    {
+        if (_selectedLayout == null) return;
+
+        var rule = new ScreenLayoutRule
+        {
+            ScreenLayoutId = _selectedLayout.Id,
+            Trigger = ScreenLayoutRuleTrigger.ProgramStart,
+            Action = ScreenLayoutRuleAction.Show,
+            OffsetSeconds = 0,
+            DurationSeconds = 15
+        };
+
+        _selectedLayout.Rules.Add(rule);
+    }
+
+    private void RemoveRule(ScreenLayoutRule rule)
+    {
+        _selectedLayout?.Rules.Remove(rule);
+    }
+
+    private async Task SaveCurrentLayout()
+    {
+        if (_selectedLayout == null) return;
+
+        try
+        {
+            await using TvContext dbContext = await DbContextFactory.CreateDbContextAsync(_cts.Token);
+            if (_selectedLayout.Id == 0)
+            {
+                await dbContext.ScreenLayouts.AddAsync(_selectedLayout, _cts.Token);
+            }
+            else
+            {
+                dbContext.ScreenLayouts.Update(_selectedLayout);
+            }
+
+            await dbContext.SaveChangesAsync(_cts.Token);
+            Snackbar.Add("Screen Layout salvo com sucesso!", Severity.Success);
+            await LoadLayoutsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao salvar Layout: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteCurrentLayout()
+    {
+        if (_selectedLayout == null) return;
+
+        try
+        {
+            await using TvContext dbContext = await DbContextFactory.CreateDbContextAsync(_cts.Token);
+            if (_selectedLayout.Id != 0)
+            {
+                ScreenLayout layoutToDelete = await dbContext.ScreenLayouts
+                    .Include(l => l.Elements)
+                    .Include(l => l.Rules)
+                    .FirstOrDefaultAsync(l => l.Id == _selectedLayout.Id, _cts.Token);
+
+                if (layoutToDelete != null)
+                {
+                    dbContext.ScreenLayouts.Remove(layoutToDelete);
+                    await dbContext.SaveChangesAsync(_cts.Token);
+                }
+            }
+
+            _layouts.Remove(_selectedLayout);
+            _selectedLayout = _layouts.FirstOrDefault();
+            Snackbar.Add("Screen Layout excluído.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao excluir Layout: {ex.Message}", Severity.Error);
+        }
+    }
+}

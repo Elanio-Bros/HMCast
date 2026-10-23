@@ -212,6 +212,8 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
     public string CustomTitle { get; set; }
 
     public GuideMode GuideMode { get; set; }
+    public FixedStartTimeBehavior DurationBehavior { get; set; } = ErsatzTV.Core.Scheduling.FixedStartTimeBehavior.WaitUntilNext;
+    public bool RespectMediaSkipChapters { get; set; } = true;
 
     public event PropertyChangedEventHandler PropertyChanged;
 

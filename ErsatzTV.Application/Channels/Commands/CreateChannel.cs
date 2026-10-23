@@ -34,4 +34,6 @@ public record CreateChannel(
     ChannelIdleBehavior IdleBehavior,
     bool IsEnabled,
     bool ShowInEpg,
-    ChannelMode Mode) : IRequest<Either<BaseError, CreateChannelResult>>;
+    ChannelMode Mode,
+    int PreCache = 2,
+    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled) : IRequest<Either<BaseError, CreateChannelResult>>;

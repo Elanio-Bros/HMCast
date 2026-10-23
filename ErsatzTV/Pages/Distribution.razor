@@ -1,0 +1,150 @@
+@page "/distribution"
+@using System.Globalization
+@using ErsatzTV.Application.Channels
+@using ErsatzTV.Core.Domain
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+
+<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
+        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.CellTower" Color="Color.Primary"/> Distribuição Externa &amp; IPTV
+        </MudText>
+    </div>
+</MudPaper>
+
+<div class="d-flex flex-column" style="height: calc(100vh - 64px); overflow-y: auto">
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-12">
+        <MudText Typo="Typo.h5" Class="mb-1">Endpoints de Transmissão</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary mb-6">
+            Links para integração com players IPTV (TiviMate, VLC, Kodi, Apple TV, Plex, Emby, Jellyfin e Smart TVs)
+        </MudText>
+
+        <!-- CARDS DE FEEDS GLOBAIS -->
+        <MudGrid Class="mb-8">
+            <MudItem xs="12" md="6" lg="3">
+                <MudCard Elevation="2" Class="pa-4" Style="border-left: 4px solid var(--mud-palette-primary);">
+                    <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">PLAYLIST M3U</MudText>
+                    <MudText Typo="Typo.h6" Class="my-2">channels.m3u</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => CopyUrl("iptv/channels.m3u"))">
+                        Copiar URL
+                    </MudButton>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="3">
+                <MudCard Elevation="2" Class="pa-4" Style="border-left: 4px solid var(--mud-palette-secondary);">
+                    <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">GUIA EPG XMLTV</MudText>
+                    <MudText Typo="Typo.h6" Class="my-2">xmltv.xml</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => CopyUrl("iptv/xmltv.xml"))">
+                        Copiar URL
+                    </MudButton>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="3">
+                <MudCard Elevation="2" Class="pa-4" Style="border-left: 4px solid var(--mud-palette-info);">
+                    <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">HDHOMERUN DISCOVERY</MudText>
+                    <MudText Typo="Typo.h6" Class="my-2">device.xml</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => CopyUrl("device.xml"))">
+                        Copiar URL
+                    </MudButton>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="3">
+                <MudCard Elevation="2" Class="pa-4" Style="border-left: 4px solid var(--mud-palette-warning);">
+                    <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">HDHOMERUN LINEUP</MudText>
+                    <MudText Typo="Typo.h6" Class="my-2">lineup.json</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => CopyUrl("lineup.json"))">
+                        Copiar URL
+                    </MudButton>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <!-- TABELA DE STREAMS INDIVIDUAIS POR CANAL -->
+        <MudCard Elevation="2" Class="pa-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Streams Individuais por Canal (@_channels.Count)</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTable Items="_channels.OrderBy(c => decimal.TryParse(c.Number, NumberStyles.Any, CultureInfo.InvariantCulture, out var n) ? n : 0)" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Número</MudTh>
+                        <MudTh>Canal</MudTh>
+                        <MudTh>Modo</MudTh>
+                        <MudTh>Stream HLS (.m3u8)</MudTh>
+                        <MudTh>Stream MPEG-TS (.ts)</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Number</MudTd>
+                        <MudTd>
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@(context.Mode == ChannelMode.Radio ? Icons.Material.Filled.Radio : Icons.Material.Filled.Tv)" Size="Size.Small" Color="Color.Primary"/>
+                                <span style="font-weight: 500;">@context.Name</span>
+                            </div>
+                        </MudTd>
+                        <MudTd>
+                            <MudChip T="string" Size="Size.Small" Color="@(context.Mode == ChannelMode.Radio ? Color.Secondary : Color.Default)">
+                                @context.Mode
+                            </MudChip>
+                        </MudTd>
+                        <MudTd>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => CopyUrl($"iptv/channel/{context.Number}.m3u8"))">
+                                Copiar HLS
+                            </MudButton>
+                        </MudTd>
+                        <MudTd>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => CopyUrl($"iptv/channel/{context.Number}.ts"))">
+                                Copiar TS
+                            </MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudCardContent>
+        </MudCard>
+    </MudContainer>
+</div>
+
+@code {
+    private CancellationTokenSource _cts = new();
+    private List<ChannelViewModel> _channels = new();
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _channels = await Mediator.Send(new GetAllChannels(), _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao carregar canais: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CopyUrl(string relativePath)
+    {
+        string baseUri = NavigationManager.BaseUri.TrimEnd('/');
+        string fullUrl = $"{baseUri}/{relativePath.TrimStart('/')}";
+
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", fullUrl);
+            Snackbar.Add($"URL copiada: {fullUrl}", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add(fullUrl, Severity.Info);
+        }
+    }
+}

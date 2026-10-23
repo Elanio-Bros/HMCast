@@ -36,7 +36,9 @@ public record ChannelViewModel(
     ChannelIdleBehavior IdleBehavior,
     bool IsEnabled,
     bool ShowInEpg,
-    ChannelMode Mode)
+    ChannelMode Mode,
+    int PreCache = 2,
+    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled)
 {
     public string WebEncodedName => WebUtility.UrlEncode(Name);
 }
