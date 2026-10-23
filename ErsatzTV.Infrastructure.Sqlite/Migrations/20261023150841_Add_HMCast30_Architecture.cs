@@ -224,6 +224,13 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                 type: "INTEGER",
                 nullable: true);
 
+            migrationBuilder.AddColumn<int>(
+                name: "PreCache",
+                table: "Channel",
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: 2);
+
             migrationBuilder.CreateTable(
                 name: "ChannelFallbackSlate",
                 columns: table => new

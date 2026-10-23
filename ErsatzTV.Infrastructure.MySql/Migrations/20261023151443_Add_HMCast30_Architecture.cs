@@ -274,6 +274,13 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                 type: "int",
                 nullable: true);
 
+            migrationBuilder.AddColumn<int>(
+                name: "PreCache",
+                table: "Channel",
+                type: "int",
+                nullable: false,
+                defaultValue: 2);
+
             migrationBuilder.CreateTable(
                 name: "ChannelFallbackSlate",
                 columns: table => new
