@@ -31,6 +31,7 @@ public class TvContext : DbContext
     public DbSet<ConfigElement> ConfigElements { get; set; }
     public DbSet<Channel> Channels { get; set; }
     public DbSet<ChannelWatermark> ChannelWatermarks { get; set; }
+    public DbSet<ChannelFallbackSlate> ChannelFallbackSlates { get; set; }
     public DbSet<MediaSource> MediaSources { get; set; }
     public DbSet<LocalMediaSource> LocalMediaSources { get; set; }
     public DbSet<PlexMediaSource> PlexMediaSources { get; set; }
