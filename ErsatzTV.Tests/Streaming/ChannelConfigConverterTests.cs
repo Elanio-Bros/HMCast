@@ -48,7 +48,8 @@ public class ChannelConfigConverterTests
         TranscodeMode: default,
         IdleBehavior: default,
         IsEnabled: true,
-        ShowInEpg: true);
+        ShowInEpg: true,
+        Mode: ChannelMode.Television);
 
     private static readonly FFmpegProfileViewModel Profile = new(
         Id: 1,
