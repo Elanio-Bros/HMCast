@@ -2,6 +2,8 @@ namespace ErsatzTV.Core.Scheduling;
 
 public enum FixedStartTimeBehavior
 {
-    Strict = 0,
-    Flexible = 1
+    WaitUntilNext = 0,
+    CutOffCurrent = 1,
+    Flexible = 2,
+    Strict = 3
 }

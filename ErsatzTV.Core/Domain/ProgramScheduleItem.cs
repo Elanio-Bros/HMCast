@@ -8,9 +8,29 @@ public abstract class ProgramScheduleItem
 {
     public int Id { get; set; }
     public int Index { get; set; }
-    public StartType StartType => StartTime.HasValue ? StartType.Fixed : StartType.Dynamic;
+    private StartType? _startType;
+    public StartType StartType
+    {
+        get => _startType ?? (StartTime.HasValue ? StartType.Fixed : StartType.Dynamic);
+        set => _startType = value;
+    }
     public TimeSpan? StartTime { get; set; }
     public FixedStartTimeBehavior? FixedStartTimeBehavior { get; set; }
+
+    // Duração & Fechamento
+    public ScheduleItemDurationMode DurationMode { get; set; }
+    public TimeSpan? TargetDuration { get; set; }
+
+    // Quantidade de Itens (Unificado: substitui a divisão One vs Multiple)
+    public int? Count { get; set; }
+
+    // Integração Nativa de Cutouts (MediaSkip)
+    public bool RespectMediaSkipChapters { get; set; } = true;
+    public bool FillCommercialGapsWithFillers { get; set; } = true;
+
+    // Layout de Tela Específico desta Faixa
+    public int? ScreenLayoutId { get; set; }
+
     public CollectionType CollectionType { get; set; }
     public GuideMode GuideMode { get; set; }
     public string CustomTitle { get; set; }

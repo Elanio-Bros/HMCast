@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ErsatzTV.Core.Domain;
@@ -108,6 +108,7 @@ public abstract class PlayoutModeSchedulerBase<T>(ILogger logger) : IPlayoutMode
 
             switch (fixedStartTimeBehavior)
             {
+                case FixedStartTimeBehavior.WaitUntilNext:
                 case FixedStartTimeBehavior.Flexible:
                     // if we are peeking from a flood and the flexible time is in the past,
                     // we should use the next day's time to allow the flood to continue.
@@ -128,6 +129,7 @@ public abstract class PlayoutModeSchedulerBase<T>(ILogger logger) : IPlayoutMode
                     }
 
                     break;
+                case FixedStartTimeBehavior.CutOffCurrent:
                 case FixedStartTimeBehavior.Strict:
                 default:
                     startTime = startTime.TimeOfDay > itemStartTime ? result.AddDays(1) : result;
@@ -135,7 +137,7 @@ public abstract class PlayoutModeSchedulerBase<T>(ILogger logger) : IPlayoutMode
             }
 
             TimeSpan gap = startTime - state.CurrentTime;
-            if (gap > TimeSpan.FromHours(1) && fixedStartTimeBehavior == FixedStartTimeBehavior.Strict &&
+            if (gap > TimeSpan.FromHours(1) && (fixedStartTimeBehavior == FixedStartTimeBehavior.Strict || fixedStartTimeBehavior == FixedStartTimeBehavior.CutOffCurrent) &&
                 result.TimeOfDay < state.CurrentTime.ToLocalTime().TimeOfDay)
             {
                 foreach (ILogger logger in maybeLogger)
