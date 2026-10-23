@@ -49,50 +49,119 @@ public partial class SyncNextPlayoutHandler(
 
         string currentFolder = fileSystem.Path.Combine(channelFolder, "current");
 
-        // re-point symlink/junction to new folder
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        try
         {
-            if (Directory.Exists(currentFolder))
+            if (!TryRemoveCurrentFolder(currentFolder))
             {
-                var dirInfo = new DirectoryInfo(currentFolder);
-                if (dirInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                return;
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var stdErrBuffer = new StringBuilder();
+                CommandResult command = await Cli.Wrap("cmd.exe")
+                    .WithArguments(["/c", "mklink", "/j", "current", versionFolderName])
+                    .WithWorkingDirectory(channelFolder)
+                    .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
+                    .WithValidation(CommandResultValidation.None)
+                    .ExecuteAsync(cancellationToken);
+
+                if (!command.IsSuccess)
                 {
-                    dirInfo.Delete();
+                    logger.LogError("Failed to link current playout JSON folder: {Error}", stdErrBuffer);
                 }
-                else
+            }
+            else
+            {
+                string tempLink = fileSystem.Path.Combine(
+                    FileSystemLayout.NextPlayoutsFolder,
+                    request.ChannelNumber,
+                    fileSystem.Path.GetRandomFileName());
+
+                try
                 {
-                    logger.LogError("Expected junction at {Folder} but found a real directory", currentFolder);
+                    fileSystem.File.CreateSymbolicLink(tempLink, versionFolderName);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogError(
+                        ex,
+                        "Failed to link current playout JSON folder; the config folder must support symlinks");
                     return;
                 }
-            }
 
-            var stdErrBuffer = new StringBuilder();
-            CommandResult command = await Cli.Wrap("cmd.exe")
-                .WithArguments(["/c", "mklink", "/j", "current", versionFolderName])
-                .WithWorkingDirectory(channelFolder)
-                .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
-                .WithValidation(CommandResultValidation.None)
-                .ExecuteAsync(cancellationToken);
-
-            if (!command.IsSuccess)
-            {
-                logger.LogError("Failed to link current playout JSON folder: {Error}", stdErrBuffer);
+                if (Rename(tempLink, currentFolder) != 0)
+                {
+                    int errno = Marshal.GetLastPInvokeError();
+                    logger.LogError(
+                        "Failed to link current playout JSON folder: {Error}",
+                        Marshal.GetPInvokeErrorMessage(errno));
+                    fileSystem.File.Delete(tempLink);
+                }
             }
         }
-        else
+        finally
         {
-            string tempLink = fileSystem.Path.Combine(
-                FileSystemLayout.NextPlayoutsFolder,
-                request.ChannelNumber,
-                fileSystem.Path.GetRandomFileName());
+            // each sync adds a version folder; clean up even if linking fails
+            CleanOldVersions(channelFolder, currentFolder);
+        }
+    }
 
-            fileSystem.File.CreateSymbolicLink(tempLink, versionFolderName);
-            _ = Rename(tempLink, currentFolder);
+    private bool TryRemoveCurrentFolder(string currentFolder)
+    {
+        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+        if (!Directory.Exists(currentFolder))
+        {
+            // mklink fails on an existing file; unix renames over it
+            if (isWindows && File.Exists(currentFolder))
+            {
+                logger.LogWarning(
+                    "Expected junction at {Folder} but found a file; replacing it",
+                    currentFolder);
+
+                try
+                {
+                    File.Delete(currentFolder);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogError(ex, "Failed to remove file at {Folder}", currentFolder);
+                    return false;
+                }
+            }
+
+            return true;
         }
 
-        CleanOldVersions(
-            fileSystem.Path.Combine(FileSystemLayout.NextPlayoutsFolder, request.ChannelNumber),
+        var dirInfo = new DirectoryInfo(currentFolder);
+        if (dirInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+        {
+            // unix atomically renames the new symlink over the old one
+            if (isWindows)
+            {
+                dirInfo.Delete();
+            }
+
+            return true;
+        }
+
+        // copying app data (explorer, backups, cp -L) turns links into real folders
+        logger.LogWarning(
+            "Expected {LinkKind} at {Folder} but found a real directory; replacing it",
+            isWindows ? "junction" : "symlink",
             currentFolder);
+
+        try
+        {
+            dirInfo.Delete(recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogError(ex, "Failed to remove real directory at {Folder}", currentFolder);
+            return false;
+        }
     }
 
     private async Task WriteAllJsonTo(string channelNumber, string targetFolder, CancellationToken cancellationToken)
@@ -173,7 +242,7 @@ public partial class SyncNextPlayoutHandler(
                 targetFolder,
                 $"{first.StartOffset.ToUnixTimeMilliseconds()}_{last.FinishOffset.ToUnixTimeMilliseconds()}.json");
 
-            var playout = new Core.Next.Playout { Version = "https://ersatztv.org/playout/version/0.0.4", Items = [] };
+            var playout = new Core.Next.Playout { Version = PlayoutItemConverter.PlayoutVersion, Items = [] };
             foreach (PlayoutItem playoutItem in group)
             {
                 Option<Core.Next.PlayoutItem> maybeNextPlayoutItem = await playoutItemConverter.ToNext(

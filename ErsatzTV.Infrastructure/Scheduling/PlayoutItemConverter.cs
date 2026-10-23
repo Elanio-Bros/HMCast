@@ -6,14 +6,18 @@ using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Extensions;
 using ErsatzTV.Core.FFmpeg;
+using ErsatzTV.Core.Graphics;
 using ErsatzTV.Core.Interfaces.Emby;
 using ErsatzTV.Core.Interfaces.FFmpeg;
 using ErsatzTV.Core.Interfaces.Jellyfin;
 using ErsatzTV.Core.Interfaces.Plex;
 using ErsatzTV.Core.Interfaces.Scheduling;
 using ErsatzTV.Core.Security;
+using ErsatzTV.FFmpeg.Format;
+using ErsatzTV.FFmpeg.State;
 using ErsatzTV.Infrastructure.Data;
 using ErsatzTV.Infrastructure.Extensions;
+using ErsatzTV.Infrastructure.Streaming.Graphics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MediaStream = ErsatzTV.Core.Domain.MediaStream;
@@ -33,6 +37,8 @@ public class PlayoutItemConverter(
     IDbContextFactory<TvContext> dbContextFactory,
     ILogger<PlayoutItemConverter> logger) : IPlayoutItemConverter
 {
+    public static readonly string PlayoutVersion = "https://ersatztv.org/playout/version/0.0.7";
+
     public async Task<Option<Core.Next.PlayoutItem>> ToNext(
         string channelNumber,
         PlayoutItem playoutItem,
@@ -64,6 +70,8 @@ public class PlayoutItemConverter(
             .AsNoTracking()
             .Include(c => c.Watermark)
             .Include(c => c.Artwork)
+            .Include(c => c.FFmpegProfile)
+            .ThenInclude(ff => ff.Resolution)
             .SingleOrDefaultAsync(c => c.Number == channelNumber, cancellationToken)
             .Map(Optional);
 
@@ -89,7 +97,8 @@ public class PlayoutItemConverter(
         if (playoutItem is not DynamicPlayoutItem &&
             playoutItem.MediaItem is not Episode && playoutItem.MediaItem is not Movie &&
             playoutItem.MediaItem is not OtherVideo && playoutItem.MediaItem is not MusicVideo &&
-            playoutItem.MediaItem is not RemoteStream && playoutItem.MediaItem is not Image)
+            playoutItem.MediaItem is not RemoteStream && playoutItem.MediaItem is not Image &&
+            playoutItem.MediaItem is not Song)
         {
             return Option<Core.Next.PlayoutItem>.None;
         }
@@ -143,6 +152,7 @@ public class PlayoutItemConverter(
                     ColorTransfer = s.ColorTransfer,
                     DvProfile = s.DvProfile,
                     HasHdr10Metadata = s.HasHdr10Metadata,
+                    Rotation = s.Rotation
                 }).ToList();
             var sourceAudioHints = headVersion.Streams
                 .Where(s => s.MediaStreamKind is MediaStreamKind.Audio)
@@ -160,48 +170,42 @@ public class PlayoutItemConverter(
                     Codec = s.Codec
                 }).ToList();
 
+            var durationForPlayout = playoutItem.MediaItem.GetDurationForPlayout();
             nextPlayoutItem.Source!.ProbeHint = new Core.Next.ProbeHint
             {
                 Audio = sourceAudioHints,
                 Video = sourceVideoHints,
                 Subtitle = sourceSubtitleHints,
-                DurationMs = (long)headVersion.Duration.TotalMilliseconds
+                DurationMs = (long)durationForPlayout.TotalMilliseconds,
+                FormatName = FormatNameHint(playoutItem.MediaItem, headVersion)
             };
 
-            // if no audio streams, use lavfi to insert silence
-            if (headVersion.Streams.All(s => s.MediaStreamKind is not MediaStreamKind.Audio))
-            {
-                var videoSource = nextPlayoutItem.Source;
+            // next plays silence for sources without audio
+            bool hasAudio = headVersion.Streams.Any(s => s.MediaStreamKind is MediaStreamKind.Audio);
+            bool hasVideo = headVersion.Streams.Any(s => s.MediaStreamKind is MediaStreamKind.Video && !s.AttachedPic);
 
-                nextPlayoutItem.Source = null;
-                nextPlayoutItem.Tracks = new Core.Next.PlayoutItemTracks
+            // items with no known streams keep their source as video
+            if (hasAudio && !hasVideo)
+            {
+                foreach (Channel channel in maybeChannel)
                 {
-                    Audio = new Core.Next.TrackSelection
+                    var audioSource = nextPlayoutItem.Source;
+
+                    nextPlayoutItem.Source = null;
+                    nextPlayoutItem.Tracks = new Core.Next.PlayoutItemTracks
                     {
-                        Source =
-                            new Core.Next.Source
-                            {
-                                SourceType = Core.Next.SourceType.Lavfi,
-                                Params = "anullsrc=channel_layout=stereo:sample_rate=48000",
-                                ProbeHint = new Core.Next.ProbeHint
-                                {
-                                    Audio =
-                                    [
-                                        new Core.Next.AudioHint
-                                        {
-                                            StreamIndex = 0,
-                                            Codec = "pcm_s16le",
-                                            Channels = 2
-                                        }
-                                    ]
-                                }
-                            }
-                    },
-                    Video = new Core.Next.TrackSelection
-                    {
-                        Source = videoSource
-                    }
-                };
+                        Audio = new Core.Next.TrackSelection
+                        {
+                            Source = audioSource
+                        },
+                        Video = new Core.Next.TrackSelection
+                        {
+                            Source = playoutItem.MediaItem is Song
+                                ? SongBackgroundSource(channel, playoutItem, durationForPlayout)
+                                : BlackVideoSource(channel, durationForPlayout)
+                        }
+                    };
+                }
             }
 
             foreach (Channel channel in maybeChannel)
@@ -232,6 +236,86 @@ public class PlayoutItemConverter(
         return nextPlayoutItem;
     }
 
+    private static Core.Next.Source SongBackgroundSource(
+        Channel channel,
+        PlayoutItem playoutItem,
+        TimeSpan duration)
+    {
+        DateTimeOffset exp = UrlExpiry(playoutItem);
+        string sig = InternalUrlSigner.Sign(exp, "song-background", $"{channel.Id}", $"{playoutItem.Id}");
+        return new Core.Next.Source
+        {
+            SourceType = Core.Next.SourceType.Http,
+            Uri =
+                $"http://localhost:{Settings.StreamingPort}/internal/ffmpeg/song-background/{channel.Id}/{playoutItem.Id}?exp={exp.ToUnixTimeSeconds()}&sig={sig}",
+            KeepAlive = false,
+            Reconnect = true,
+            ProbeHint = new Core.Next.ProbeHint
+            {
+                FormatName = "png_pipe",
+                DurationMs = (long)duration.TotalMilliseconds,
+                Video =
+                [
+                    new Core.Next.VideoHint
+                    {
+                        StreamIndex = 0,
+                        Codec = "png",
+                        Width = channel.FFmpegProfile.Resolution.Width,
+                        Height = channel.FFmpegProfile.Resolution.Height,
+                        PixFmt = new PixelFormatYuv420P().FFmpegName
+                    }
+                ]
+            }
+        };
+    }
+
+    private static Core.Next.Source BlackVideoSource(Channel channel, TimeSpan duration) =>
+        new()
+        {
+            SourceType = Core.Next.SourceType.Lavfi,
+            Params =
+                $"color=c=black:s={channel.FFmpegProfile.Resolution.Width}x{channel.FFmpegProfile.Resolution.Height}",
+            ProbeHint = new Core.Next.ProbeHint
+            {
+                DurationMs = (long)duration.TotalMilliseconds,
+                Video =
+                [
+                    new Core.Next.VideoHint
+                    {
+                        StreamIndex = 0,
+                        Codec = "rawvideo",
+                        Width = channel.FFmpegProfile.Resolution.Width,
+                        Height = channel.FFmpegProfile.Resolution.Height,
+                        PixFmt = new PixelFormatYuv420P().FFmpegName
+                    }
+                ]
+            }
+        };
+
+    // next defaults a missing format_name to mpegts, which hides still images and avi from it
+    private static string FormatNameHint(MediaItem mediaItem, MediaVersion headVersion)
+    {
+        if (mediaItem is Image)
+        {
+            string codec = headVersion.Streams
+                .Find(s => s.MediaStreamKind is MediaStreamKind.Video)?.Codec;
+            return codec switch
+            {
+                "png" => "png_pipe",
+                "mjpeg" => "jpeg_pipe",
+                "bmp" => "bmp_pipe",
+                "tiff" => "tiff_pipe",
+                "webp" => "webp_pipe",
+                "gif" => "gif",
+                _ => null
+            };
+        }
+
+        bool isAvi = Optional(headVersion.MediaFiles).Flatten().HeadOrNone().Exists(f =>
+            string.Equals(Path.GetExtension(f.Path), ".avi", StringComparison.OrdinalIgnoreCase));
+        return isAvi ? "avi" : null;
+    }
+
     private static string PixelFormatForBitDepth(int bitDepth)
     {
         return bitDepth switch
@@ -245,7 +329,7 @@ public class PlayoutItemConverter(
         PlayoutItem playoutItem,
         CancellationToken cancellationToken)
     {
-        DateTimeOffset exp = playoutItem.FinishOffset + TimeSpan.FromHours(2);
+        DateTimeOffset exp = UrlExpiry(playoutItem);
 
         if (playoutItem is DynamicPlayoutItem)
         {
@@ -255,7 +339,10 @@ public class PlayoutItemConverter(
             {
                 SourceType = Core.Next.SourceType.Dynamic,
                 Uri =
-                    $"http://localhost:{Settings.StreamingPort}/internal/media/fallback?exp={exp.ToUnixTimeSeconds()}&sig={sig}"
+                    $"http://localhost:{Settings.StreamingPort}/internal/media/fallback?exp={exp.ToUnixTimeSeconds()}&sig={sig}",
+                TimeoutUs = 20_000_000, // 20s
+                RetryBudgetMs = 25_000, // 25s
+                RetryBackoffMs = 250
             };
         }
 
@@ -402,8 +489,11 @@ public class PlayoutItemConverter(
         bool shouldLogMessages,
         CancellationToken cancellationToken)
     {
-        List<Subtitle> allSubtitles = (await subtitles.IfNoneAsync(
-            () => GetSubtitles(channel, audioVersion.MediaItem, playoutItem.Id, playoutItem.InPoint))).ToList();
+        List<Subtitle> allSubtitles = (await subtitles.IfNoneAsync(() => GetSubtitles(
+            channel,
+            audioVersion.MediaItem,
+            playoutItem.Id,
+            playoutItem.InPoint))).ToList();
 
         // TODO: external image subtitles
         allSubtitles.RemoveAll(s => s.IsImage && s.SubtitleKind is not SubtitleKind.Embedded);
@@ -520,7 +610,7 @@ public class PlayoutItemConverter(
         Core.Next.Source source;
         if (subtitle.SubtitleKind is SubtitleKind.Sidecar && subtitle.Id > 0)
         {
-            DateTimeOffset exp = playoutItem.FinishOffset + TimeSpan.FromHours(2);
+            DateTimeOffset exp = UrlExpiry(playoutItem);
             string sig = InternalUrlSigner.Sign(exp, "subtitle", $"{subtitle.Id}");
             source = new Core.Next.Source
             {
@@ -570,6 +660,12 @@ public class PlayoutItemConverter(
     {
         nextPlayoutItem.Graphics ??= [];
 
+        // match the legacy engine, which never overlays copied video; next would transcode every item
+        if (channel.FFmpegProfile.VideoFormat is FFmpegProfileVideoFormat.Copy)
+        {
+            return;
+        }
+
         List<WatermarkOptions> watermarks = watermarkSelector.SelectWatermarks(
             maybeGlobalWatermark,
             channel,
@@ -588,25 +684,60 @@ public class PlayoutItemConverter(
             return;
         }
 
+        // the canvas costs a full-frame render and overlay for the whole item, so skip it
+        // when every selected graphic is a plain watermark that next can overlay directly
+        if (graphicsElements.Count == 0 && watermarks.All(IsMediaLayerWatermark))
+        {
+            nextPlayoutItem.Graphics.Clear();
+            nextPlayoutItem.Graphics.AddRange(
+                watermarks.OrderBy(wm => wm.Watermark.ZIndex).Select(ToMediaLayer));
+            return;
+        }
+
         var outputFrameSize = new Resolution
         {
             Width = channel.FFmpegProfile.Resolution.Width,
             Height = channel.FFmpegProfile.Resolution.Height,
         };
 
-        DateTimeOffset exp = playoutItem.FinishOffset + TimeSpan.FromHours(2);
+        // canvas cost scales with pixel count, and watermarks cover a small part of the frame
+        Option<CanvasRegion> maybeRegion = graphicsElements.Count == 0
+            ? CanvasRegionCalculator.ForWatermarks(watermarks, channel.FFmpegProfile, playoutItem.MediaItem.GetHeadVersion())
+            : None;
 
-        string sig = InternalUrlSigner.Sign(exp, "graphics", channel.Number, $"{playoutItem.Id}");
+        Core.Next.CanvasLayout canvasLayout = null;
+        string regionValue = null;
+        foreach (CanvasRegion region in maybeRegion)
+        {
+            outputFrameSize = new Resolution { Width = region.Width, Height = region.Height };
+            canvasLayout = new Core.Next.CanvasLayout
+            {
+                Mode = Core.Next.Mode.Region,
+                Origin = new Core.Next.CanvasPosition { X = region.X, Y = region.Y }
+            };
+            regionValue = region.ToString();
+        }
+
+        DateTimeOffset exp = UrlExpiry(playoutItem);
+
+        string sig = InternalUrlSigner.Sign(
+            exp,
+            "graphics",
+            channel.Number,
+            $"{playoutItem.Id}",
+            regionValue ?? string.Empty);
+        string regionQuery = regionValue is null ? string.Empty : $"&region={regionValue}";
 
         var layer = new Core.Next.GraphicsLayer
         {
             Kind = Core.Next.GraphicsLayerKind.Canvas,
             Location = Core.Next.GraphicsLocation.TopLeft,
+            Layout = canvasLayout,
             Source = new Core.Next.PlayoutItemSource
             {
                 SourceType = Core.Next.SourceType.Http,
                 Uri =
-                    $"http://localhost:{Settings.StreamingPort}/internal/graphics/{channel.Number}/{playoutItem.Id}?exp={exp.ToUnixTimeSeconds()}&sig={sig}",
+                    $"http://localhost:{Settings.StreamingPort}/internal/graphics/{channel.Number}/{playoutItem.Id}?exp={exp.ToUnixTimeSeconds()}&sig={sig}{regionQuery}",
                 Reconnect = false,
                 ProbeHint = new Core.Next.ProbeHint
                 {
@@ -630,6 +761,64 @@ public class PlayoutItemConverter(
         nextPlayoutItem.Graphics.Clear();
         nextPlayoutItem.Graphics.Add(layer);
     }
+
+    private static bool IsMediaLayerWatermark(WatermarkOptions watermarkOptions) =>
+        watermarkOptions.Watermark.Mode is ChannelWatermarkMode.Permanent or ChannelWatermarkMode.Intermittent;
+
+    private static Core.Next.GraphicsLayer ToMediaLayer(WatermarkOptions watermarkOptions)
+    {
+        ChannelWatermark watermark = watermarkOptions.Watermark;
+
+        var layer = new Core.Next.GraphicsLayer
+        {
+            Kind = Core.Next.GraphicsLayerKind.Media,
+            Location = ToGraphics(watermark.Location),
+            HorizontalMarginPercent = watermark.HorizontalMarginPercent,
+            VerticalMarginPercent = watermark.VerticalMarginPercent,
+            OpacityPercent = watermark.Opacity,
+            StreamIndex = watermarkOptions.ImageStreamIndex.IfNone(0),
+            WithinSourceContent = watermark.PlaceWithinSourceContent,
+            WidthPercent = watermark.Size is WatermarkSize.Scaled ? watermark.WidthPercent : null,
+            Source = IsRemoteUri(watermarkOptions.ImagePath)
+                ? new Core.Next.PlayoutItemSource
+                {
+                    SourceType = Core.Next.SourceType.Http,
+                    Uri = watermarkOptions.ImagePath
+                }
+                : new Core.Next.PlayoutItemSource
+                {
+                    SourceType = Core.Next.SourceType.Local,
+                    Path = watermarkOptions.ImagePath
+                }
+        };
+
+        if (watermark.Mode is ChannelWatermarkMode.Intermittent)
+        {
+            layer.Timing = new Core.Next.Timing
+            {
+                TimingType = Core.Next.TimingType.Periodic,
+                Clock = Core.Next.PeriodicClock.Wall,
+                FrequencyMs = watermark.FrequencyMinutes * 60 * 1000,
+                HoldMs = watermark.DurationSeconds * 1000
+            };
+        }
+
+        return layer;
+    }
+
+    private static Core.Next.GraphicsLocation ToGraphics(WatermarkLocation watermarkLocation) =>
+        watermarkLocation switch
+        {
+            WatermarkLocation.TopMiddle => Core.Next.GraphicsLocation.TopCenter,
+            WatermarkLocation.TopRight => Core.Next.GraphicsLocation.TopRight,
+            WatermarkLocation.LeftMiddle => Core.Next.GraphicsLocation.CenterLeft,
+            WatermarkLocation.MiddleCenter => Core.Next.GraphicsLocation.Center,
+            WatermarkLocation.RightMiddle => Core.Next.GraphicsLocation.CenterRight,
+            WatermarkLocation.BottomLeft => Core.Next.GraphicsLocation.BottomLeft,
+            WatermarkLocation.BottomMiddle => Core.Next.GraphicsLocation.BottomCenter,
+            WatermarkLocation.BottomRight => Core.Next.GraphicsLocation.BottomRight,
+            _ => Core.Next.GraphicsLocation.TopLeft
+        };
 
     private static async Task<List<Subtitle>> GetSubtitles(
         Channel channel,
@@ -679,6 +868,13 @@ public class PlayoutItemConverter(
         }
 
         return [MusicVideoCreditsSubtitle.ForPlayoutItem(playoutItemId, playoutItemInPoint)];
+    }
+
+    // troubleshooting uses items that already finished; their urls must still be valid
+    private static DateTimeOffset UrlExpiry(PlayoutItem playoutItem)
+    {
+        DateTimeOffset now = DateTimeOffset.Now;
+        return (playoutItem.FinishOffset > now ? playoutItem.FinishOffset : now) + TimeSpan.FromHours(2);
     }
 
     private static void SetInOutPoints(PlayoutItem playoutItem, Core.Next.Source source)

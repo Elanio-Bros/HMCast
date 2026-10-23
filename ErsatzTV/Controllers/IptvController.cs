@@ -110,6 +110,23 @@ public class IptvController : StreamingControllerBase
             }
         }
 
+        // cached lineup and playlist urls can still carry the legacy mode
+        if (mode == "ts-legacy" && maybeChannel.Exists(c => c.StreamingEngine is StreamingEngine.Next))
+        {
+            _logger.LogInformation(
+                "Channel {ChannelNumber} uses the next streaming engine; using ts instead of mode {Mode}",
+                channelNumber,
+                mode);
+            mode = "ts";
+        }
+
+        if (mode == "ts-legacy")
+        {
+            _logger.LogWarning(
+                "Channel {ChannelNumber} uses the legacy streaming engine, which will be removed in ErsatzTV 26.12",
+                channelNumber);
+        }
+
         FFmpegProcessRequest request = mode switch
         {
             "ts-legacy" => new GetConcatProcessByChannelNumber(Request.Scheme, Request.Host.ToString(), channelNumber),
@@ -187,7 +204,9 @@ public class IptvController : StreamingControllerBase
         string channelNumber,
         CancellationToken cancellationToken,
         [FromQuery]
-        string mode = "mixed")
+        string mode = "mixed",
+        [FromQuery]
+        bool subtitles = true)
     {
         Option<ChannelViewModel> maybeChannel = await _mediator.Send(
             new GetChannelByNumber(channelNumber),
@@ -216,6 +235,17 @@ public class IptvController : StreamingControllerBase
             }
         }
 
+        // cached playlist urls can still carry the legacy mode
+        if (mode is not ("segmenter" or "segmenter-v2" or "segmenter-fmp4") &&
+            maybeChannel.Exists(c => c.StreamingEngine is StreamingEngine.Next))
+        {
+            _logger.LogInformation(
+                "Channel {ChannelNumber} uses the next streaming engine; using segmenter instead of mode {Mode}",
+                channelNumber,
+                mode);
+            mode = "segmenter";
+        }
+
         switch (mode)
         {
             case "segmenter":
@@ -241,7 +271,8 @@ public class IptvController : StreamingControllerBase
                         Request.Scheme,
                         Request.Host.ToString(),
                         Request.PathBase,
-                        AccessTokenQuery());
+                        AccessTokenQuery(),
+                        subtitles);
                 Either<BaseError, string> result = await _mediator.Send(request, cancellationToken);
                 return result.Match<IActionResult>(
                     multiVariantPlaylist =>

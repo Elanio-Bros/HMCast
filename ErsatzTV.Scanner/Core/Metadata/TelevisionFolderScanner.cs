@@ -84,6 +84,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         string ffprobePath,
         decimal progressMin,
         decimal progressMax,
+        bool deepScan,
         CancellationToken cancellationToken)
     {
         try
@@ -129,13 +130,24 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
 
                 Either<BaseError, MediaItemScanResult<Show>> maybeShow =
                     await FindOrCreateShow(libraryPath.Id, showFolder)
-                        .BindT(show => UpdateMetadataForShow(show, showFolder))
-                        .BindT(show => UpdateArtworkForShow(show, showFolder, ArtworkKind.Poster, cancellationToken))
-                        .BindT(show => UpdateArtworkForShow(show, showFolder, ArtworkKind.FanArt, cancellationToken))
+                        .BindT(show => UpdateMetadataForShow(show, showFolder, deepScan))
+                        .BindT(show => UpdateArtworkForShow(
+                            show,
+                            showFolder,
+                            ArtworkKind.Poster,
+                            deepScan,
+                            cancellationToken))
+                        .BindT(show => UpdateArtworkForShow(
+                            show,
+                            showFolder,
+                            ArtworkKind.FanArt,
+                            deepScan,
+                            cancellationToken))
                         .BindT(show => UpdateArtworkForShow(
                             show,
                             showFolder,
                             ArtworkKind.Thumbnail,
+                            deepScan,
                             cancellationToken));
 
                 foreach (BaseError error in maybeShow.LeftToSeq())
@@ -164,6 +176,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                         result.Item,
                         showFolder,
                         allTrashedItems,
+                        deepScan,
                         cancellationToken);
 
                     foreach (ScanCanceled error in scanResult.LeftToSeq().OfType<ScanCanceled>())
@@ -231,6 +244,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         Show show,
         string showFolder,
         ImmutableHashSet<string> allTrashedItems,
+        bool deepScan,
         CancellationToken cancellationToken)
     {
         foreach (string seasonFolder in _localFileSystem.ListSubdirectories(showFolder).Filter(ShouldIncludeFolder)
@@ -252,7 +266,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
 
             // cache etag match for later checking
             // we still need to scan the season folder in case season artwork has changed
-            bool etagMatch = knownFolder.Etag == etag;
+            bool etagMatch = !deepScan && knownFolder.Etag == etag;
             if (etagMatch)
             {
                 if (allTrashedItems.Any(f => f.StartsWith(seasonFolder, StringComparison.OrdinalIgnoreCase)))
@@ -268,7 +282,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                 Either<BaseError, Season> maybeSeason = await _televisionRepository
                     .GetOrAddSeason(show, libraryPath.Id, seasonNumber)
                     .BindT(EnsureMetadataExists)
-                    .BindT(season => UpdatePoster(season, seasonFolder, cancellationToken));
+                    .BindT(season => UpdatePoster(season, seasonFolder, deepScan, cancellationToken));
 
                 foreach (BaseError error in maybeSeason.LeftToSeq())
                 {
@@ -293,6 +307,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                         ffprobePath,
                         season,
                         seasonFolder,
+                        deepScan,
                         cancellationToken);
 
                     foreach (ScanCanceled error in scanResult.LeftToSeq().OfType<ScanCanceled>())
@@ -328,6 +343,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         string ffprobePath,
         Season season,
         string seasonPath,
+        bool deepScan,
         CancellationToken cancellationToken)
     {
         var allSeasonFiles = _localFileSystem.ListSubdirectories(seasonPath)
@@ -351,11 +367,15 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
             // TODO: figure out how to rebuild playlists
             Either<BaseError, Episode> maybeEpisode = await _televisionRepository
                 .GetOrAddEpisode(season, libraryPath, seasonFolder, file, cancellationToken)
-                .BindT(episode => UpdateStatistics(new MediaItemScanResult<Episode>(episode), ffmpegPath, ffprobePath)
+                .BindT(episode => UpdateStatistics(
+                        new MediaItemScanResult<Episode>(episode),
+                        ffmpegPath,
+                        ffprobePath,
+                        deepScan)
                     .MapT(_ => episode))
                 .BindT(video => UpdateLibraryFolderId(video, seasonFolder))
-                .BindT(UpdateMetadata)
-                .BindT(e => UpdateThumbnail(e, cancellationToken))
+                .BindT(e => UpdateMetadata(e, deepScan))
+                .BindT(e => UpdateThumbnail(e, deepScan, cancellationToken))
                 .BindT(e => UpdateSubtitles(e, cancellationToken))
                 .BindT(e => UpdateChapters(e, cancellationToken))
                 .BindT(e => UpdateSkips(e, cancellationToken))
@@ -390,7 +410,8 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
 
     private async Task<Either<BaseError, MediaItemScanResult<Show>>> UpdateMetadataForShow(
         MediaItemScanResult<Show> result,
-        string showFolder)
+        string showFolder,
+        bool deepScan)
     {
         try
         {
@@ -399,7 +420,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
             Option<string> maybeNfo = LocateNfoFileForShow(showFolder);
             if (maybeNfo.IsNone)
             {
-                if (!Optional(show.ShowMetadata).Flatten().Any())
+                if (deepScan || !Optional(show.ShowMetadata).Flatten().Any())
                 {
                     _logger.LogDebug("Refreshing {Attribute} for {Path}", "Fallback Metadata", showFolder);
                     if (await _localMetadataProvider.RefreshFallbackMetadata(show, showFolder))
@@ -411,7 +432,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
 
             foreach (string nfoFile in maybeNfo)
             {
-                bool shouldUpdate = Optional(show.ShowMetadata).Flatten().HeadOrNone().Match(
+                bool shouldUpdate = deepScan || Optional(show.ShowMetadata).Flatten().HeadOrNone().Match(
                     m => m.MetadataKind == MetadataKind.Fallback ||
                          m.DateUpdated != _localFileSystem.GetLastWriteTime(nfoFile),
                     true);
@@ -468,14 +489,14 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         return episode;
     }
 
-    private async Task<Either<BaseError, Episode>> UpdateMetadata(Episode episode)
+    private async Task<Either<BaseError, Episode>> UpdateMetadata(Episode episode, bool deepScan)
     {
         try
         {
             Option<string> maybeNfo = LocateNfoFile(episode);
             if (maybeNfo.IsNone)
             {
-                bool shouldUpdate = Optional(episode.EpisodeMetadata).Flatten().HeadOrNone().Match(
+                bool shouldUpdate = deepScan || Optional(episode.EpisodeMetadata).Flatten().HeadOrNone().Match(
                     m => m.DateUpdated == SystemTime.MinValueUtc,
                     true);
 
@@ -489,7 +510,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
 
             foreach (string nfoFile in maybeNfo)
             {
-                bool shouldUpdate = Optional(episode.EpisodeMetadata).Flatten().HeadOrNone().Match(
+                bool shouldUpdate = deepScan || Optional(episode.EpisodeMetadata).Flatten().HeadOrNone().Match(
                     m => m.MetadataKind == MetadataKind.Fallback ||
                          m.DateUpdated != _localFileSystem.GetLastWriteTime(nfoFile),
                     true);
@@ -513,6 +534,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         MediaItemScanResult<Show> result,
         string showFolder,
         ArtworkKind artworkKind,
+        bool deepScan,
         CancellationToken cancellationToken)
     {
         try
@@ -523,7 +545,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                 Option<string> maybeArtwork = LocateArtworkForShow(showFolder, artworkKind);
                 foreach (string artworkFile in maybeArtwork)
                 {
-                    await RefreshArtwork(artworkFile, metadata, artworkKind, None, None, cancellationToken);
+                    await RefreshArtwork(artworkFile, metadata, artworkKind, None, None, deepScan, cancellationToken);
                 }
 
                 if (maybeArtwork.IsNone && metadata.Artwork.Any(a => a.ArtworkKind == artworkKind))
@@ -543,6 +565,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
     private async Task<Either<BaseError, Season>> UpdatePoster(
         Season season,
         string seasonFolder,
+        bool deepScan,
         CancellationToken cancellationToken)
     {
         try
@@ -552,7 +575,14 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                 Option<string> maybePoster = LocatePoster(season, seasonFolder);
                 foreach (string posterFile in maybePoster)
                 {
-                    await RefreshArtwork(posterFile, metadata, ArtworkKind.Poster, None, None, cancellationToken);
+                    await RefreshArtwork(
+                        posterFile,
+                        metadata,
+                        ArtworkKind.Poster,
+                        None,
+                        None,
+                        deepScan,
+                        cancellationToken);
                 }
 
                 if (maybePoster.IsNone && metadata.Artwork.Any(a => a.ArtworkKind is ArtworkKind.Poster))
@@ -569,7 +599,10 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
         }
     }
 
-    private async Task<Either<BaseError, Episode>> UpdateThumbnail(Episode episode, CancellationToken cancellationToken)
+    private async Task<Either<BaseError, Episode>> UpdateThumbnail(
+        Episode episode,
+        bool deepScan,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -584,6 +617,7 @@ public class TelevisionFolderScanner : LocalFolderScanner, ITelevisionFolderScan
                         ArtworkKind.Thumbnail,
                         None,
                         None,
+                        deepScan,
                         cancellationToken);
                 }
 

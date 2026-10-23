@@ -1399,7 +1399,7 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<bool>("Forced")
                         .HasColumnType("tinyint(1)");
 
-                    b.Property<bool>("HasHdr10Metadata")
+                    b.Property<bool?>("HasHdr10Metadata")
                         .HasColumnType("tinyint(1)");
 
                     b.Property<int>("Index")
@@ -1422,6 +1422,9 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
 
                     b.Property<string>("Profile")
                         .HasColumnType("longtext");
+
+                    b.Property<int?>("Rotation")
+                        .HasColumnType("int");
 
                     b.Property<string>("Title")
                         .HasColumnType("longtext");

@@ -8,6 +8,7 @@ using ErsatzTV.Core.Interfaces.FFmpeg;
 using ErsatzTV.Core.Interfaces.Jellyfin;
 using ErsatzTV.Core.Interfaces.Plex;
 using ErsatzTV.Core.Security;
+using ErsatzTV.FFmpeg.State;
 using ErsatzTV.Infrastructure.Data;
 using ErsatzTV.Infrastructure.Scheduling;
 using LanguageExt;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NUnit.Framework;
 using Shouldly;
+using SkiaSharp;
 using Testably.Abstractions.Testing;
 using static LanguageExt.Prelude;
 using Next = ErsatzTV.Core.Next;
@@ -29,6 +31,8 @@ public class PlayoutItemConverterTests
     private MockFileSystem _fileSystem = null!;
     private PlayoutItemConverter _converter = null!;
     private Channel _channel = null!;
+    private IWatermarkSelector _watermarks = null!;
+    private IGraphicsElementSelector _graphics = null!;
     private DateTimeOffset _start;
 
     [SetUp]
@@ -49,16 +53,21 @@ public class PlayoutItemConverterTests
         selector.SelectSubtitleStream(default!, default!, default!, default, default, default)
             .ReturnsForAnyArgs(call => Task.FromResult(
                 call.Arg<ImmutableList<Subtitle>>().HeadOrNone()));
-        var watermarks = Substitute.For<IWatermarkSelector>();
-        watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs([]);
-        var graphics = Substitute.For<IGraphicsElementSelector>();
-        graphics.SelectGraphicsElements(default!, default!, default, default).ReturnsForAnyArgs([]);
+        _watermarks = Substitute.For<IWatermarkSelector>();
+        _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs([]);
+        _graphics = Substitute.For<IGraphicsElementSelector>();
+        _graphics.SelectGraphicsElements(default!, default!, default, default).ReturnsForAnyArgs([]);
         _converter = new PlayoutItemConverter(
             _fileSystem, plex, jellyfin, emby,
-            Substitute.For<ICustomStreamSelector>(), selector, watermarks, graphics,
+            Substitute.For<ICustomStreamSelector>(), selector, _watermarks, _graphics,
             Substitute.For<IDbContextFactory<TvContext>>(),
             Substitute.For<ILogger<PlayoutItemConverter>>());
-        _channel = new Channel(Guid.NewGuid()) { StreamSelectorMode = ChannelStreamSelectorMode.Default };
+        _channel = new Channel(Guid.NewGuid())
+        {
+            Number = "1",
+            StreamSelectorMode = ChannelStreamSelectorMode.Default,
+            FFmpegProfile = new FFmpegProfile { Resolution = new Resolution { Width = 1920, Height = 1080 } }
+        };
     }
 
     [TestCase("jellyfin", null)]
@@ -100,7 +109,7 @@ public class PlayoutItemConverterTests
 
         using JsonDocument json = JsonDocument.Parse(Next.Serialize.ToJson(new Next.Playout
         {
-            Version = "https://ersatztv.org/playout/version/0.0.4", Items = [result]
+            Version = PlayoutItemConverter.PlayoutVersion, Items = [result]
         }));
         JsonElement serialized = json.RootElement.GetProperty("items")[0]
             .GetProperty("tracks").GetProperty("subtitle").GetProperty("source");
@@ -195,15 +204,11 @@ public class PlayoutItemConverterTests
             hasAudio);
         Next.TrackSelection track = result.Tracks!.Subtitle!;
         track.StreamIndex.ShouldBe(4);
-        Next.Source source = (track.Source ?? result.Source)!;
-        source.ShouldNotBeNull();
+        track.Source.ShouldBeNull();
+        result.Tracks.Video.ShouldBeNull();
+        Next.Source source = result.Source!;
         source.Path.ShouldBe(VideoPath);
         AssertTiming(source);
-        if (!hasAudio)
-        {
-            result.Source.ShouldBeNull();
-            track.Source.ShouldBeSameAs(result.Tracks.Video!.Source);
-        }
     }
 
     [Test]
@@ -241,18 +246,286 @@ public class PlayoutItemConverterTests
         subtitles.Count.ShouldBe(2);
     }
 
+    [Test]
+    public async Task Plain_watermarks_use_media_layers_in_z_order()
+    {
+        _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs(
+        [
+            new WatermarkOptions(
+                new ChannelWatermark
+                {
+                    Mode = ChannelWatermarkMode.Intermittent,
+                    Location = WatermarkLocation.TopMiddle,
+                    Size = WatermarkSize.Scaled,
+                    WidthPercent = 15,
+                    Opacity = 80,
+                    FrequencyMinutes = 5,
+                    DurationSeconds = 10,
+                    ZIndex = 2
+                },
+                "https://example.com/logo.png",
+                None),
+            new WatermarkOptions(
+                new ChannelWatermark
+                {
+                    Mode = ChannelWatermarkMode.Permanent,
+                    Size = WatermarkSize.ActualSize,
+                    ZIndex = 1
+                },
+                "/images/logo.png",
+                Some(1))
+        ]);
+
+        Next.PlayoutItem result = await Convert(new Movie(), []);
+
+        result.Graphics.ShouldNotBeNull();
+        result.Graphics.Count.ShouldBe(2);
+        result.Graphics.ShouldAllBe(l => l.Kind == Next.GraphicsLayerKind.Media);
+
+        Next.GraphicsLayer permanent = result.Graphics[0];
+        permanent.Source!.SourceType.ShouldBe(Next.SourceType.Local);
+        permanent.Source.Path.ShouldBe("/images/logo.png");
+        permanent.StreamIndex.ShouldBe(1);
+        permanent.WidthPercent.ShouldBeNull();
+        permanent.Timing.ShouldBeNull();
+
+        Next.GraphicsLayer intermittent = result.Graphics[1];
+        intermittent.Source!.SourceType.ShouldBe(Next.SourceType.Http);
+        intermittent.Source.Uri.ShouldBe("https://example.com/logo.png");
+        intermittent.Location.ShouldBe(Next.GraphicsLocation.TopCenter);
+        intermittent.WidthPercent.ShouldBe(15);
+        intermittent.OpacityPercent.ShouldBe(80);
+        intermittent.Timing!.FrequencyMs.ShouldBe(300_000);
+        intermittent.Timing.HoldMs.ShouldBe(10_000);
+    }
+
+    [Test]
+    public async Task Opacity_expression_watermark_uses_canvas()
+    {
+        _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs(
+        [
+            new WatermarkOptions(new ChannelWatermark { Mode = ChannelWatermarkMode.Permanent }, "/a.png", None),
+            new WatermarkOptions(
+                new ChannelWatermark { Mode = ChannelWatermarkMode.OpacityExpression },
+                "/b.png",
+                None)
+        ]);
+
+        Next.PlayoutItem result = await Convert(new Movie(), []);
+
+        result.Graphics.ShouldNotBeNull();
+        result.Graphics.ShouldHaveSingleItem().Kind.ShouldBe(Next.GraphicsLayerKind.Canvas);
+    }
+
+    [Test]
+    public async Task Watermark_only_canvas_covers_an_even_region_around_the_watermarks()
+    {
+        string image = Path.Combine(Path.GetTempPath(), $"etv-canvas-{Guid.NewGuid()}.png");
+        try
+        {
+            using (var bitmap = new SKBitmap(301, 151))
+            using (SKData data = bitmap.Encode(SKEncodedImageFormat.Png, 100))
+            {
+                await File.WriteAllBytesAsync(image, data.ToArray());
+            }
+
+            _channel.FFmpegProfile.ScalingBehavior = ScalingBehavior.Stretch;
+            _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs(
+            [
+                new WatermarkOptions(
+                    new ChannelWatermark
+                    {
+                        Mode = ChannelWatermarkMode.OpacityExpression,
+                        Location = WatermarkLocation.BottomRight,
+                        Size = WatermarkSize.ActualSize
+                    },
+                    image,
+                    None)
+            ]);
+
+            Next.PlayoutItem result = await Convert(new Movie(), []);
+
+            Next.GraphicsLayer layer = result.Graphics.ShouldHaveSingleItem();
+            layer.Kind.ShouldBe(Next.GraphicsLayerKind.Canvas);
+            layer.Location.ShouldBe(Next.GraphicsLocation.TopLeft);
+            layer.Layout.ShouldNotBeNull();
+            layer.Layout.Mode.ShouldBe(Next.Mode.Region);
+            layer.Layout.Origin.ShouldNotBeNull();
+            layer.Layout.Origin.X.ShouldBe(1618);
+            layer.Layout.Origin.Y.ShouldBe(928);
+            Next.VideoHint hint = layer.Source.ProbeHint!.Video.ShouldHaveSingleItem();
+            hint.Width.ShouldBe(302);
+            hint.Height.ShouldBe(152);
+
+            var query = new Uri(layer.Source.Uri!).Query.TrimStart('?').Split('&')
+                .Select(part => part.Split('=', 2)).ToDictionary(part => part[0], part => part[1]);
+            query["region"].ShouldBe("1618,928,302,152");
+            InternalUrlSigner.Verify(query["exp"], query["sig"], "graphics", "1", "42", "1618,928,302,152")
+                .ShouldBeTrue();
+        }
+        finally
+        {
+            File.Delete(image);
+        }
+    }
+
+    [Test]
+    public async Task Canvas_with_unmeasurable_watermark_covers_the_full_frame()
+    {
+        _channel.FFmpegProfile.ScalingBehavior = ScalingBehavior.Stretch;
+        _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs(
+            [new WatermarkOptions(new ChannelWatermark { Mode = ChannelWatermarkMode.OpacityExpression }, "/missing.png", None)]);
+
+        Next.PlayoutItem result = await Convert(new Movie(), []);
+
+        Next.GraphicsLayer layer = result.Graphics.ShouldHaveSingleItem();
+        AssertFullFrameCanvas(result);
+        layer.Source.ProbeHint!.Video.ShouldHaveSingleItem().Width.ShouldBe(1920);
+        layer.Source.Uri!.ShouldNotContain("region=");
+    }
+
+    [Test]
+    public async Task Graphics_elements_put_watermarks_on_canvas()
+    {
+        _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs(
+            [new WatermarkOptions(new ChannelWatermark { Mode = ChannelWatermarkMode.Permanent }, "/a.png", None)]);
+        _graphics.SelectGraphicsElements(default!, default!, default, default).ReturnsForAnyArgs(
+            [new PlayoutItemGraphicsElement { GraphicsElement = new GraphicsElement() }]);
+
+        Next.PlayoutItem result = await Convert(new Movie(), []);
+
+        result.Graphics.ShouldNotBeNull();
+        result.Graphics.ShouldHaveSingleItem().Kind.ShouldBe(Next.GraphicsLayerKind.Canvas);
+        AssertFullFrameCanvas(result);
+    }
+
+    private static void AssertFullFrameCanvas(Next.PlayoutItem item)
+    {
+        Next.GraphicsLayer layer = item.Graphics!.ShouldHaveSingleItem();
+        layer.Location.ShouldBe(Next.GraphicsLocation.TopLeft);
+        layer.Layout.ShouldBeNull();
+    }
+
+    [Test]
+    public async Task Video_copy_profile_has_no_graphics()
+    {
+        _channel.FFmpegProfile.VideoFormat = FFmpegProfileVideoFormat.Copy;
+        _watermarks.SelectWatermarks(default, default!, default!, default, default).ReturnsForAnyArgs(
+            [new WatermarkOptions(new ChannelWatermark { Mode = ChannelWatermarkMode.Permanent }, "/a.png", None)]);
+        _graphics.SelectGraphicsElements(default!, default!, default, default).ReturnsForAnyArgs(
+            [new PlayoutItemGraphicsElement { GraphicsElement = new GraphicsElement() }]);
+
+        Next.PlayoutItem result = await Convert(new Movie(), []);
+
+        result.Graphics.ShouldBeEmpty();
+    }
+
+    [TestCase("png", "png_pipe")]
+    [TestCase("mjpeg", "jpeg_pipe")]
+    [TestCase("webp", "webp_pipe")]
+    [TestCase("gif", "gif")]
+    public async Task Image_hint_has_image_format_name(string codec, string formatName)
+    {
+        Next.PlayoutItem result = await Convert(new Image(), [], hasAudio: false, videoCodec: codec);
+        Next.ProbeHint hint = result.Source!.ProbeHint!;
+        hint.FormatName.ShouldBe(formatName);
+        hint.Video.ShouldHaveSingleItem().Codec.ShouldBe(codec);
+    }
+
+    [TestCase("/media/movie.avi", "avi")]
+    [TestCase("/media/movie.AVI", "avi")]
+    [TestCase(VideoPath, null)]
+    public async Task Video_hint_identifies_avi(string path, string? formatName)
+    {
+        _fileSystem.File.WriteAllText(path, string.Empty);
+        Next.PlayoutItem result = await Convert(new Movie(), [], path: path);
+        result.Source!.ProbeHint!.FormatName.ShouldBe(formatName);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Song_uses_signed_song_background_as_video(bool hasCoverArt)
+    {
+        _channel.Id = 7;
+        Next.PlayoutItem result = await Convert(new Song(), [], hasVideo: hasCoverArt, attachedPic: hasCoverArt);
+
+        result.Source.ShouldBeNull();
+        Next.Source audio = result.Tracks!.Audio!.Source!;
+        audio.Path.ShouldBe(VideoPath);
+        AssertTiming(audio);
+
+        Next.Source video = result.Tracks.Video!.Source!;
+        video.SourceType.ShouldBe(Next.SourceType.Http);
+        var uri = new Uri(video.Uri!);
+        uri.AbsolutePath.ShouldBe("/internal/ffmpeg/song-background/7/42");
+        var query = uri.Query.TrimStart('?').Split('&')
+            .Select(part => part.Split('=', 2)).ToDictionary(part => part[0], part => part[1]);
+        InternalUrlSigner.Verify(query["exp"], query["sig"], "song-background", "7", "42").ShouldBeTrue();
+        video.ProbeHint!.FormatName.ShouldBe("png_pipe");
+        Next.VideoHint hint = video.ProbeHint.Video.ShouldHaveSingleItem();
+        hint.Codec.ShouldBe("png");
+        hint.Width.ShouldBe(1920);
+        hint.Height.ShouldBe(1080);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Audio_only_item_uses_black_video(bool hasCoverArt)
+    {
+        Next.PlayoutItem result = await Convert(new Movie(), [], hasVideo: hasCoverArt, attachedPic: hasCoverArt);
+
+        result.Source.ShouldBeNull();
+        result.Tracks!.Audio!.Source!.Path.ShouldBe(VideoPath);
+        Next.Source video = result.Tracks.Video!.Source!;
+        video.SourceType.ShouldBe(Next.SourceType.Lavfi);
+        video.Params.ShouldBe("color=c=black:s=1920x1080");
+        video.ProbeHint!.FormatName.ShouldBeNull();
+        video.ProbeHint.Video.ShouldHaveSingleItem().Codec.ShouldBe("rawvideo");
+    }
+
+    [Test]
+    public async Task Video_only_item_keeps_single_source()
+    {
+        Next.PlayoutItem result = await Convert(new Movie(), [], hasAudio: false);
+
+        result.Source!.Path.ShouldBe(VideoPath);
+        result.Source.ProbeHint!.Audio.ShouldBeEmpty();
+        result.Tracks.ShouldBeNull();
+    }
+
+    [Test]
+    public async Task Item_without_known_streams_keeps_source_as_video()
+    {
+        Next.PlayoutItem result = await Convert(new Movie(), [], hasAudio: false, hasVideo: false);
+
+        result.Source!.Path.ShouldBe(VideoPath);
+        result.Tracks.ShouldBeNull();
+    }
+
     private async Task<Next.PlayoutItem> Convert(
         MediaItem mediaItem,
         List<Subtitle> subtitles,
         bool hasAudio = true,
-        Option<List<Subtitle>> suppliedSubtitles = default)
+        Option<List<Subtitle>> suppliedSubtitles = default,
+        string path = VideoPath,
+        string? videoCodec = null,
+        bool hasVideo = true,
+        bool attachedPic = false)
     {
         var version = new MediaVersion
         {
             Duration = TimeSpan.FromMinutes(2),
-            MediaFiles = [new MediaFile { Path = VideoPath }],
-            Streams = [new MediaStream { MediaStreamKind = MediaStreamKind.Video, Index = 0 }]
+            MediaFiles = [new MediaFile { Path = path }],
+            Streams = []
         };
+        if (hasVideo)
+        {
+            version.Streams.Add(new MediaStream
+            {
+                MediaStreamKind = MediaStreamKind.Video, Index = 0, Codec = videoCodec!, AttachedPic = attachedPic
+            });
+        }
+
         if (hasAudio)
         {
             version.Streams.Add(new MediaStream { MediaStreamKind = MediaStreamKind.Audio, Index = 1 });
@@ -271,6 +544,14 @@ public class PlayoutItemConverterTests
             case MusicVideo musicVideo:
                 musicVideo.MediaVersions = [version];
                 musicVideo.MusicVideoMetadata = [new MusicVideoMetadata { Subtitles = subtitles }];
+                break;
+            case Image image:
+                image.MediaVersions = [version];
+                image.ImageMetadata = [new ImageMetadata()];
+                break;
+            case Song song:
+                song.MediaVersions = [version];
+                song.SongMetadata = [new SongMetadata { Subtitles = subtitles }];
                 break;
         }
 

@@ -12,6 +12,7 @@ using ErsatzTV.Core.Interfaces.FFmpeg;
 using ErsatzTV.Core.Interfaces.Metadata;
 using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Next.Config;
+using ErsatzTV.FFmpeg;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -68,9 +69,9 @@ public class StartFFmpegNextSessionHandler(
 
         Option<TimeSpan> idleTimeout = Option<TimeSpan>.None;
 
-        // Option<FrameRate> targetFramerate = await mediator.Send(
-        //     new GetChannelFramerate(request.ChannelNumber),
-        //     cancellationToken);
+        Option<FrameRate> targetFramerate = await mediator.Send(
+            new GetChannelFramerate(request.ChannelNumber),
+            cancellationToken);
 
         Option<ChannelViewModel> maybeChannel =
             await mediator.Send(new GetChannelByNumber(request.ChannelNumber), cancellationToken);
@@ -105,7 +106,11 @@ public class StartFFmpegNextSessionHandler(
 
         PrepareTranscodeFolder(request.ChannelNumber);
 
-        ChannelConfig config = await channelConfigConverter.ToNext(channel, ffmpegProfile, cancellationToken);
+        ChannelConfig config = await channelConfigConverter.ToNext(
+            channel,
+            ffmpegProfile,
+            targetFramerate,
+            cancellationToken);
 
         NextSessionWorker worker = new NextSessionWorker(
             channelBinary,
@@ -163,6 +168,7 @@ public class StartFFmpegNextSessionHandler(
             await mediator.Send(new GetChannelStreamingSpecs(request.ChannelNumber));
         string resolution = string.Empty;
         var bitrate = "10000000";
+        var subtitles = false;
         foreach (ChannelStreamingSpecsViewModel streamingSpecs in maybeStreamingSpecs)
         {
             string videoCodec = streamingSpecs.VideoFormat switch
@@ -181,25 +187,37 @@ public class StartFFmpegNextSessionHandler(
             };
 
             List<string> codecStrings = [];
-            if (!string.IsNullOrWhiteSpace(videoCodec))
+            if (!string.IsNullOrWhiteSpace(videoCodec) && !string.IsNullOrWhiteSpace(audioCodec))
             {
                 codecStrings.Add(videoCodec);
-            }
-
-            if (!string.IsNullOrWhiteSpace(audioCodec))
-            {
                 codecStrings.Add(audioCodec);
             }
 
             string codecs = codecStrings.Count > 0 ? $",CODECS=\"{string.Join(",", codecStrings)}\"" : string.Empty;
-            resolution = $",RESOLUTION={streamingSpecs.Width}x{streamingSpecs.Height}{codecs}";
+
+            // copied video keeps the source resolution, which can change between items
+            resolution = streamingSpecs.VideoFormat is FFmpegProfileVideoFormat.Copy
+                ? codecs
+                : $",RESOLUTION={streamingSpecs.Width}x{streamingSpecs.Height}{codecs}";
             bitrate = streamingSpecs.Bitrate.ToString(CultureInfo.InvariantCulture);
+
+            // Burn mode leaves an empty subtitle track that freezes VLC 3 when selected.
+            subtitles = request.Subtitles &&
+                        streamingSpecs.NextEngineTextSubtitleMode is NextEngineTextSubtitleMode.Convert;
+        }
+
+        if (!subtitles)
+        {
+            return $@"#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-STREAM-INF:BANDWIDTH={bitrate}{resolution}
+{variantPlaylist}";
         }
 
         return $@"#EXTM3U
 #EXT-X-VERSION:6
-#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=""subs"",NAME=""English"",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE=""en"",URI=""{subtitlePlaylist}""
-#EXT-X-STREAM-INF:BANDWIDTH={bitrate}{resolution}
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=""subs"",NAME=""Subtitles"",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI=""{subtitlePlaylist}""
+#EXT-X-STREAM-INF:BANDWIDTH={bitrate}{resolution},SUBTITLES=""subs""
 {variantPlaylist}";
     }
 }

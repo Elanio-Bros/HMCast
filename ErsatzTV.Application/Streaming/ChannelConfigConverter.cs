@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Abstractions;
 using ErsatzTV.Application.Channels;
 using ErsatzTV.Application.FFmpegProfiles;
@@ -6,6 +7,7 @@ using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.FFmpeg;
 using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Next.Config;
+using ErsatzTV.FFmpeg;
 using Subtitle = ErsatzTV.Core.Next.Config.Subtitle;
 
 namespace ErsatzTV.Application.Streaming;
@@ -13,9 +15,12 @@ namespace ErsatzTV.Application.Streaming;
 public class ChannelConfigConverter(IConfigElementRepository configElementRepository, IFileSystem fileSystem)
     : IChannelConfigConverter
 {
+    public static readonly string ChannelConfigVersion = "https://ersatztv.org/channel/version/0.1.2";
+
     public async Task<ChannelConfig> ToNext(
         ChannelViewModel channel,
         FFmpegProfileViewModel ffmpegProfile,
+        Option<FrameRate> targetFramerate,
         CancellationToken cancellationToken)
     {
         var ffmpeg = new Ffmpeg
@@ -46,8 +51,13 @@ public class ChannelConfigConverter(IConfigElementRepository configElementReposi
         //     ConfigElementKey.FFmpegSaveReports,
         //     cancellationToken);
 
+        bool audioCopy = ffmpegProfile.AudioFormat is FFmpegProfileAudioFormat.Copy;
+        bool videoCopy = ffmpegProfile.VideoFormat is FFmpegProfileVideoFormat.Copy;
+
+        // next transcodes items that it cannot copy, so copy profiles also need transcode settings
         var audioNormalization = new Audio
         {
+            Mode = audioCopy ? StreamMode.Copy : StreamMode.Transcode,
             Format = ffmpegProfile.AudioFormat switch
             {
                 FFmpegProfileAudioFormat.Ac3 => AudioFormat.Ac3,
@@ -59,7 +69,8 @@ public class ChannelConfigConverter(IConfigElementRepository configElementReposi
             SampleRateHz = ffmpegProfile.AudioSampleRate * 1000
         };
 
-        if (ffmpegProfile.NormalizeLoudnessMode is NormalizeLoudnessMode.LoudNorm)
+        // next rejects loudness normalization with audio copy
+        if (!audioCopy && ffmpegProfile.NormalizeLoudnessMode is NormalizeLoudnessMode.LoudNorm)
         {
             audioNormalization.NormalizeLoudness = true;
             audioNormalization.Loudness = new LoudnessClass
@@ -80,14 +91,17 @@ public class ChannelConfigConverter(IConfigElementRepository configElementReposi
 
         var videoNormalization = new Video
         {
+            Mode = videoCopy ? StreamMode.Copy : StreamMode.Transcode,
             Format = ffmpegProfile.VideoFormat switch
             {
                 FFmpegProfileVideoFormat.Hevc => VideoFormat.Hevc,
+                FFmpegProfileVideoFormat.Mpeg2Video => VideoFormat.Mpeg2Video,
                 _ => VideoFormat.H264
             },
-            BitDepth = ffmpegProfile.BitDepth switch
+            BitDepth = (ffmpegProfile.VideoFormat, ffmpegProfile.BitDepth) switch
             {
-                FFmpegProfileBitDepth.TenBit => 10,
+                (FFmpegProfileVideoFormat.Mpeg2Video, _) => 8,
+                (_, FFmpegProfileBitDepth.TenBit) => 10,
                 _ => 8
             },
             Accel = ffmpegProfile.HardwareAcceleration switch
@@ -129,18 +143,24 @@ public class ChannelConfigConverter(IConfigElementRepository configElementReposi
             VaapiDevice = ffmpegProfile.VaapiDevice,
             VaapiDriver = ffmpegProfile.VaapiDriver switch
             {
+                VaapiDriver.iHD => VaapiDriverEnum.Ihd,
                 VaapiDriver.i965 => VaapiDriverEnum.I965,
                 VaapiDriver.RadeonSI => VaapiDriverEnum.Radeonsi,
-                _ => VaapiDriverEnum.Ihd
+                _ => null
             }
         };
+
+        foreach (string frameRate in targetFramerate.Bind(ToNextFrameRate))
+        {
+            videoNormalization.FrameRate = frameRate;
+        }
 
         var subtitleNormalization = new Subtitle
         {
             Mode = channel.NextEngineTextSubtitleMode switch
             {
-                NextEngineTextSubtitleMode.Convert => Mode.Convert,
-                _ => Mode.Burn
+                NextEngineTextSubtitleMode.Convert => SubtitleMode.Convert,
+                _ => SubtitleMode.Burn
             },
             FontsFolder = FileSystemLayout.FontsCacheFolder
         };
@@ -149,6 +169,7 @@ public class ChannelConfigConverter(IConfigElementRepository configElementReposi
 
         return new ChannelConfig
         {
+            Version = ChannelConfigVersion,
             Playout = new Core.Next.Config.Playout
             {
                 Folder = playoutFolder
@@ -165,5 +186,46 @@ public class ChannelConfigConverter(IConfigElementRepository configElementReposi
                 ShowError = true
             }
         };
+    }
+
+    private const int MaxNextFrameRate = 240;
+
+    // reject decimals
+    public static Option<string> ToNextFrameRate(FrameRate frameRate)
+    {
+        string value = frameRate.RFrameRate.Trim();
+
+        string[] parts = value.Split('/');
+        if (parts.Length <= 2 && parts.All(p => p.Length > 0 && p.All(char.IsAsciiDigit)))
+        {
+            if (!long.TryParse(parts[0], out long num) ||
+                !long.TryParse(parts.Length == 2 ? parts[1] : "1", out long den) ||
+                num == 0 || den == 0 || num < den || num > den * MaxNextFrameRate)
+            {
+                return Option<string>.None;
+            }
+
+            return value;
+        }
+
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rate) ||
+            rate < 1 || rate > MaxNextFrameRate)
+        {
+            return Option<string>.None;
+        }
+
+        double integer = Math.Round(rate);
+        if (Math.Abs(rate - integer) < 0.001)
+        {
+            return ((long)integer).ToString(CultureInfo.InvariantCulture);
+        }
+
+        double ntsc = Math.Round(rate * 1.001);
+        if (Math.Abs(rate * 1.001 - ntsc) < 0.005)
+        {
+            return $"{(long)ntsc * 1000}/1001";
+        }
+
+        return $"{(long)Math.Round(rate * 1000)}/1000";
     }
 }

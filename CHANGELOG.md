@@ -4,7 +4,217 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Add `Upload Results` button to playback troubleshooting
+  - Results are encrypted on your ErsatzTV server so only the ErsatzTV maintainer can read them
+  - The upload returns an ID (e.g. `etv-xxxx-xxxxxx`) to paste into a GitHub issue or Discord thread
+  - Uploads are deleted from the upload server after 7 days
+  - `Download Results` still works when ErsatzTV can't reach the upload server
+- Detect DolbyVision content from media server libraries
+  - This enables the next engine to use the appropriate tonemapping filter
 
+### Changed
+- Next engine:
+  - Watermark-only graphics canvases render just the area the watermarks cover instead of the full frame
+    - This reduces CPU use and GPU upload for animated or opacity-expression watermarks
+    - This is currently limited to local watermarks; remote/URL watermarks will still send the full frame
+  - Remove VideoToolbox `h264` encoder workaround that stripped A53 closed captions
+    - This is no longer needed with ErsatzTV-ffmpeg `8.1.2-5`
+- Use ErsatzTV-ffmpeg `8.1.2-5` in docker images, Windows packages and macOS packages
+  - Fix transcoding speed drop when burning in image subtitles, especially with TrueHD audio
+  - Fix macOS VideoToolbox encoding failure when video contains A53 closed captions
+  - Add RKMPP accel support to arm64 docker image and native package; Jellyfin ffmpeg is no longer required
+
+### Fixed
+- Next engine:
+  - Fix active channels falling behind schedule when the playout is updated
+  - Fix image subtitles (e.g. PGS) missing or misplaced with hardware acceleration when the subtitle size differs from the video size (e.g. cropped video)
+  - Fix QSV stream failing when no Intel device is found; the channel now uses a software pipeline
+  - Fix QSV green padding on Windows with certain HDR content
+  - Fix slow transcoding of high-resolution video with PGS subtitles until the first subtitle appears
+  - Fix RKMPP stream failing with loudness normalization
+  - Fix VAAPI blocky, smeared `h264` video on older AMD GPUs
+- Fix Jellyfin external audio files being added as audio streams with negative indexes
+  - These broke playback of the whole playout file with the next engine (`expected u32`)
+  - Affected Jellyfin movies and episodes will be rescanned automatically
+- Fix channel troubleshooting `Play` button being disabled with no explanation
+  - Date and time now defaults to the current time and shows an error when it can't be parsed
+- Fix some extracted ASS subtitles never being displayed
+  - Affected subtitles that were already extracted will be repaired automatically on startup
+
+## [26.11.3] - 2026-10-13
+### Changed
+- MPEG-TS streams send their first 6 seconds immediately instead of in real time
+  - This lets clients like Plex fill their buffer and start playback sooner
+  - Custom MPEG-TS scripts can do the same by adding `-readrate_initial_burst 6` after `-readrate 1.0`
+
+### Fixed
+- Next engine:
+  - Only advertise the HLS subtitle track when the channel's text subtitle mode is `Convert`
+    - With `Burn` (the default) the track never had cues, but it froze VLC 3 when selected
+  - Fix MPEG-TS streams taking ~10 seconds longer to start than legacy engine channels
+    - MPEG-TS streams no longer request the HLS subtitle track, which they cannot use
+
+## [26.11.2] - 2026-10-13
+### Changed
+- Graphics engine: decode image and watermark elements with SkiaSharp instead of ImageSharp
+  - TIFF, TGA, PBM and QOI images are no longer supported
+- Next engine:
+  - Software scaling now defaults to `bicubic` instead of `fast_bilinear`, which reduces aliasing when downscaling
+    - This can be changed using `normalization.video.filters.scale.flags` in a channel config overlay
+  - Log messages from next channels now include the channel number, e.g. `[next::channel 7]`
+- Warn that the legacy streaming engine will be removed in ErsatzTV 26.12
+  - The Channels page lists channels that still use the legacy engine
+  - The channel editor shows a warning when the legacy engine is selected
+  - Starting a legacy engine stream logs a warning
+
+### Fixed
+- Fix sequential schedules silently skipping nested `sequence` instructions inside pre-roll, mid-roll and post-roll sequences
+- Fix local show libraries ignoring episode NFO tag and genre changes after the first scan
+- Fix playback from Jellyfin-compatible servers (e.g. Silo) that require authentication for media streams
+  - The Jellyfin API key is now included on stream and subtitle requests
+  - Jellyfin itself does not require it but continues to play successfully with the API key included
+- Next engine:
+  - Linux/macOS: fix channels failing to locate playout items after the config folder is copied or restored with a tool that replaces symlinks with real folders (e.g. `cp -L`, `rsync -L`)
+    - Failures to link the current playout folder are now logged instead of silently ignored
+  - VAAPI: fix playback freezing at the end of some items on channels with an `Intermittent` watermark
+    - Most common with music videos, whose audio often runs slightly longer than their video
+    - The log showed `channel ... terminated after ffmpeg stall`
+  - VAAPI: fix `hevc` streams hanging on content with embedded (A53) closed captions with Mesa before 26.2.3
+    - Captions are left out of `hevc` output on those Mesa versions; update Mesa to keep them
+  - Always encode 4:2:0 output, which many clients require
+    - Still images and song backgrounds were previously encoded as 4:4:4 by software encoders
+  - NVIDIA: fix streams failing with a watermark in `yuva420p` (e.g. lossy WebP with transparency) and opacity below 100%
+  - NVIDIA: fix streams with a watermark failing when encoding with software (e.g. `mpeg2video`)
+  - VideoToolbox: fix streams failing to encode to h264 when they contain embedded (A53) closed captions
+  - QSV: fix completely green output with legacy Intel encoders
+  - Fix fallback filler playback with filler content that has no audio
+  - Fix `crop` scaling mode so it always scales to cover the output before cropping, even when the source content is larger than the target resolution
+- Fix errors logged when quickly navigating to search results
+  - The log showed `Navigation failed when changing the location to search?query=...`
+  - Searches from the search bar and smart collection targets no longer reload the whole page
+
+## [26.11.1] - 2026-10-06
+### Fixed
+- Next engine:
+  - Windows: fix channels failing to locate playout items after the app data folder is copied or restored (e.g. with Explorer or a backup tool)
+    - The log showed `Expected junction at ... but found a real directory`
+  - QSV: fix `Cannot allocate memory` error when using loudness normalization with legacy runtimes (older Intel devices)
+  - VAAPI: fix green padding with HDR and other BT.2020 content on Intel devices using the iHD driver
+  - VAAPI: fix green padding on AMD devices and Intel devices using the i965 driver
+    - These drivers ignore the requested pad color, so padding is now done in software
+
+## [26.11.0] - 2026-10-05
+### Added
+- Next engine:
+  - Properly rotate content that contains orientation metadata (e.g. from phones)
+  - Add `mpeg2video` encoder support (software, some Intel QSV and Intel VAAPI devices)
+  - Add song playback support, using legacy-generated background image and text
+    - Song Video Mode `With Progress` is not supported yet; these songs play without a progress bar
+  - Support FFmpeg Profile `Normalize Frame Rate`
+    - As with the legacy engine, the target is the lowest frame rate above 23 fps among the channel's scheduled items
+    - Frames are dropped or duplicated to reach the target, instead of blended
+    - With video copy, only items already at the target rate are copied; others are transcoded
+- Add `Deep Scan Library` button to local libraries
+  - A deep scan re-probes every file and refreshes all metadata and artwork, even when files appear unchanged
+  - This forces a refresh of e.g. NFO files or posters that were edited without changing their modified time
+
+### Changed
+- Migrate all channels to the next streaming engine, and use it by default for new channels
+  - To roll back a channel, set `Streaming Engine` to `Legacy` in the channel editor
+  - Streaming mode `MPEG-TS (Legacy)` has been migrated to `MPEG-TS`
+  - Streaming mode `HLS Direct` has been migrated to `HLS Segmenter`
+    - Content is now transcoded continuously; disable `Normalize Video` or `Normalize Audio` in the FFmpeg Profile to copy that stream instead
+  - Cached `ts-legacy` and `hls-direct` URLs continue to work, and stream through the next engine
+  - FFmpeg Profiles with audio format `aac (latm)` now use `aac`
+  - FFmpeg Profiles with `V4l2m2m` hardware acceleration now use software encoding
+  - The next engine ignores these FFmpeg Profile settings: `Thread Count`, `Pad Mode`, video `Profile`, video `Preset`, `Allow B-Frames`, `VAAPI Display`, `QSV Extra Hardware Frames` and `Normalize Colors`
+    - These settings are now labeled `Legacy engine only`
+  - The next engine ignores channel `Slug Seconds`, so it is hidden for next channels
+  - Playback troubleshooting now defaults to the next engine
+- Use ErsatzTV-ffmpeg `8.1.2-4` in docker images, Windows packages and macOS packages
+  - ErsatzTV-ffmpeg releases are now immutable; docker images pin them by digest
+  - Docker images no longer include `libfdk_aac`; the built-in `aac` encoder is unchanged
+  - macOS packages now include ffmpeg and ffprobe, so Homebrew ffmpeg is no longer needed
+    - On first start, existing macOS installs switch from their configured ffmpeg and ffprobe paths to the bundled builds
+    - The FFmpeg Version health check now applies to macOS
+- Drop support for ARM32v7 docker and native versions
+- Remove `av1` video format from FFmpeg Profiles; it has not worked since `v25.7.1`
+  - Existing `av1` FFmpeg Profiles have been migrated to `hevc`
+- Add `v` prefix to docker version numbers; matching all other versions
+- Develop builds:
+  - Use expected upcoming version number in develop builds
+    - e.g. if latest release is `v26.10.0`, develop builds will use `v26.11.0`
+  - Show unreleased changelog notes on home page of develop builds
+  - Publish immutable develop builds to a separate new repository
+    - https://github.com/ErsatzTV/legacy-develop-builds/releases/latest
+- Local libraries: use video stream duration instead of container duration for scheduling
+  - This fixes playback failures caused by e.g. embedded subtitles longer than the video itself
+- Ask for confirmation before deep scanning a library or external collections
+- Next engine:
+  - Improve watermark quality with VAAPI and QSV by avoiding an unnecessary lossy color conversion
+  - Optimize intermittent watermarks by converting the watermark image once instead of on every frame
+  - FFmpeg Profiles with `Normalize Video` or `Normalize Audio` disabled now copy that stream; they were previously transcoded to `h264` / `aac`
+    - Items that cannot be copied are transcoded using the profile's settings
+      - e.g. items with burned-in subtitles, still images, and source codecs that are not copied by default
+      - `h264` / `hevc` video can be copied by default, `aac` / `ac3` / `eac3` / `mp3` audio can be copied by default
+      - These items are transcoded without hardware acceleration; to use hardware acceleration, set `accel` in a channel config overlay
+        - e.g. `{"version":"https://ersatztv.org/channel/version/0.1.0","normalization":{"video":{"accel":"qsv"}}}`
+    - Watermarks and graphics are not applied to copied video, matching the legacy engine
+    - Loudness normalization is never applied to copied audio
+  - **BREAKING**: channel config overlays (`next/channel-config-overlays/default.json` and `{number}.json` in ETV's config folder) must include `"version": "https://ersatztv.org/channel/version/0.1.0"`
+    - Overlays without this version are rejected, and the channel will not start
+    - e.g. `{"version":"https://ersatztv.org/channel/version/0.1.0","fallback":{"show_error":false}}`
+    - Overlays that used `"format": null` to copy should use `"mode": "copy"` instead
+
+### Fixed
+- Next engine:
+  - QSV: enable hardware acceleration on legacy Intel Media SDK devices on Windows (e.g. Haswell)
+    - Windows packages now include `libvpl.dll`, which next engine uses to detect QSV capabilities
+    - Find the runtime when the Intel GPU is not the primary display adapter, or when the runtime does not report a device ID
+    - Fix `Error synchronizing the operation: -17` at the start of a stream
+    - Fix `device failed (-17)` from `vpp_qsv` and `overlay_qsv`
+  - QSV: pad in software when the runtime cannot pad the current pixel format in hardware (e.g. 10-bit on legacy Media SDK runtimes)
+  - QSV: do not upload 10-bit frames to hardware on runtimes that cannot copy them (e.g. Haswell)
+  - QSV: fix `Cannot allocate memory` error when using loudness normalization and the graphics engine
+  - VideoToolbox: fix HEVC output bit depth not matching the FFmpeg Profile
+  - VideoToolbox: fix missing sample aspect ratio in H264 output
+  - NVIDIA: fix ffmpeg warning when CUDA and Vulkan are used together
+  - Fix AMD VAAPI hardware acceleration when FFmpeg Profile is configured with VAAPI Driver `Default`
+  - Fix performance regression with permanent and intermittent watermarks by overlaying them directly instead of using the graphics engine
+  - Fix watermark opacity having no effect on images without transparency (e.g. JPG)
+  - Fix subtitle selection preferring embedded text subtitles that have not been extracted
+    - These subtitles were selected over usable sidecar subtitles, and then dropped, leaving no subtitles
+    - The FFmpeg `Use Embedded Subtitles` setting is now respected by next engine channels
+  - Fix playback of audio-only content (e.g. audio files with embedded cover art), which now plays over a black background
+  - Fix image playback
+  - Fix image and remote stream duration
+  - Fix process signal handling to prevent orphaned processes
+    - When ErsatzTV exits unexpectedly (crash, killed), next engine channels now stop within a few seconds instead of running for up to 90 seconds
+    - When a next engine channel process is killed, its ffmpeg process now stops too (Linux and Windows)
+    - Stopping a next engine channel with `SIGTERM` or `SIGINT` now also stops its ffmpeg process
+  - Fix channels going permanently empty when content ends before its scheduled duration
+    - e.g. files with an embedded subtitle track that runs longer than the audio and video
+    - The rest of the scheduled time now plays the black/silence fallback
+    - Fix audio/video sync loss at the end of such content
+  - Fix timestamps restarting at zero between items when `ffprobe` is not on the system `PATH`
+  - Ignore unextracted text subtitles when using custom stream selector
+  - Fix channel playback troubleshooting, which always used the legacy engine
+    - Channel troubleshooting plays 30 seconds from the selected time, including transitions between items and fallback filler for gaps
+  - Fix troubleshooting playback stopping before the end of the transcoded content
+- Improve performance of graphics engine subtitle elements
+- Fix Jellyfin 12 shows that belong to a Jellyfin collection being replaced by the collection itself
+  - The collection would appear as a show, and the real show would be flagged as missing
+  - To repair affected libraries after updating:
+    - Scan the affected Jellyfin show libraries
+    - Empty the trash to remove the bogus collection shows
+    - Deep scan Jellyfin collections to restore collection search results
+- Fix `Unified Docker` health check incorrectly warning about a deprecated docker tag on arm64 hardware using the default docker image
+- Fix bug where block schedules could skip and/or repeat items
+- Fix songs changing their background ~40 seconds after joining a channel
+- Fix troubleshooting playback to start exactly at the specified seek point (hls.js player often started a segment or two late)
+
+## [26.10.0] - 2026-09-21
 ### Added
 - Next engine:
   - Add full graphics engine support
@@ -47,7 +257,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Graphics engine:
   - Fix motion element timing, including hold behavior when seeking into hold
 - Many reliability fixes to playback troubleshooter; e.g. so it doesn't stay locked until ETV is restarted
+- Improve local library path validation
+  - Paths must now be absolute; e.g. a relative path saved on macOS could previously break all future edits to that library
+  - Validation errors now include the problematic path
 - Fix custom ordering of manual (movie) collections to support dragging posters instead of just titles
+- Fix remote stream libraries to allow `.yaml` extension (previously only allowed `.yml`)
 
 ## [26.9.0] - 2026-09-06
 ### Fixed
@@ -3470,7 +3684,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial release to facilitate testing outside of Docker.
 
 
-[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.9.0...HEAD
+[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.3...HEAD
+[26.11.3]: https://github.com/ErsatzTV/legacy/compare/v26.11.2...v26.11.3
+[26.11.2]: https://github.com/ErsatzTV/legacy/compare/v26.11.1...v26.11.2
+[26.11.1]: https://github.com/ErsatzTV/legacy/compare/v26.11.0...v26.11.1
+[26.11.0]: https://github.com/ErsatzTV/legacy/compare/v26.10.0...v26.11.0
+[26.10.0]: https://github.com/ErsatzTV/legacy/compare/v26.9.0...v26.10.0
 [26.9.0]: https://github.com/ErsatzTV/legacy/compare/v26.8.1...v26.9.0
 [26.8.1]: https://github.com/ErsatzTV/legacy/compare/v26.8.0...v26.8.1
 [26.8.0]: https://github.com/ErsatzTV/legacy/compare/v26.7.1...v26.8.0

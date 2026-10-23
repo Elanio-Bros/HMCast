@@ -86,4 +86,24 @@ public class PlexStreamResponse
 
     [XmlAttribute("extendedDisplayTitle")]
     public string ExtendedDisplayTitle { get; set; }
+
+    [XmlIgnore]
+    public int? Orientation { get; set; }
+
+    [XmlAttribute("orientation")]
+    public string OrientationString
+    {
+        get => Orientation.HasValue ? Orientation.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        set => Orientation = !string.IsNullOrEmpty(value) ? int.Parse(value, CultureInfo.InvariantCulture) : null;
+    }
+
+    [XmlIgnore]
+    public int? DvProfile { get; set; }
+
+    [XmlAttribute("DOVIProfile")]
+    public string DvProfileString
+    {
+        get => DvProfile.HasValue ? DvProfile.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        set => DvProfile = !string.IsNullOrEmpty(value) ? int.Parse(value, CultureInfo.InvariantCulture) : null;
+    }
 }

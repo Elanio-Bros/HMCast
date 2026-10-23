@@ -324,6 +324,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                     channel,
                     ffmpegPath,
                     ffprobePath,
+                    playoutItemWithPath.PlayoutItem.Id,
                     cancellationToken);
 
                 // override watermark as song_progress_overlay.png
@@ -641,9 +642,10 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
         switch (channel.MusicVideoCreditsMode)
         {
             case ChannelMusicVideoCreditsMode.GenerateSubtitles:
-                var fileWithExtension = $"{channel.MusicVideoCreditsTemplate}.sbntxt";
-                if (!string.IsNullOrWhiteSpace(fileWithExtension))
+                string templateName = channel.MusicVideoCreditsTemplate;
+                if (!string.IsNullOrWhiteSpace(templateName))
                 {
+                    var fileWithExtension = $"{templateName}.sbntxt";
                     subtitles.AddRange(
                         await _musicVideoCreditsGenerator.GenerateCreditsSubtitleFromTemplate(
                             musicVideo,
@@ -654,8 +656,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 else
                 {
                     _logger.LogWarning(
-                        "Music video credits template {Template} does not exist; falling back to built-in template",
-                        fileWithExtension);
+                        "Music video credits template name is missing; falling back to built-in template");
 
                     subtitles.AddRange(
                         await _musicVideoCreditsGenerator.GenerateCreditsSubtitle(musicVideo, channel.FFmpegProfile));

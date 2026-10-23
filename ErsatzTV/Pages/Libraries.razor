@@ -1,4 +1,5 @@
 @page "/media/libraries"
+@using System.Collections.Concurrent
 @using ErsatzTV.Application.Emby
 @using ErsatzTV.Application.Jellyfin
 @using ErsatzTV.Application.Libraries
@@ -16,6 +17,7 @@
 @inject ICourier Courier
 @inject IScannerProxyService ScannerProxyService
 @inject NavigationManager NavigationManager
+@inject IDialogService Dialog
 
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
@@ -98,7 +100,7 @@
                             @if (context.IsExternalCollection ? AreCollectionsLocked(context.Library.LibraryKind) : IsLibraryLocked(context.Library.Id))
                             {
                                 <div style="width: 48px">
-                                    @if (!context.IsExternalCollection && _progressByLibrary[context.Library.Id] > 0)
+                                    @if (!context.IsExternalCollection && _progressByLibrary.GetValueOrDefault(context.Library.Id) > 0)
                                     {
                                         <MudText Color="Color.Primary">
                                             @($"{_progressByLibrary[context.Library.Id]} %")
@@ -111,7 +113,7 @@
                             }
                             else
                             {
-                                if (context.Library is PlexLibraryViewModel or EmbyLibraryViewModel or JellyfinLibraryViewModel || context.IsExternalCollection)
+                                if (context.Library is LocalLibraryViewModel or PlexLibraryViewModel or EmbyLibraryViewModel or JellyfinLibraryViewModel || context.IsExternalCollection)
                                 {
                                     <MudTooltip Text="Deep Scan">
                                         <MudIconButton Icon="@Icons.Material.Filled.FindReplace"
@@ -157,7 +159,7 @@
     private record UnifiedLibrary(LibraryViewModel Library, bool IsExternalCollection);
 
     private IList<UnifiedLibrary> _allLibraries = new List<UnifiedLibrary>();
-    private Dictionary<int, int> _progressByLibrary = new();
+    private ConcurrentDictionary<int, int> _progressByLibrary = new();
     private bool _showServerNames;
 
     private string _filterLibraryKind;
@@ -220,6 +222,11 @@
 
     private async Task ScanLibrary(LibraryViewModel library, bool deepScan = false)
     {
+        if (deepScan && !await ConfirmDeepScan("Deep Scan Library", library.Name))
+        {
+            return;
+        }
+
         if (Locker.LockLibrary(library.Id))
         {
             var token = _cts?.Token ?? CancellationToken.None;
@@ -227,7 +234,7 @@
             switch (library)
             {
                 case LocalLibraryViewModel:
-                    await ScannerWorkerChannel.WriteAsync(new ForceScanLocalLibrary(library.Id), token);
+                    await ScannerWorkerChannel.WriteAsync(new ForceScanLocalLibrary(library.Id, deepScan), token);
                     break;
                 case PlexLibraryViewModel:
                     await ScannerWorkerChannel.WriteAsync(new SynchronizePlexLibraries(library.MediaSourceId), token);
@@ -250,6 +257,11 @@
 
     private async Task ScanExternalCollections(LibraryViewModel library, bool deepScan = false)
     {
+        if (deepScan && !await ConfirmDeepScan("Deep Scan Collections", $"{library.LibraryKind} collections"))
+        {
+            return;
+        }
+
         var token = _cts?.Token ?? CancellationToken.None;
         switch (library.LibraryKind.ToLowerInvariant())
         {
@@ -277,6 +289,15 @@
         }
     }
 
+    private async Task<bool> ConfirmDeepScan(string title, string name)
+    {
+        var parameters = new DialogParameters { { "Name", name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        IDialogReference dialog = await Dialog.ShowAsync<DeepScanDialog>(title, parameters, options);
+        DialogResult result = await dialog.Result;
+        return result is { Canceled: false };
+    }
+
     private void LockChanged(object sender, EventArgs e) =>
         InvokeAsync(StateHasChanged);
 
@@ -299,11 +320,14 @@
     {
         try
         {
-            if (_progressByLibrary != null && _progressByLibrary.ContainsKey(libraryScanProgress.LibraryId))
+            await InvokeAsync(() =>
             {
-                _progressByLibrary[libraryScanProgress.LibraryId] = (int)(libraryScanProgress.Progress * 100);
-                await InvokeAsync(StateHasChanged);
-            }
+                if (_progressByLibrary != null && _progressByLibrary.ContainsKey(libraryScanProgress.LibraryId))
+                {
+                    _progressByLibrary[libraryScanProgress.LibraryId] = (int)(libraryScanProgress.Progress * 100);
+                    StateHasChanged();
+                }
+            });
         }
         catch (Exception)
         {
