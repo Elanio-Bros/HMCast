@@ -45,6 +45,11 @@ public class PlayoutConfiguration : IEntityTypeConfiguration<Playout>
             .HasForeignKey(h => h.PlayoutId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(p => p.CalendarRules)
+            .WithOne(r => r.Playout)
+            .HasForeignKey(r => r.PlayoutId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne(p => p.BuildStatus)
             .WithOne(pbr => pbr.Playout)
             .HasForeignKey<PlayoutBuildStatus>(p => p.PlayoutId)

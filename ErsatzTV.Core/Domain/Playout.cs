@@ -12,6 +12,30 @@ public class Playout
     public string ScheduleFile { get; set; }
     public List<ProgramScheduleAlternate> ProgramScheduleAlternates { get; set; }
     public PlayoutScheduleKind ScheduleKind { get; set; }
+
+    // Fonte Universal Conectada
+    public ProgramScheduleSourceKind SourceKind { get; set; }
+    public int? SourceId { get; set; }
+
+    // Chave de ativação geral
+    public bool IsEnabled { get; set; } = true;
+
+    // Física do Tempo
+    public ChannelPlayoutMode PlayoutMode { get; set; }
+
+    // Modos de Entrega para Fontes Diretas
+    public PlayoutDeliveryMode DeliveryMode { get; set; } = PlayoutDeliveryMode.Loop;
+
+    // Horizonte de Construção da Grade
+    public int DaysToBuild { get; set; } = 2;
+
+    // Vínculo opcional de ScreenLayout específico para este Playout
+    public int? ScreenLayoutId { get; set; }
+
+    // Regras de Calendário e Vigência
+    public PlayoutCalendarMode CalendarMode { get; set; } = PlayoutCalendarMode.AlwaysActive;
+    public List<PlayoutCalendarRule> CalendarRules { get; set; } = new();
+
     public List<PlayoutItem> Items { get; set; }
     public List<PlayoutGap> Gaps { get; set; }
     public PlayoutAnchor Anchor { get; set; }
