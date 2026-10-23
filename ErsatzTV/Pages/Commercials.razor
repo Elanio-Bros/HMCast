@@ -145,17 +145,11 @@
 
     private async Task DeletePreset(FillerPresetViewModel preset)
     {
-        var parameters = new DialogParameters<ISnackbar>
-        {
-            { "ContentText", $"Tem certeza de que deseja excluir o preset comercial '{preset.Name}'?" },
-            { "ButtonText", "Excluir" },
-            { "Color", Color.Error }
-        };
-
+        var parameters = new DialogParameters { { "EntityType", "Preset Comercial" }, { "EntityName", preset.Name } };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
-        IDialogReference dialog = await Dialog.ShowAsync<MudDialog>("Excluir Comercial", parameters, options);
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Excluir Comercial", parameters, options);
         DialogResult result = await dialog.Result;
-        if (!result.Canceled)
+        if (result is { Canceled: false })
         {
             await Mediator.Send(new DeleteFillerPreset(preset.Id), _cts.Token);
             if (_table != null)

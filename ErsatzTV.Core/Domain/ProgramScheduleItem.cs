@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 
 namespace ErsatzTV.Core.Domain;
 
-public abstract class ProgramScheduleItem
+public class ProgramScheduleItem
 {
     public int Id { get; set; }
     public int Index { get; set; }

@@ -1,8 +1,10 @@
 @page "/media/playlists/{Id:int}"
+@using ErsatzTV.Application.Filler
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
 @using ErsatzTV.Application.Scheduling
 @using ErsatzTV.Application.Search
+@using ErsatzTV.Core.Domain.Filler
 @implements IDisposable
 @inject NavigationManager NavigationManager
 @inject ILogger<PlaylistEditor> Logger
@@ -69,8 +71,13 @@
         <MudTh/>
     </HeaderContent>
     <RowTemplate>
-        <MudTd Class="drag-handle" Style="cursor: grab;">
-            <MudTooltip Text="Alça de Reordenação Manual (Arraste ou use as setas)">
+        <MudTd Class="drag-handle"
+               draggable="true"
+               @ondragstart="@(() => _draggedItem = context)"
+               @ondragover:preventDefault
+               @ondrop="@(() => HandleDrop(context))"
+               Style="cursor: grab;">
+            <MudTooltip Text="Alça de Reordenação Manual (Arraste diretamente ou use as setas)">
                 <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Color="Color.Default" Size="Size.Small" />
             </MudTooltip>
         </MudTd>
@@ -318,6 +325,47 @@
         </div>
         <MudTextField @bind-Value="@_selectedItem.Count" For="@(() => _selectedItem.Count)"/>
     </MudStack>
+    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Comerciais &amp; Vinhetas Inline (HMCast 3.0)</MudText>
+    <MudDivider Class="mb-6"/>
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Pre-Roll Comercial</MudText>
+        </div>
+        <MudSelect T="FillerPresetViewModel"
+                   @bind-Value="_selectedItem.PreRollCommercial"
+                   Clearable="true">
+            @foreach (FillerPresetViewModel filler in _fillerPresets.Where(f => f.FillerKind == FillerKind.PreRoll))
+            {
+                <MudSelectItem Value="@filler">@filler.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudStack>
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Mid-Roll Comercial</MudText>
+        </div>
+        <MudSelect T="FillerPresetViewModel"
+                   @bind-Value="_selectedItem.MidRollCommercial"
+                   Clearable="true">
+            @foreach (FillerPresetViewModel filler in _fillerPresets.Where(f => f.FillerKind == FillerKind.MidRoll))
+            {
+                <MudSelectItem Value="@filler">@filler.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudStack>
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Post-Roll Comercial</MudText>
+        </div>
+        <MudSelect T="FillerPresetViewModel"
+                   @bind-Value="_selectedItem.PostRollCommercial"
+                   Clearable="true">
+            @foreach (FillerPresetViewModel filler in _fillerPresets.Where(f => f.FillerKind == FillerKind.PostRoll))
+            {
+                <MudSelectItem Value="@filler">@filler.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudStack>
 }
 else if (!string.IsNullOrWhiteSpace(_previewMessage))
 {
@@ -361,6 +409,8 @@ else if (_previewItems is not null)
 
     private PlaylistItemsEditViewModel _playlist = new() { Items = [] };
     private PlaylistItemEditViewModel _selectedItem;
+    private PlaylistItemEditViewModel _draggedItem;
+    private List<FillerPresetViewModel> _fillerPresets = [];
     private string _previewMessage;
     private List<PlayoutItemPreviewViewModel> _previewItems;
 
@@ -405,6 +455,8 @@ else if (_previewItems is not null)
                     _selectedItem = _playlist.Items.Head();
                 }
             }
+
+            _fillerPresets = await Mediator.Send(new GetAllFillerPresets(), token);
         }
         catch (OperationCanceledException)
         {
@@ -554,6 +606,36 @@ else if (_previewItems is not null)
         // swap with higher index
         PlaylistItemEditViewModel toSwap = _playlist.Items.OrderBy(x => x.Index).First(x => x.Index > item.Index);
         (toSwap.Index, item.Index) = (item.Index, toSwap.Index);
+    }
+
+    private void HandleDrop(PlaylistItemEditViewModel target)
+    {
+        if (_draggedItem is null || _draggedItem == target)
+        {
+            return;
+        }
+
+        int oldIndex = _draggedItem.Index;
+        int newIndex = target.Index;
+
+        if (oldIndex < newIndex)
+        {
+            foreach (var item in _playlist.Items.Where(i => i.Index > oldIndex && i.Index <= newIndex))
+            {
+                item.Index--;
+            }
+        }
+        else
+        {
+            foreach (var item in _playlist.Items.Where(i => i.Index >= newIndex && i.Index < oldIndex))
+            {
+                item.Index++;
+            }
+        }
+
+        _draggedItem.Index = newIndex;
+        _draggedItem = null;
+        StateHasChanged();
     }
 
     private async Task SaveChanges()

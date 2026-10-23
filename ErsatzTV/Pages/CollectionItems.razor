@@ -188,9 +188,14 @@
                         @if (_data?.UseCustomPlaybackOrder == true)
                         {
                             <MudTd DataLabel="Order" Style="text-align: center;">
-                                <div class="d-inline-flex align-center gap-1">
-                                    <MudTooltip Text="Alça de Reordenação Manual (::: Drag Handle)">
-                                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Style="cursor: grab;" Size="Size.Small" Color="Color.Default" Class="mr-1" />
+                                <div class="d-inline-flex align-center gap-1"
+                                     draggable="true"
+                                     @ondragstart="@(() => _draggedCard = context)"
+                                     @ondragover:preventDefault
+                                     @ondrop="@(() => HandleCardDrop(context))"
+                                     style="cursor: grab;">
+                                    <MudTooltip Text="Alça de Reordenação Manual (Arraste diretamente ou use as setas)">
+                                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" Color="Color.Default" Class="mr-1" />
                                     </MudTooltip>
                                     @if (context is MovieCardViewModel movie)
                                     {
@@ -206,7 +211,15 @@
                                     }
                                     else
                                     {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Auto</MudText>
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold mr-1">#@(_allItems.IndexOf(context) + 1)</MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward"
+                                                       Size="Size.Small"
+                                                       Disabled="@(_allItems.IndexOf(context) <= 0 || _savingOrder)"
+                                                       OnClick="@(() => MoveItemUpGeneric(context))" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward"
+                                                       Size="Size.Small"
+                                                       Disabled="@(_allItems.IndexOf(context) >= _allItems.Count - 1 || _savingOrder)"
+                                                       OnClick="@(() => MoveItemDownGeneric(context))" />
                                     }
                                 </div>
                             </MudTd>
@@ -281,6 +294,7 @@
     private List<MediaCardViewModel> _allItems = new();
     private List<MovieCardViewModel> _orderedMovies = new();
     private System.Collections.Generic.HashSet<MediaCardViewModel> _selectedItems = new();
+    private MediaCardViewModel _draggedCard;
 
     private bool _isLoading = true;
     private bool _savingOrder;
@@ -421,6 +435,61 @@
             _orderedMovies.Insert(index + 1, movie);
             await SaveMovieOrderInternal();
         }
+    }
+
+    private void MoveItemUpGeneric(MediaCardViewModel item)
+    {
+        int index = _allItems.IndexOf(item);
+        if (index > 0)
+        {
+            _allItems.RemoveAt(index);
+            _allItems.Insert(index - 1, item);
+            StateHasChanged();
+        }
+    }
+
+    private void MoveItemDownGeneric(MediaCardViewModel item)
+    {
+        int index = _allItems.IndexOf(item);
+        if (index < _allItems.Count - 1)
+        {
+            _allItems.RemoveAt(index);
+            _allItems.Insert(index + 1, item);
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleCardDrop(MediaCardViewModel target)
+    {
+        if (_draggedCard is null || _draggedCard == target)
+        {
+            return;
+        }
+
+        if (_draggedCard is MovieCardViewModel draggedMovie && target is MovieCardViewModel targetMovie)
+        {
+            int oldIndex = _orderedMovies.IndexOf(draggedMovie);
+            int newIndex = _orderedMovies.IndexOf(targetMovie);
+            if (oldIndex >= 0 && newIndex >= 0)
+            {
+                _orderedMovies.RemoveAt(oldIndex);
+                _orderedMovies.Insert(newIndex, draggedMovie);
+                await SaveMovieOrderInternal();
+            }
+        }
+        else
+        {
+            int oldIndex = _allItems.IndexOf(_draggedCard);
+            int newIndex = _allItems.IndexOf(target);
+            if (oldIndex >= 0 && newIndex >= 0)
+            {
+                _allItems.RemoveAt(oldIndex);
+                _allItems.Insert(newIndex, _draggedCard);
+                StateHasChanged();
+            }
+        }
+
+        _draggedCard = null;
     }
 
     private async Task SaveMovieOrderInternal()

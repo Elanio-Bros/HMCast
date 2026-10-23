@@ -131,6 +131,10 @@ public class PlaylistItemEditViewModel : INotifyPropertyChanged
 
     public bool IncludeInProgramGuide { get; set; }
 
+    public ErsatzTV.Application.Filler.FillerPresetViewModel PreRollCommercial { get; set; }
+    public ErsatzTV.Application.Filler.FillerPresetViewModel MidRollCommercial { get; set; }
+    public ErsatzTV.Application.Filler.FillerPresetViewModel PostRollCommercial { get; set; }
+
     public event PropertyChangedEventHandler PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) =>

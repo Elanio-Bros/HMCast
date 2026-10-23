@@ -742,7 +742,24 @@ public class SequentialPlayoutBuilder(
                 sortedItems = sortedItems.Take(playlistItem.Count.Value).ToList();
             }
 
-            mediaQueue.AddRange(sortedItems);
+            // Suporte a Comerciais Inline do HMCast 3.0 (PlaylistItemCommercial)
+            if (playlistItem.Commercials != null && playlistItem.Commercials.Count > 0)
+            {
+                var preroll = playlistItem.Commercials
+                    .Where((PlaylistItemCommercial c) => c.Placement == CommercialBreakPlacement.BeforeItem && c.CommercialPreset?.MediaItem != null)
+                    .Select((PlaylistItemCommercial c) => c.CommercialPreset.MediaItem);
+                var postroll = playlistItem.Commercials
+                    .Where((PlaylistItemCommercial c) => c.Placement == CommercialBreakPlacement.AfterItem && c.CommercialPreset?.MediaItem != null)
+                    .Select((PlaylistItemCommercial c) => c.CommercialPreset.MediaItem);
+
+                mediaQueue.AddRange(preroll);
+                mediaQueue.AddRange(sortedItems);
+                mediaQueue.AddRange(postroll);
+            }
+            else
+            {
+                mediaQueue.AddRange(sortedItems);
+            }
         }
 
         if (mediaQueue.Count == 0)

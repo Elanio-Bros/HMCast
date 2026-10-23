@@ -35,6 +35,8 @@ public class MediaCollectionRepository : IMediaCollectionRepository
         Option<Playlist> maybePlaylist = await dbContext.Playlists
             .AsNoTracking()
             .Include(p => p.Items)
+                .ThenInclude(i => i.Commercials)
+                    .ThenInclude(c => c.CommercialPreset)
             .SelectOneAsync(p => p.Id, p => p.Id == playlistId, cancellationToken);
 
         foreach (PlaylistItem playlistItem in maybePlaylist.SelectMany(p => p.Items))

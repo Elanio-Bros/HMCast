@@ -70,7 +70,80 @@
 <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
 <MudText Typo="Typo.h5" Class="mb-2">Schedule Items</MudText>
-<MudDivider Class="mb-6"/>
+<MudDivider Class="mb-4"/>
+
+<!-- Timeline Contínua de 24 Horas HMCast 3.0 -->
+<MudPaper Class="pa-4 mb-6" Elevation="2" Style="background: rgba(30, 34, 45, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;">
+    <div class="d-flex align-center justify-space-between mb-2">
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.ViewTimeline" Color="Color.Primary" Size="Size.Small" />
+            <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Linha do Tempo Contínua de 24 Horas (Daily Grid Timeline)</MudText>
+        </div>
+        <div class="d-flex gap-3">
+            <div class="d-flex align-center gap-1">
+                <div style="width: 12px; height: 12px; border-radius: 2px; background: #1976d2;"></div>
+                <MudText Typo="Typo.caption">Bloco Fixo 24h</MudText>
+            </div>
+            <div class="d-flex align-center gap-1">
+                <div style="width: 12px; height: 12px; border-radius: 2px; background: #7b1fa2;"></div>
+                <MudText Typo="Typo.caption">Conteúdo Fluido</MudText>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra da Régua 24h -->
+    <div style="position: relative; width: 100%; height: 38px; background: rgba(0, 0, 0, 0.3); border-radius: 6px; overflow: hidden; display: flex; align-items: stretch; border: 1px solid rgba(255, 255, 255, 0.05);">
+        @if (_schedule?.Items is not null && _schedule.Items.Any())
+        {
+            var orderedTimelineItems = _schedule.Items.OrderBy(i => i.Index).ToList();
+            double totalWeight = orderedTimelineItems.Sum(i => i.DurationMode == ScheduleItemDurationMode.FixedTimeBlock && i.TargetDuration.HasValue ? i.TargetDuration.Value.TotalMinutes : (i.TargetDuration?.TotalMinutes > 0 ? i.TargetDuration.Value.TotalMinutes : 30.0));
+            if (totalWeight <= 0) { totalWeight = 1; }
+
+            @foreach (var item in orderedTimelineItems)
+            {
+                double durationMinutes = item.DurationMode == ScheduleItemDurationMode.FixedTimeBlock && item.TargetDuration.HasValue
+                    ? item.TargetDuration.Value.TotalMinutes
+                    : (item.TargetDuration?.TotalMinutes > 0 ? item.TargetDuration.Value.TotalMinutes : 30.0);
+                double pct = (durationMinutes / totalWeight) * 100.0;
+                string blockColor = item == _selectedItem ? "#ff9800" : (item.DurationMode == ScheduleItemDurationMode.FixedTimeBlock ? "#1976d2" : "#7b1fa2");
+                string startLabel = item.StartType == StartType.Fixed && item.StartTime.HasValue ? DateTime.Today.Add(item.StartTime.Value).ToString("HH:mm") : "Dinâmico";
+                string durLabel = TimeSpan.FromMinutes(durationMinutes).ToString(@"hh\:mm");
+                string tooltipText = $"{item.CollectionName} ({startLabel} • {durLabel} • {item.PlayoutMode})";
+
+                <MudTooltip Text="@tooltipText">
+                    <div @onclick="@(() => SelectedItemChanged(item))"
+                         style="flex: 0 0 @(pct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%; height: 100%; background: @blockColor; border-right: 1px solid rgba(0,0,0,0.4); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter 0.2s;"
+                         onmouseover="this.style.filter='brightness(1.2)'"
+                         onmouseout="this.style.filter='none'">
+                        <span style="font-size: 11px; font-weight: bold; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
+                            @item.CollectionName
+                        </span>
+                    </div>
+                </MudTooltip>
+            }
+        }
+        else
+        {
+            <div class="d-flex align-center justify-center" style="width: 100%; color: rgba(255,255,255,0.4); font-size: 12px;">
+                Nenhum item na grade ainda.
+            </div>
+        }
+    </div>
+
+    <!-- Marcadores de Hora da Régua 24h -->
+    <div class="d-flex justify-space-between mt-1 px-1" style="color: rgba(255, 255, 255, 0.4); font-size: 11px; font-family: monospace;">
+        <span>00:00</span>
+        <span>03:00</span>
+        <span>06:00</span>
+        <span>09:00</span>
+        <span>12:00</span>
+        <span>15:00</span>
+        <span>18:00</span>
+        <span>21:00</span>
+        <span>24:00</span>
+    </div>
+</MudPaper>
+
 <MudTable T="ProgramScheduleItemEditViewModel"
           Hover="true"
           Items="_schedule?.Items?.OrderBy(i => i.Index)"
