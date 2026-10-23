@@ -1,4 +1,4 @@
-﻿using Destructurama.Attributed;
+using Destructurama.Attributed;
 
 namespace ErsatzTV.Core.Domain;
 
@@ -23,8 +23,6 @@ public class PlayoutProgramScheduleAnchor
     public MultiCollection MultiCollection { get; set; }
     public int? SmartCollectionId { get; set; }
     public SmartCollection SmartCollection { get; set; }
-    public int? RerunCollectionId { get; set; }
-    public RerunCollection RerunCollection { get; set; }
     public int? MediaItemId { get; set; }
     public MediaItem MediaItem { get; set; }
     public int? PlaylistId { get; set; }

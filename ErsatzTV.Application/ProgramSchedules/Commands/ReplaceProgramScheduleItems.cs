@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core;
+using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Scheduling;
 
@@ -14,7 +14,6 @@ public record ReplaceProgramScheduleItem(
     int? CollectionId,
     int? MultiCollectionId,
     int? SmartCollectionId,
-    int? RerunCollectionId,
     int? MediaItemId,
     int? PlaylistId,
     string SearchTitle,

@@ -199,7 +199,6 @@ public class MultiDayBuildTests : PlayoutBuilderTestBase
         IArtistRepository artistRepo = Substitute.For<IArtistRepository>();
         IMultiEpisodeShuffleCollectionEnumeratorFactory factory =
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>();
-        IRerunHelper rerunHelper = Substitute.For<IRerunHelper>();
 
         var builder = new PlayoutBuilder(
             configRepo,
@@ -208,7 +207,6 @@ public class MultiDayBuildTests : PlayoutBuilderTestBase
             artistRepo,
             factory,
             new MockFileSystem(),
-            rerunHelper,
             Logger);
 
         var items = Enumerable.Range(1, scheduleItemCount)

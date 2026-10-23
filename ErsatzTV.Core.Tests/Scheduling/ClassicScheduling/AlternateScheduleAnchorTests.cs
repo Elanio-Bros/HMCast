@@ -130,7 +130,6 @@ public class AlternateScheduleAnchorTests : PlayoutBuilderTestBase
             Substitute.For<IArtistRepository>(),
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>(),
             new MockFileSystem(),
-            Substitute.For<IRerunHelper>(),
             Logger);
 
         var primarySchedule = new ProgramSchedule

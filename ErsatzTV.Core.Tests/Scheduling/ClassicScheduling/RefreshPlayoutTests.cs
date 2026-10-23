@@ -101,7 +101,6 @@ public class RefreshPlayoutTests : PlayoutBuilderTestBase
         IArtistRepository artistRepo = Substitute.For<IArtistRepository>();
         IMultiEpisodeShuffleCollectionEnumeratorFactory factory =
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>();
-        IRerunHelper rerunHelper = Substitute.For<IRerunHelper>();
         var builder = new PlayoutBuilder(
             configRepo,
             fakeRepository,
@@ -109,7 +108,6 @@ public class RefreshPlayoutTests : PlayoutBuilderTestBase
             artistRepo,
             factory,
             new MockFileSystem(),
-            rerunHelper,
             Logger);
 
         DateTimeOffset start = HoursAfterMidnight(24);

@@ -124,7 +124,6 @@ public class ScheduleIntegrationTests
             new ArtistRepository(factory),
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>(),
             new MockFileSystem(),
-            Substitute.For<IRerunHelper>(),
             provider.GetRequiredService<ILogger<PlayoutBuilder>>());
 
         {
@@ -320,7 +319,6 @@ public class ScheduleIntegrationTests
             new ArtistRepository(factory),
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>(),
             new MockFileSystem(),
-            Substitute.For<IRerunHelper>(),
             provider.GetRequiredService<ILogger<PlayoutBuilder>>());
 
         for (var i = 0; i <= 24 * 4; i++)

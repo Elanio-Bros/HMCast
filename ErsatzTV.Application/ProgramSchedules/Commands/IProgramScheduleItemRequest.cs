@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Scheduling;
 
 namespace ErsatzTV.Application.ProgramSchedules;
@@ -11,7 +11,6 @@ public interface IProgramScheduleItemRequest
     int? CollectionId { get; }
     int? MultiCollectionId { get; }
     int? SmartCollectionId { get; }
-    int? RerunCollectionId { get; }
     int? MediaItemId { get; }
     int? PlaylistId { get; }
     string SearchTitle { get; }

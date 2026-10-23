@@ -105,7 +105,6 @@ public class PlaylistAnchorRefreshTests : PlayoutBuilderTestBase
             Substitute.For<IArtistRepository>(),
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>(),
             new MockFileSystem(),
-            Substitute.For<IRerunHelper>(),
             Logger);
 
         var schedule = new ProgramSchedule

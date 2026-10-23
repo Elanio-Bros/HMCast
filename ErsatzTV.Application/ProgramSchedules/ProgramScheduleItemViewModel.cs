@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Application.Filler;
+using ErsatzTV.Application.Filler;
 using ErsatzTV.Application.Graphics;
 using ErsatzTV.Application.MediaCollections;
 using ErsatzTV.Application.MediaItems;
@@ -19,7 +19,6 @@ public abstract record ProgramScheduleItemViewModel(
     MediaCollectionViewModel Collection,
     MultiCollectionViewModel MultiCollection,
     SmartCollectionViewModel SmartCollection,
-    RerunCollectionViewModel RerunCollection,
     PlaylistViewModel Playlist,
     NamedMediaItemViewModel MediaItem,
     string SearchTitle,
@@ -61,8 +60,6 @@ public abstract record ProgramScheduleItemViewModel(
             string.IsNullOrWhiteSpace(SearchTitle) ? SearchQuery : SearchTitle,
         CollectionType.Playlist =>
             Playlist?.Name,
-        CollectionType.RerunFirstRun or CollectionType.RerunRerun =>
-            RerunCollection?.Name,
         _ => string.Empty
     };
 }

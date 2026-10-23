@@ -1,4 +1,4 @@
-﻿namespace ErsatzTV.Core.Domain;
+namespace ErsatzTV.Core.Domain;
 
 public enum CollectionType
 {
@@ -9,8 +9,6 @@ public enum CollectionType
     MultiCollection = 4,
     SmartCollection = 5,
     Playlist = 6,
-    RerunFirstRun = 7,
-    RerunRerun = 8,
     SearchQuery = 9,
 
     Movie = 10,

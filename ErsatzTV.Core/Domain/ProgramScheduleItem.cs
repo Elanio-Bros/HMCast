@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain.Filler;
+using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.Scheduling;
 using Newtonsoft.Json;
 
@@ -29,8 +29,6 @@ public abstract class ProgramScheduleItem
     public SmartCollection SmartCollection { get; set; }
     public string SearchTitle { get; set; }
     public string SearchQuery { get; set; }
-    public int? RerunCollectionId { get; set; }
-    public RerunCollection RerunCollection { get; set; }
     public int? PlaylistId { get; set; }
     public Playlist Playlist { get; set; }
     public string FakeCollectionKey { get; set; }

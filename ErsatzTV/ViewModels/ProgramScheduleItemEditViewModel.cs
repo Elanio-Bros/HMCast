@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ErsatzTV.Annotations;
 using ErsatzTV.Application.Filler;
@@ -64,7 +64,6 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
                 SmartCollection = null;
                 SearchTitle = null;
                 SearchQuery = null;
-                RerunCollection = null;
 
                 if (_collectionType != CollectionType.Playlist &&
                     MultipleMode is MultipleMode.PlaylistItemSize)
@@ -72,9 +71,7 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
                     MultipleMode = MultipleMode.Count;
                 }
 
-                if (_collectionType is CollectionType.Playlist
-                    or CollectionType.RerunFirstRun
-                    or CollectionType.RerunRerun)
+                if (_collectionType is CollectionType.Playlist)
                 {
                     PlaybackOrder = PlaybackOrder.None;
                 }
@@ -85,7 +82,6 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(SmartCollection));
                 OnPropertyChanged(nameof(SearchTitle));
                 OnPropertyChanged(nameof(SearchQuery));
-                OnPropertyChanged(nameof(RerunCollection));
                 OnPropertyChanged(nameof(MultiCollection));
                 OnPropertyChanged(nameof(PlaybackOrder));
             }
@@ -100,7 +96,6 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
     public MediaCollectionViewModel Collection { get; set; }
     public MultiCollectionViewModel MultiCollection { get; set; }
     public SmartCollectionViewModel SmartCollection { get; set; }
-    public RerunCollectionViewModel RerunCollection { get; set; }
     public NamedMediaItemViewModel MediaItem { get; set; }
     public PlaylistViewModel Playlist { get; set; }
     public string SearchTitle { get; set; }
@@ -126,7 +121,6 @@ public class ProgramScheduleItemEditViewModel : INotifyPropertyChanged
         CollectionType.MultiCollection => MultiCollection?.Name,
         CollectionType.SmartCollection => SmartCollection?.Name,
         CollectionType.Playlist => Playlist?.Name,
-        CollectionType.RerunFirstRun or CollectionType.RerunRerun => RerunCollection?.Name,
         CollectionType.SearchQuery => string.IsNullOrWhiteSpace(SearchTitle) ? SearchQuery : SearchTitle,
         _ => string.Empty
     };

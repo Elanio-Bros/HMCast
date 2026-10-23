@@ -45,10 +45,6 @@ public class ErasePlayoutHistoryHandler(IDbContextFactory<TvContext> dbContextFa
                 .Where(a => a.PlayoutId == playout.Id)
                 .ExecuteDeleteAsync(cancellationToken);
 
-            await dbContext.RerunHistory
-                .Where(rh => rh.PlayoutId == playout.Id)
-                .ExecuteDeleteAsync(cancellationToken);
-
             await dbContext.PlayoutGaps
                 .Where(pg => pg.PlayoutId == playout.Id)
                 .ExecuteDeleteAsync(cancellationToken);

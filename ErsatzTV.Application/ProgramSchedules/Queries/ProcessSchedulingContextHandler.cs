@@ -66,7 +66,6 @@ public class ProcessSchedulingContextHandler(IDbContextFactory<TvContext> dbCont
             .Include(si => si.Collection)
             .Include(si => si.MultiCollection)
             .Include(si => si.Playlist)
-            .Include(si => si.RerunCollection)
             .Include(si => si.SmartCollection)
             .SingleOrDefaultAsync(si => si.Id == classicContext.ItemId, cancellationToken);
 
@@ -114,7 +113,6 @@ public class ProcessSchedulingContextHandler(IDbContextFactory<TvContext> dbCont
                 CollectionType.Collection => scheduleItem.Collection.Name,
                 CollectionType.MultiCollection => scheduleItem.MultiCollection.Name,
                 CollectionType.Playlist => scheduleItem.Playlist.Name,
-                CollectionType.RerunRerun or CollectionType.RerunFirstRun => scheduleItem.RerunCollection.Name,
                 CollectionType.SmartCollection => scheduleItem.SmartCollection.Name,
                 _ => null
             };

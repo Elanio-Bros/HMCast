@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.Repositories;
 
@@ -40,12 +40,6 @@ public static class MediaItemsForCollection
                 result.AddRange(
                     await mediaCollectionRepository.GetSmartCollectionItems(
                         collectionKey.SmartCollectionId ?? 0,
-                        cancellationToken));
-                break;
-            case CollectionType.RerunFirstRun or CollectionType.RerunRerun:
-                result.AddRange(
-                    await mediaCollectionRepository.GetRerunCollectionItems(
-                        collectionKey.RerunCollectionId ?? 0,
                         cancellationToken));
                 break;
             case CollectionType.Playlist:

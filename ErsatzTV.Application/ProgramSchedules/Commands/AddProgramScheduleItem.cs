@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core;
+using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Scheduling;
 
@@ -14,7 +14,6 @@ public record AddProgramScheduleItem(
     int? CollectionId,
     int? MultiCollectionId,
     int? SmartCollectionId,
-    int? RerunCollectionId,
     int? MediaItemId,
     int? PlaylistId,
     string SearchTitle,
@@ -56,7 +55,6 @@ public record AddProgramScheduleItem(
             CollectionId: null,
             MultiCollectionId: null,
             SmartCollectionId: null,
-            RerunCollectionId: null,
             MediaItemId: mediaItemId,
             PlaylistId: null,
             SearchTitle: null,

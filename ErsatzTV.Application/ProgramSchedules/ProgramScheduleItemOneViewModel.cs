@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Application.Filler;
+using ErsatzTV.Application.Filler;
 using ErsatzTV.Application.Graphics;
 using ErsatzTV.Application.MediaCollections;
 using ErsatzTV.Application.MediaItems;
@@ -20,7 +20,6 @@ public record ProgramScheduleItemOneViewModel : ProgramScheduleItemViewModel
         MediaCollectionViewModel collection,
         MultiCollectionViewModel multiCollection,
         SmartCollectionViewModel smartCollection,
-        RerunCollectionViewModel rerunCollection,
         PlaylistViewModel playlist,
         NamedMediaItemViewModel mediaItem,
         string searchTitle,
@@ -54,7 +53,6 @@ public record ProgramScheduleItemOneViewModel : ProgramScheduleItemViewModel
         collection,
         multiCollection,
         smartCollection,
-        rerunCollection,
         playlist,
         mediaItem,
         searchTitle,

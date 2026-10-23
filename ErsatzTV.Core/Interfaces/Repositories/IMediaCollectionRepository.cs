@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Scheduling;
 
 namespace ErsatzTV.Core.Interfaces.Repositories;
@@ -29,7 +29,6 @@ public interface IMediaCollectionRepository
         string query,
         string smartCollectionName,
         CancellationToken cancellationToken);
-    Task<List<MediaItem>> GetRerunCollectionItems(int id, CancellationToken cancellationToken);
     Task<List<MediaItem>> GetShowItemsByShowGuids(List<string> guids);
     Task<List<MediaItem>> GetPlaylistItems(int id, CancellationToken cancellationToken);
     Task<List<Movie>> GetMovie(int id);
@@ -49,7 +48,6 @@ public interface IMediaCollectionRepository
     Task<List<int>> PlayoutIdsUsingCollection(int collectionId);
     Task<List<int>> PlayoutIdsUsingMultiCollection(int multiCollectionId);
     Task<List<int>> PlayoutIdsUsingSmartCollection(int smartCollectionId);
-    Task<List<int>> PlayoutIdsUsingRerunCollection(int rerunCollectionId);
     Task<bool> IsCustomPlaybackOrder(int collectionId);
     Task<Option<string>> GetNameFromKey(CollectionKey emptyCollection, CancellationToken cancellationToken);
     List<CollectionWithItems> GroupIntoFakeCollections(List<MediaItem> items, string fakeKey = null);

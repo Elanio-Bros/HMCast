@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using Dapper;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.Repositories;
@@ -527,138 +527,6 @@ public class MediaCollectionRepository : IMediaCollectionRepository
         return result.DistinctBy(x => x.Id).ToList();
     }
 
-    public async Task<List<MediaItem>> GetRerunCollectionItems(int id, CancellationToken cancellationToken)
-    {
-        await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        Option<RerunCollection> maybeCollection = await dbContext.RerunCollections
-            .AsNoTracking()
-            .SelectOneAsync(rc => rc.Id, rc => rc.Id == id, cancellationToken);
-
-        var result = new List<MediaItem>();
-
-        foreach (RerunCollection rerunCollection in maybeCollection)
-        {
-            switch (rerunCollection.CollectionType)
-            {
-                case CollectionType.Collection:
-                    foreach (int collectionId in Optional(rerunCollection.CollectionId))
-                    {
-                        result.AddRange(await GetMovieItems(dbContext, collectionId));
-                        result.AddRange(await GetShowItems(dbContext, collectionId));
-                        result.AddRange(await GetSeasonItems(dbContext, collectionId));
-                        result.AddRange(await GetEpisodeItems(dbContext, collectionId));
-                        result.AddRange(await GetArtistItems(dbContext, collectionId));
-                        result.AddRange(await GetMusicVideoItems(dbContext, collectionId));
-                        result.AddRange(await GetOtherVideoItems(dbContext, collectionId));
-                        result.AddRange(await GetSongItems(dbContext, collectionId));
-                        result.AddRange(await GetImageItems(dbContext, collectionId));
-                        result.AddRange(await GetRemoteStreamItems(dbContext, collectionId));
-                    }
-
-                    break;
-
-                case CollectionType.TelevisionShow:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetShowItemsFromShowId(dbContext, mediaItemId));
-                    }
-
-                    break;
-
-                case CollectionType.TelevisionSeason:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetSeasonItemsFromSeasonId(dbContext, mediaItemId));
-                    }
-
-                    break;
-
-                case CollectionType.Artist:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetArtistItemsFromArtistId(dbContext, mediaItemId));
-                    }
-
-                    break;
-
-                case CollectionType.MultiCollection:
-                    foreach (int multiCollectionId in Optional(rerunCollection.MultiCollectionId))
-                    {
-                        result.AddRange(await GetMultiCollectionItems(multiCollectionId, cancellationToken));
-                    }
-
-                    break;
-
-                case CollectionType.SmartCollection:
-                    foreach (int smartCollectionId in Optional(rerunCollection.SmartCollectionId))
-                    {
-                        result.AddRange(await GetSmartCollectionItems(smartCollectionId, cancellationToken));
-                    }
-
-                    break;
-
-                case CollectionType.Movie:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetMovieItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-
-                case CollectionType.Episode:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetEpisodeItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-
-                case CollectionType.MusicVideo:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetMusicVideoItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-
-                case CollectionType.OtherVideo:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetOtherVideoItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-
-                case CollectionType.Song:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetSongItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-
-                case CollectionType.Image:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetImageItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-
-                case CollectionType.RemoteStream:
-                    foreach (int mediaItemId in Optional(rerunCollection.MediaItemId))
-                    {
-                        result.AddRange(await GetRemoteStreamItems(dbContext, [mediaItemId]));
-                    }
-
-                    break;
-            }
-        }
-
-        return result.DistinctBy(x => x.Id).ToList();
-    }
-
     public async Task<List<MediaItem>> GetShowItemsByShowGuids(List<string> guids)
     {
         await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync();
@@ -1013,17 +881,6 @@ public class MediaCollectionRepository : IMediaCollectionRepository
                     FROM PlayoutProgramScheduleAnchor p
                     WHERE p.SmartCollectionId = @SmartCollectionId",
                 new { SmartCollectionId = smartCollectionId })
-            .Map(result => result.ToList());
-    }
-
-    public async Task<List<int>> PlayoutIdsUsingRerunCollection(int rerunCollectionId)
-    {
-        await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync();
-        return await dbContext.Connection.QueryAsync<int>(
-                @"SELECT DISTINCT p.PlayoutId
-                    FROM PlayoutProgramScheduleAnchor p
-                    WHERE p.RerunCollectionId = @RerunCollectionId",
-                new { RerunCollectionId = rerunCollectionId })
             .Map(result => result.ToList());
     }
 

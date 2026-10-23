@@ -87,9 +87,7 @@
     <data name="ButtonListsMultiCollections" xml:space="preserve">
         <value>Multi Collections</value>
     </data>
-    <data name="ButtonListsRerunCollections" xml:space="preserve">
-        <value>Rerun Collections</value>
-    </data>
+
     <data name="ButtonListsPlaylists" xml:space="preserve">
         <value>Playlists</value>
     </data>

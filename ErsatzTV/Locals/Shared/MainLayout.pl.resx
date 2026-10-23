@@ -80,9 +80,7 @@
     <data name="ButtonListsMultiCollections" xml:space="preserve">
         <value>Multikolekcje</value>
     </data>
-    <data name="ButtonListsRerunCollections" xml:space="preserve">
-        <value>Kolekcje powtórek</value>
-    </data>
+
     <data name="ButtonListsPlaylists" xml:space="preserve">
         <value>Playlisty</value>
     </data>

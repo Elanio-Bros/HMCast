@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Core.Domain.Scheduling;
 
@@ -10,7 +10,6 @@ public class CollectionKey : Record<CollectionKey>
     public int? CollectionId { get; set; }
     public int? MultiCollectionId { get; set; }
     public int? SmartCollectionId { get; set; }
-    public int? RerunCollectionId { get; set; }
     public int? MediaItemId { get; set; }
     public int? PlaylistId { get; set; }
     public string SearchQuery { get; set; }
@@ -25,7 +24,6 @@ public class CollectionKey : Record<CollectionKey>
             CollectionId = anchor.CollectionId,
             MultiCollectionId = anchor.MultiCollectionId,
             SmartCollectionId = anchor.SmartCollectionId,
-            RerunCollectionId = anchor.RerunCollectionId,
             MediaItemId = anchor.MediaItemId,
             PlaylistId = anchor.PlaylistId,
             SearchQuery = anchor.SearchQuery,
@@ -364,18 +362,6 @@ public class CollectionKey : Record<CollectionKey>
             {
                 CollectionType = item.CollectionType,
                 SmartCollectionId = item.SmartCollectionId,
-                FakeCollectionKey = item.FakeCollectionKey
-            },
-            CollectionType.RerunFirstRun => new CollectionKey
-            {
-                CollectionType = item.CollectionType,
-                RerunCollectionId = item.RerunCollectionId,
-                FakeCollectionKey = item.FakeCollectionKey
-            },
-            CollectionType.RerunRerun => new CollectionKey
-            {
-                CollectionType = item.CollectionType,
-                RerunCollectionId = item.RerunCollectionId,
                 FakeCollectionKey = item.FakeCollectionKey
             },
             CollectionType.Playlist => new CollectionKey

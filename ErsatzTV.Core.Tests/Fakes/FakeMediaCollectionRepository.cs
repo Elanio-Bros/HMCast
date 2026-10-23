@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Scheduling;
 
@@ -48,8 +48,6 @@ public class FakeMediaCollectionRepository : IMediaCollectionRepository
         string smartCollectionName,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException();
-
-    public Task<List<MediaItem>> GetRerunCollectionItems(int id, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task<List<MediaItem>> GetShowItemsByShowGuids(List<string> guids) => throw new NotSupportedException();
     public Task<List<MediaItem>> GetPlaylistItems(int id, CancellationToken cancellationToken) =>
         _playlists[id].Values.SelectMany(items => items).DistinctBy(mi => mi.Id).ToList().AsTask();
@@ -77,10 +75,6 @@ public class FakeMediaCollectionRepository : IMediaCollectionRepository
 
     public Task<List<int>> PlayoutIdsUsingSmartCollection(int smartCollectionId) =>
         throw new NotSupportedException();
-
-    public Task<List<int>> PlayoutIdsUsingRerunCollection(int rerunCollectionId) =>
-        throw new NotSupportedException();
-
     public Task<bool> IsCustomPlaybackOrder(int collectionId) => false.AsTask();
     public Task<Option<string>> GetNameFromKey(CollectionKey emptyCollection, CancellationToken cancellationToken) => Option<string>.None.AsTask();
 

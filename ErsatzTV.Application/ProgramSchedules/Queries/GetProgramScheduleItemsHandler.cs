@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using ErsatzTV.Infrastructure.Data;
 using ErsatzTV.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +23,6 @@ public class GetProgramScheduleItemsHandler(IDbContextFactory<TvContext> dbConte
             .Include(i => i.Collection)
             .Include(i => i.MultiCollection)
             .Include(i => i.SmartCollection)
-            .Include(i => i.RerunCollection)
             .Include(i => i.Playlist)
             .Include(i => i.MediaItem)
             .ThenInclude(i => (i as Movie).MovieMetadata)
@@ -76,8 +75,7 @@ public class GetProgramScheduleItemsHandler(IDbContextFactory<TvContext> dbConte
                 item = item with { FillWithGroupMode = FillWithGroupMode.None };
             }
 
-            if (item.CollectionType is CollectionType.Playlist or CollectionType.RerunFirstRun
-                or CollectionType.RerunRerun)
+            if (item.CollectionType is CollectionType.Playlist)
             {
                 item = item with { PlaybackOrder = PlaybackOrder.None };
             }

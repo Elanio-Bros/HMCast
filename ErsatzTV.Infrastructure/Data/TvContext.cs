@@ -94,8 +94,6 @@ public class TvContext : DbContext
     public DbSet<CollectionItem> CollectionItems { get; set; }
     public DbSet<MultiCollection> MultiCollections { get; set; }
     public DbSet<SmartCollection> SmartCollections { get; set; }
-    public DbSet<RerunCollection> RerunCollections { get; set; }
-    public DbSet<RerunHistory> RerunHistory { get; set; }
     public DbSet<ProgramSchedule> ProgramSchedules { get; set; }
     public DbSet<ProgramScheduleItem> ProgramScheduleItems { get; set; }
     public DbSet<Playout> Playouts { get; set; }
@@ -173,7 +171,6 @@ public class TvContext : DbContext
             modelBuilder.Entity<MultiCollection>().Property(mc => mc.Name).UseCollation(collation);
             modelBuilder.Entity<Playlist>().Property(p => p.Name).UseCollation(collation);
             modelBuilder.Entity<ProgramSchedule>().Property(ps => ps.Name).UseCollation(collation);
-            modelBuilder.Entity<RerunCollection>().Property(rc => rc.Name).UseCollation(collation);
             modelBuilder.Entity<ShowMetadata>().Property(sm => sm.Title).UseCollation(collation);
             modelBuilder.Entity<SmartCollection>().Property(sc => sc.Name).UseCollation(collation);
             modelBuilder.Entity<Template>().Property(t => t.Name).UseCollation(collation);

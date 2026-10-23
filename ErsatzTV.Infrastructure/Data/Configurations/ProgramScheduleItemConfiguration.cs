@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core.Domain;
+using ErsatzTV.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -31,12 +31,6 @@ public class ProgramScheduleItemConfiguration : IEntityTypeConfiguration<Program
         builder.HasOne(i => i.SmartCollection)
             .WithMany()
             .HasForeignKey(i => i.SmartCollectionId)
-            .OnDelete(DeleteBehavior.Cascade)
-            .IsRequired(false);
-
-        builder.HasOne(i => i.RerunCollection)
-            .WithMany()
-            .HasForeignKey(i => i.RerunCollectionId)
             .OnDelete(DeleteBehavior.Cascade)
             .IsRequired(false);
 

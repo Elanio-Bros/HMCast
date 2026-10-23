@@ -596,7 +596,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
         IArtistRepository artistRepo = Substitute.For<IArtistRepository>();
         IMultiEpisodeShuffleCollectionEnumeratorFactory factory =
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>();
-        IRerunHelper rerunHelper = Substitute.For<IRerunHelper>();
         var builder = new PlayoutBuilder(
             configRepo,
             fakeRepository,
@@ -604,7 +603,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
             artistRepo,
             factory,
             new MockFileSystem(),
-            rerunHelper,
             Logger);
 
         DateTimeOffset start = HoursAfterMidnight(0);
@@ -721,7 +719,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
         IArtistRepository artistRepo = Substitute.For<IArtistRepository>();
         IMultiEpisodeShuffleCollectionEnumeratorFactory factory =
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>();
-        IRerunHelper rerunHelper = Substitute.For<IRerunHelper>();
         var builder = new PlayoutBuilder(
             configRepo,
             fakeRepository,
@@ -729,7 +726,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
             artistRepo,
             factory,
             new MockFileSystem(),
-            rerunHelper,
             Logger);
 
         DateTimeOffset start = HoursAfterMidnight(0);
@@ -848,7 +844,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
         IArtistRepository artistRepo = Substitute.For<IArtistRepository>();
         IMultiEpisodeShuffleCollectionEnumeratorFactory factory =
             Substitute.For<IMultiEpisodeShuffleCollectionEnumeratorFactory>();
-        IRerunHelper rerunHelper = Substitute.For<IRerunHelper>();
         var builder = new PlayoutBuilder(
             configRepo,
             fakeRepository,
@@ -856,7 +851,6 @@ public class ContinuePlayoutTests : PlayoutBuilderTestBase
             artistRepo,
             factory,
             new MockFileSystem(),
-            rerunHelper,
             Logger);
 
         Either<BaseError, PlayoutBuildResult> buildResult = await builder.Build(

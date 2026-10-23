@@ -1,4 +1,4 @@
-﻿using ErsatzTV.Core;
+using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Domain.Filler;
 using ErsatzTV.Infrastructure.Data;
@@ -168,20 +168,6 @@ public abstract class ProgramScheduleItemCommandBase
                 }
 
                 break;
-            case CollectionType.RerunFirstRun:
-                if (item.RerunCollectionId is null)
-                {
-                    return BaseError.New("[RerunCollection] is required for collection type 'RerunFirstRun'");
-                }
-
-                break;
-            case CollectionType.RerunRerun:
-                if (item.RerunCollectionId is null)
-                {
-                    return BaseError.New("[RerunCollection] is required for collection type 'RerunRerun'");
-                }
-
-                break;
             case CollectionType.Playlist:
                 if (item.PlaylistId is null)
                 {
@@ -220,7 +206,6 @@ public abstract class ProgramScheduleItemCommandBase
                 CollectionId = item.CollectionId,
                 MultiCollectionId = item.MultiCollectionId,
                 SmartCollectionId = item.SmartCollectionId,
-                RerunCollectionId = item.RerunCollectionId,
                 MediaItemId = item.MediaItemId,
                 PlaylistId = item.PlaylistId,
                 SearchTitle = item.SearchTitle,
@@ -253,7 +238,6 @@ public abstract class ProgramScheduleItemCommandBase
                 CollectionId = item.CollectionId,
                 MultiCollectionId = item.MultiCollectionId,
                 SmartCollectionId = item.SmartCollectionId,
-                RerunCollectionId = item.RerunCollectionId,
                 MediaItemId = item.MediaItemId,
                 PlaylistId = item.PlaylistId,
                 SearchTitle = item.SearchTitle,
@@ -286,7 +270,6 @@ public abstract class ProgramScheduleItemCommandBase
                 CollectionId = item.CollectionId,
                 MultiCollectionId = item.MultiCollectionId,
                 SmartCollectionId = item.SmartCollectionId,
-                RerunCollectionId = item.RerunCollectionId,
                 MediaItemId = item.MediaItemId,
                 PlaylistId = item.PlaylistId,
                 SearchTitle = item.SearchTitle,
@@ -321,7 +304,6 @@ public abstract class ProgramScheduleItemCommandBase
                 CollectionId = item.CollectionId,
                 MultiCollectionId = item.MultiCollectionId,
                 SmartCollectionId = item.SmartCollectionId,
-                RerunCollectionId = item.RerunCollectionId,
                 MediaItemId = item.MediaItemId,
                 PlaylistId = item.PlaylistId,
                 SearchTitle = item.SearchTitle,

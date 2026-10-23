@@ -1,4 +1,4 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using ErsatzTV.Application.Playouts;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
@@ -111,7 +111,6 @@ public class ReplaceProgramScheduleItemsHandler(
                 item.MediaItemId,
                 item.MultiCollectionId,
                 item.SmartCollectionId,
-                item.RerunCollectionId,
                 item.PlaylistId,
                 item.SearchQuery);
 
@@ -138,7 +137,6 @@ public class ReplaceProgramScheduleItemsHandler(
         int? MediaItemId,
         int? MultiCollectionId,
         int? SmartCollectionId,
-        int? RerunCollectionId,
         int? PlaylistId,
         string SearchQuery);
 }
