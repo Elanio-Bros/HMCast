@@ -1,4 +1,4 @@
-﻿namespace ErsatzTV.Core.Domain;
+namespace ErsatzTV.Core.Domain;
 
 public class CollectionItem
 {
@@ -7,4 +7,5 @@ public class CollectionItem
     public int MediaItemId { get; set; }
     public MediaItem MediaItem { get; set; }
     public int? CustomIndex { get; set; }
+    public int OrderIndex { get; set; }
 }

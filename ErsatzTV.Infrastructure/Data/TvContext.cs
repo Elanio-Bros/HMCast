@@ -112,6 +112,7 @@ public class TvContext : DbContext
     public DbSet<Resolution> Resolutions { get; set; }
     public DbSet<LanguageCode> LanguageCodes { get; set; }
     public DbSet<TraktList> TraktLists { get; set; }
+    public DbSet<ExternalCollection> ExternalCollections { get; set; }
     public DbSet<FillerPreset> FillerPresets { get; set; }
     public DbSet<CommercialPreset> CommercialPresets { get; set; }
     public DbSet<ProgramScheduleItemCommercial> ProgramScheduleItemCommercials { get; set; }
