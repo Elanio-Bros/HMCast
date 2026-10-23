@@ -31,6 +31,7 @@ public class Playout
 
     // Vínculo opcional de ScreenLayout específico para este Playout
     public int? ScreenLayoutId { get; set; }
+    public ScreenLayout ScreenLayout { get; set; }
 
     // Regras de Calendário e Vigência
     public PlayoutCalendarMode CalendarMode { get; set; } = PlayoutCalendarMode.AlwaysActive;

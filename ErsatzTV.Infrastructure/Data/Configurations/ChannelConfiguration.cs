@@ -56,5 +56,11 @@ public class ChannelConfiguration : IEntityTypeConfiguration<Channel>
             .HasForeignKey(i => i.MirrorSourceChannelId)
             .OnDelete(DeleteBehavior.SetNull)
             .IsRequired(false);
+
+        builder.HasOne(c => c.ScreenLayout)
+            .WithMany()
+            .HasForeignKey(c => c.ScreenLayoutId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
     }
 }

@@ -30,6 +30,7 @@ public abstract class ProgramScheduleItem
 
     // Layout de Tela Específico desta Faixa
     public int? ScreenLayoutId { get; set; }
+    public ScreenLayout ScreenLayout { get; set; }
 
     // Gestão de Comerciais Integrada
     public List<ProgramScheduleItemCommercial> Commercials { get; set; } = new();

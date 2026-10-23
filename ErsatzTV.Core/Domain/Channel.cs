@@ -44,6 +44,8 @@ public class Channel
     public ChannelTranscodeMode TranscodeMode { get; set; }
     public ChannelIdleBehavior IdleBehavior { get; set; }
     public ChannelFallbackSlate FallbackSlate { get; set; }
+    public int? ScreenLayoutId { get; set; }
+    public ScreenLayout ScreenLayout { get; set; }
     public ChannelMode Mode { get; set; }
     public bool IsEnabled { get; set; }
     public bool ShowInEpg { get; set; }

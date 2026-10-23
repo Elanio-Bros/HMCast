@@ -95,5 +95,11 @@ public class ProgramScheduleItemConfiguration : IEntityTypeConfiguration<Program
                     .HasForeignKey(ci => ci.ProgramScheduleItemId)
                     .OnDelete(DeleteBehavior.Cascade),
                 j => j.HasKey(ci => new { ci.ProgramScheduleItemId, ci.GraphicsElementId }));
+
+        builder.HasOne(i => i.ScreenLayout)
+            .WithMany()
+            .HasForeignKey(i => i.ScreenLayoutId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
     }
 }

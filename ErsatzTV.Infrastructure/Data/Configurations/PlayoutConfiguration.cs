@@ -54,5 +54,11 @@ public class PlayoutConfiguration : IEntityTypeConfiguration<Playout>
             .WithOne(pbr => pbr.Playout)
             .HasForeignKey<PlayoutBuildStatus>(p => p.PlayoutId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.ScreenLayout)
+            .WithMany()
+            .HasForeignKey(p => p.ScreenLayoutId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
     }
 }

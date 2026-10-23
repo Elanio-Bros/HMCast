@@ -119,6 +119,9 @@ public class TvContext : DbContext
     public DbSet<Subtitle> Subtitles { get; set; }
     public DbSet<GraphicsElement> GraphicsElements { get; set; }
     public DbSet<MediaSkip> MediaSkips { get; set; }
+    public DbSet<ScreenLayout> ScreenLayouts { get; set; }
+    public DbSet<ScreenLayoutElement> ScreenLayoutElements { get; set; }
+    public DbSet<ScreenLayoutRule> ScreenLayoutRules { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
