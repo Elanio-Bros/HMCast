@@ -8,6 +8,7 @@ using ErsatzTV.Core.Extensions;
 using ErsatzTV.Core.FFmpeg;
 using ErsatzTV.Core.Interfaces.FFmpeg;
 using ErsatzTV.Core.Interfaces.Streaming;
+using ErsatzTV.Core.Streaming;
 using ErsatzTV.FFmpeg;
 using ErsatzTV.FFmpeg.State;
 using ErsatzTV.Infrastructure.Data;
@@ -28,6 +29,9 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
     private readonly IGraphicsElementSelector _graphicsElementSelector;
     private readonly IDynamicPlayoutItemService _dynamicPlayoutItemService;
     private readonly ISongVideoGenerator _songVideoGenerator;
+    private readonly IChannelFallbackSlateService _channelFallbackSlateService;
+    private readonly IScreenLayoutEngine _screenLayoutEngine;
+    private readonly IChannelPreCacheService _channelPreCacheService;
     private readonly bool _isDebugNoSync;
 
     public GetPlayoutItemProcessByChannelNumberHandler(
@@ -39,6 +43,9 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
         IWatermarkSelector watermarkSelector,
         IGraphicsElementSelector graphicsElementSelector,
         IDynamicPlayoutItemService dynamicPlayoutItemService,
+        IChannelFallbackSlateService channelFallbackSlateService,
+        IScreenLayoutEngine screenLayoutEngine,
+        IChannelPreCacheService channelPreCacheService,
         ILogger<GetPlayoutItemProcessByChannelNumberHandler> logger)
         : base(dbContextFactory)
     {
@@ -49,6 +56,9 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
         _watermarkSelector = watermarkSelector;
         _graphicsElementSelector = graphicsElementSelector;
         _dynamicPlayoutItemService = dynamicPlayoutItemService;
+        _channelFallbackSlateService = channelFallbackSlateService;
+        _screenLayoutEngine = screenLayoutEngine;
+        _channelPreCacheService = channelPreCacheService;
         _logger = logger;
 
 #if DEBUG_NO_SYNC
@@ -68,7 +78,28 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
     {
         DateTimeOffset now = request.Now;
 
-        Either<BaseError, PlayoutItemWithPath> maybePlayoutItem = await dbContext.PlayoutItems
+        Either<BaseError, PlayoutItemWithPath> maybePlayoutItem;
+
+        // HMCast 3.0: Sintonia Instantânea Zero-Delay (< 200ms) direto da memória (RAM)
+        Option<PreCachedChannelSession> preCached = channel.IdleBehavior == ChannelIdleBehavior.PreCache
+            ? _channelPreCacheService.GetPreCachedSession(channel.Number)
+            : Option<PreCachedChannelSession>.None;
+
+        if (preCached.IsSome)
+        {
+            var session = (PreCachedChannelSession)preCached;
+            if (!string.IsNullOrWhiteSpace(session.MediaFilePath))
+            {
+                _logger.LogInformation(
+                    "Channel {ChannelNumber} pre-cache HIT: streaming directly from RAM with seek {Seek}",
+                    channel.Number,
+                    session.CurrentSeek);
+                maybePlayoutItem = Right<BaseError, PlayoutItemWithPath>(new PlayoutItemWithPath(session.CurrentItem, session.MediaFilePath));
+                goto SkipDbPlayoutItemQuery;
+            }
+        }
+
+        maybePlayoutItem = await dbContext.PlayoutItems
             .AsNoTracking()
 
             // get graphics elements
@@ -159,6 +190,8 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
             .Map(o => o.ToEither<BaseError>(new UnableToLocatePlayoutItem()))
             .BindT(item => _dynamicPlayoutItemService.ValidatePlayoutItemPath(dbContext, item, cancellationToken));
 
+SkipDbPlayoutItemQuery:
+
         if (maybePlayoutItem.LeftAsEnumerable().Any(e => e is UnableToLocatePlayoutItem))
         {
             maybePlayoutItem = await _externalJsonPlayoutItemProvider.CheckForExternalJson(
@@ -175,6 +208,22 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 channel,
                 now,
                 cancellationToken);
+        }
+
+        // HMCast 3.0: Se não encontrou playout item nem fallback filler tradicional, aciona o Fallback Slate do Canal
+        if (maybePlayoutItem.LeftAsEnumerable().Any(e => e is UnableToLocatePlayoutItem))
+        {
+            Option<PlayoutItem> fallbackItem = await _channelFallbackSlateService.CreateFallbackPlayoutItem(
+                channel,
+                now,
+                TimeSpan.FromMinutes(5),
+                cancellationToken);
+
+            foreach (PlayoutItem fbItem in fallbackItem)
+            {
+                _logger.LogInformation("Using Fallback Slate for channel {ChannelNumber}", channel.Number);
+                maybePlayoutItem = await _dynamicPlayoutItemService.ValidatePlayoutItemPath(dbContext, fbItem, cancellationToken);
+            }
         }
 
         foreach (PlayoutItemWithPath playoutItemWithPath in maybePlayoutItem.RightToSeq())
@@ -290,6 +339,68 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 playoutItemWithPath.PlayoutItem,
                 now,
                 shouldLogMessages: true);
+
+            // HMCast 3.0: Screen Layout Studio - Integração de Overlays no Pipeline FFmpeg
+            Option<ScreenLayout> maybeScreenLayout = _screenLayoutEngine.ResolveActiveLayout(null, channel);
+            if (maybeScreenLayout.IsNone && channel.ScreenLayoutId.HasValue)
+            {
+                maybeScreenLayout = await dbContext.ScreenLayouts
+                    .Include(l => l.Elements)
+                    .Include(l => l.Rules)
+                    .FirstOrDefaultAsync(l => l.Id == channel.ScreenLayoutId.Value, cancellationToken);
+            }
+
+            foreach (ScreenLayout layout in maybeScreenLayout)
+            {
+                if (layout.Elements != null && layout.Elements.Count > 0)
+                {
+                    _logger.LogInformation("Applying Screen Layout '{LayoutName}' with {Count} elements to channel {ChannelNumber}", layout.Name, layout.Elements.Count, channel.Number);
+
+                    foreach (ScreenLayoutElement element in layout.Elements.OrderBy(e => e.ZIndex))
+                    {
+                        if (string.IsNullOrWhiteSpace(element.ContentPath) || !File.Exists(element.ContentPath))
+                        {
+                            continue;
+                        }
+
+                        // Verificar regras de automação (ex: esconder durante intervalos comerciais)
+                        bool isCommercial = playoutItemWithPath.PlayoutItem.FillerKind != FillerKind.None;
+                        bool isHidden = layout.Rules != null && layout.Rules.Any(r =>
+                            r.ElementId == element.Id &&
+                            r.Trigger == ScreenLayoutRuleTrigger.CommercialBreak &&
+                            r.Action == ScreenLayoutRuleAction.Hide &&
+                            isCommercial);
+
+                        if (isHidden)
+                        {
+                            continue;
+                        }
+
+                        int resWidth = channel.FFmpegProfile?.Resolution?.Width ?? 1920;
+                        int resHeight = channel.FFmpegProfile?.Resolution?.Height ?? 1080;
+
+                        double hMargin = element.X <= 1.0 ? element.X * 100.0 : (element.X / (double)resWidth) * 100.0;
+                        double vMargin = element.Y <= 1.0 ? element.Y * 100.0 : (element.Y / (double)resHeight) * 100.0;
+                        double wPercent = element.Width <= 1.0 ? element.Width * 100.0 : (element.Width / (double)resWidth) * 100.0;
+
+                        var layoutWatermark = new ChannelWatermark
+                        {
+                            Name = element.Name,
+                            Mode = ChannelWatermarkMode.Permanent,
+                            Size = WatermarkSize.Scaled,
+                            WidthPercent = Math.Clamp(wPercent, 1.0, 100.0),
+                            HorizontalMarginPercent = Math.Clamp(hMargin, 0.0, 100.0),
+                            VerticalMarginPercent = Math.Clamp(vMargin, 0.0, 100.0),
+                            Opacity = (int)Math.Clamp(element.Opacity * 100, 0, 100),
+                            Location = WatermarkLocation.TopLeft,
+                            Image = element.ContentPath,
+                            ImageSource = ChannelWatermarkImageSource.Custom
+                        };
+
+                        watermarks.Add(new WatermarkOptions(layoutWatermark, element.ContentPath, Option<int>.None));
+                    }
+                }
+            }
 
             if (playoutItemWithPath.PlayoutItem.MediaItem is Song song)
             {

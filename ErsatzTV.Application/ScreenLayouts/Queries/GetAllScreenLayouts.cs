@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ErsatzTV.Application.ScreenLayouts.Queries;
 
-public record ScreenLayoutViewModel(int Id, string Name);
+public record ScreenLayoutViewModel(int Id, string Name, string AspectRatio = "16:9");
 
 public record GetAllScreenLayouts : IRequest<List<ScreenLayoutViewModel>>;
 
@@ -17,7 +17,7 @@ public class GetAllScreenLayoutsHandler(IDbContextFactory<TvContext> dbContextFa
         return await dbContext.ScreenLayouts
             .AsNoTracking()
             .OrderBy(l => l.Name)
-            .Select(l => new ScreenLayoutViewModel(l.Id, l.Name))
+            .Select(l => new ScreenLayoutViewModel(l.Id, l.Name, l.AspectRatio ?? "16:9"))
             .ToListAsync(cancellationToken);
     }
 }

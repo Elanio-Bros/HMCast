@@ -14,7 +14,7 @@ public class CreatePlaylistHandler(IDbContextFactory<TvContext> dbContextFactory
     {
         await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         Validation<BaseError, Playlist> validation = await Validate(dbContext, request);
-        return await validation.Apply(profile => PersistPlaylist(dbContext, profile));
+        return await validation.Apply(playlist => PersistPlaylist(dbContext, playlist));
     }
 
     private static async Task<PlaylistViewModel> PersistPlaylist(TvContext dbContext, Playlist playlist)
@@ -25,9 +25,8 @@ public class CreatePlaylistHandler(IDbContextFactory<TvContext> dbContextFactory
     }
 
     private static async Task<Validation<BaseError, Playlist>> Validate(TvContext dbContext, CreatePlaylist request) =>
-        await ValidatePlaylistName(dbContext, request).MapT(name => new Playlist
+        (await ValidatePlaylistName(dbContext, request)).Map(name => new Playlist
         {
-            PlaylistGroupId = request.PlaylistGroupId,
             Name = name
         });
 
@@ -35,16 +34,16 @@ public class CreatePlaylistHandler(IDbContextFactory<TvContext> dbContextFactory
         TvContext dbContext,
         CreatePlaylist request)
     {
-        if (request.Name.Length > 50)
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 50)
         {
             return BaseError.New($"Playlist name \"{request.Name}\" is invalid");
         }
 
         bool duplicate = await dbContext.Playlists
-            .AnyAsync(r => r.PlaylistGroupId == request.PlaylistGroupId && r.Name == request.Name);
+            .AnyAsync(r => r.Name == request.Name);
 
         return duplicate
-            ? BaseError.New($"A playlist named \"{request.Name}\" already exists in that playlist group")
+            ? BaseError.New($"A playlist named \"{request.Name}\" already exists")
             : Success<BaseError, string>(request.Name);
     }
 }

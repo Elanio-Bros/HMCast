@@ -85,6 +85,26 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
             migrationBuilder.DropTable(
                 name: "BlockGroup");
 
+            migrationBuilder.DropForeignKey(
+                name: "FK_Playlist_PlaylistGroup_PlaylistGroupId",
+                table: "Playlist");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Playlist_PlaylistGroupId_Name",
+                table: "Playlist");
+
+            migrationBuilder.DropTable(
+                name: "PlaylistGroup");
+
+            migrationBuilder.DropColumn(
+                name: "PlaylistGroupId",
+                table: "Playlist");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Playlist_Name",
+                table: "Playlist",
+                column: "Name");
+
             migrationBuilder.DropIndex(
                 name: "IX_PlayoutProgramScheduleAnchor_RerunCollectionId",
                 table: "PlayoutProgramScheduleAnchor");
@@ -456,6 +476,8 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     Name = table.Column<string>(type: "longtext", nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    AspectRatio = table.Column<string>(type: "varchar(10)", maxLength: 10, nullable: true, defaultValue: "16:9")
                         .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>

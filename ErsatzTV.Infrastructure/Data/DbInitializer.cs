@@ -72,74 +72,126 @@ public static class DbInitializer
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        if (!context.PlaylistGroups.Any(pg => pg.IsSystem))
+        var standardResolutions = new List<(string Name, int Width, int Height)>
         {
-            var pg = new PlaylistGroup
-            {
-                Name = "Trakt Lists",
-                IsSystem = true
-            };
+            ("720x480", 720, 480),
+            ("1280x720", 1280, 720),
+            ("1920x1080", 1920, 1080),
+            ("3840x2160", 3840, 2160),
+            ("640x360", 640, 360)
+        };
 
-            await context.PlaylistGroups.AddAsync(pg, cancellationToken);
+        foreach (var (name, width, height) in standardResolutions)
+        {
+            if (!context.Resolutions.Any(r => r.Width == width && r.Height == height))
+            {
+                var res = new Resolution { Name = name, Width = width, Height = height };
+                await context.Resolutions.AddAsync(res, cancellationToken);
+            }
+        }
+        await context.SaveChangesAsync(cancellationToken);
+
+        Resolution res1080 = context.Resolutions.FirstOrDefault(r => r.Width == 1920 && r.Height == 1080)
+            ?? context.Resolutions.First();
+        Resolution res720 = context.Resolutions.FirstOrDefault(r => r.Width == 1280 && r.Height == 720)
+            ?? res1080;
+        Resolution res480 = context.Resolutions.FirstOrDefault(r => r.Width == 720 && r.Height == 480)
+            ?? res1080;
+        Resolution res360 = context.Resolutions.FirstOrDefault(r => r.Width == 640 && r.Height == 360)
+            ?? res480;
+
+        if (!context.ConfigElements.Any(c => c.Key == ConfigElementKey.FFmpegDefaultResolutionId.Key))
+        {
+            var resolutionConfig = new ConfigElement
+            {
+                Key = ConfigElementKey.FFmpegDefaultResolutionId.Key,
+                Value = res1080.Id.ToString(CultureInfo.InvariantCulture)
+            };
+            await context.ConfigElements.AddAsync(resolutionConfig, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        if (context.Resolutions.Any(x => x.Width == 1920))
+        // HMCast 3.0: 4 Perfis Factory Idempotentes
+        var fhdProfile = context.FFmpegProfiles.FirstOrDefault(p => p.Name == "1080p FHD");
+        if (fhdProfile == null)
         {
-            return Unit.Default;
+            fhdProfile = FFmpegProfile.New("1080p FHD", res1080);
+            fhdProfile.VideoBitrate = 4500;
+            fhdProfile.VideoBufferSize = 9000;
+            fhdProfile.AudioBitrate = 192;
+            fhdProfile.AudioBufferSize = 384;
+            await context.FFmpegProfiles.AddAsync(fhdProfile, cancellationToken);
         }
 
-        var resolutions = new List<Resolution>
+        if (!context.FFmpegProfiles.Any(p => p.Name == "720p HD"))
         {
-            new() { Id = 1, Name = "720x480", Width = 720, Height = 480 },
-            new() { Id = 2, Name = "1280x720", Width = 1280, Height = 720 },
-            new() { Id = 3, Name = "1920x1080", Width = 1920, Height = 1080 },
-            new() { Id = 4, Name = "3840x2160", Width = 3840, Height = 2160 }
-        };
-        await context.Resolutions.AddRangeAsync(resolutions, cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
+            var profile720 = FFmpegProfile.New("720p HD", res720);
+            profile720.VideoBitrate = 2500;
+            profile720.VideoBufferSize = 5000;
+            profile720.AudioBitrate = 192;
+            profile720.AudioBufferSize = 384;
+            await context.FFmpegProfiles.AddAsync(profile720, cancellationToken);
+        }
 
-        var resolutionConfig = new ConfigElement
+        if (!context.FFmpegProfiles.Any(p => p.Name == "480p SD"))
         {
-            Key = ConfigElementKey.FFmpegDefaultResolutionId.Key,
-            Value = "3" // 1920x1080
-        };
-        await context.ConfigElements.AddAsync(resolutionConfig, cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
+            var profile480 = FFmpegProfile.New("480p SD", res480);
+            profile480.VideoBitrate = 1200;
+            profile480.VideoBufferSize = 2400;
+            profile480.AudioBitrate = 128;
+            profile480.AudioBufferSize = 256;
+            await context.FFmpegProfiles.AddAsync(profile480, cancellationToken);
+        }
 
-        var defaultProfile = FFmpegProfile.New("1920x1080 x264 aac", resolutions[2]);
-        await context.FFmpegProfiles.AddAsync(defaultProfile, cancellationToken);
-
-        var profile720p = FFmpegProfile.New("1280x720 x264 aac", resolutions[1]);
-        await context.FFmpegProfiles.AddAsync(profile720p, cancellationToken);
-
-        var profile480p = FFmpegProfile.New("720x480 x264 aac", resolutions[0]);
-        await context.FFmpegProfiles.AddAsync(profile480p, cancellationToken);
-
-        await context.SaveChangesAsync(cancellationToken);
-
-        var profileConfig = new ConfigElement
+        if (!context.FFmpegProfiles.Any(p => p.Name == "Rádio Web"))
         {
-            Key = ConfigElementKey.FFmpegDefaultProfileId.Key,
-            Value = defaultProfile.Id.ToString(CultureInfo.InvariantCulture)
-        };
-        await context.ConfigElements.AddAsync(profileConfig, cancellationToken);
+            var radioProfile = FFmpegProfile.New("Rádio Web", res360);
+            radioProfile.VideoBitrate = 64;
+            radioProfile.VideoBufferSize = 128;
+            radioProfile.AudioBitrate = 192;
+            radioProfile.AudioBufferSize = 384;
+            await context.FFmpegProfiles.AddAsync(radioProfile, cancellationToken);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
 
-        var defaultChannel = new Channel(Guid.NewGuid())
+        if (!context.ConfigElements.Any(c => c.Key == ConfigElementKey.FFmpegDefaultProfileId.Key))
         {
-            Number = "1",
-            Name = "ErsatzTV",
-            FFmpegProfile = defaultProfile,
-            StreamingEngine = StreamingEngine.Next,
-            StreamingMode = StreamingMode.TransportStreamHybrid,
-            IsEnabled = true,
-            ShowInEpg = true
-        };
-        await context.Channels.AddAsync(defaultChannel, cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
+            var profileConfig = new ConfigElement
+            {
+                Key = ConfigElementKey.FFmpegDefaultProfileId.Key,
+                Value = fhdProfile.Id.ToString(CultureInfo.InvariantCulture)
+            };
+            await context.ConfigElements.AddAsync(profileConfig, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
-        // TODO: create looping static image that mentions configuring via web
+        // Canal Padrão HMCast
+        if (!context.Channels.Any())
+        {
+            var defaultChannel = new Channel(Guid.NewGuid())
+            {
+                Number = "1",
+                Name = "HMCast",
+                FFmpegProfile = fhdProfile,
+                StreamingEngine = StreamingEngine.Next,
+                StreamingMode = StreamingMode.TransportStreamHybrid,
+                IsEnabled = true,
+                ShowInEpg = true
+            };
+            await context.Channels.AddAsync(defaultChannel, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            var ersatzChannel = context.Channels.FirstOrDefault(c => c.Name == "ErsatzTV");
+            if (ersatzChannel != null)
+            {
+                ersatzChannel.Name = "HMCast";
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         return Unit.Default;
     }
 }

@@ -745,15 +745,45 @@ public class SequentialPlayoutBuilder(
             // Suporte a Comerciais Inline do HMCast 3.0 (PlaylistItemCommercial)
             if (playlistItem.Commercials != null && playlistItem.Commercials.Count > 0)
             {
-                var preroll = playlistItem.Commercials
-                    .Where((PlaylistItemCommercial c) => c.Placement == CommercialBreakPlacement.BeforeItem && c.CommercialPreset?.MediaItem != null)
-                    .Select((PlaylistItemCommercial c) => c.CommercialPreset.MediaItem);
-                var postroll = playlistItem.Commercials
-                    .Where((PlaylistItemCommercial c) => c.Placement == CommercialBreakPlacement.AfterItem && c.CommercialPreset?.MediaItem != null)
-                    .Select((PlaylistItemCommercial c) => c.CommercialPreset.MediaItem);
+                var preroll = new List<MediaItem>();
+                var postroll = new List<MediaItem>();
+                var midroll = new List<MediaItem>();
+
+                foreach (PlaylistItemCommercial comm in playlistItem.Commercials)
+                {
+                    List<MediaItem> resolved = await ResolveCommercialMediaItems(comm.CommercialPreset, cancellationToken);
+                    switch (comm.Placement)
+                    {
+                        case CommercialBreakPlacement.BeforeItem:
+                            preroll.AddRange(resolved);
+                            break;
+                        case CommercialBreakPlacement.AfterItem:
+                            postroll.AddRange(resolved);
+                            break;
+                        case CommercialBreakPlacement.MidrollChapters:
+                            midroll.AddRange(resolved);
+                            break;
+                    }
+                }
 
                 mediaQueue.AddRange(preroll);
-                mediaQueue.AddRange(sortedItems);
+
+                if (midroll.Count > 0 && sortedItems.Count > 1)
+                {
+                    int half = sortedItems.Count / 2;
+                    mediaQueue.AddRange(sortedItems.Take(half));
+                    mediaQueue.AddRange(midroll);
+                    mediaQueue.AddRange(sortedItems.Skip(half));
+                }
+                else
+                {
+                    mediaQueue.AddRange(sortedItems);
+                    if (midroll.Count > 0)
+                    {
+                        mediaQueue.AddRange(midroll);
+                    }
+                }
+
                 mediaQueue.AddRange(postroll);
             }
             else
@@ -819,6 +849,51 @@ public class SequentialPlayoutBuilder(
         };
 
         return result;
+    }
+
+    private async Task<List<MediaItem>> ResolveCommercialMediaItems(
+        CommercialPreset preset,
+        CancellationToken cancellationToken)
+    {
+        if (preset == null)
+        {
+            return [];
+        }
+
+        if (preset.MediaItem != null)
+        {
+            return [preset.MediaItem];
+        }
+
+        if (preset.MediaItemId.HasValue)
+        {
+            int mid = preset.MediaItemId.Value;
+            List<Movie> movies = await mediaCollectionRepository.GetMovie(mid);
+            if (movies.Count > 0) return movies.Cast<MediaItem>().ToList();
+            List<Episode> episodes = await mediaCollectionRepository.GetEpisode(mid);
+            if (episodes.Count > 0) return episodes.Cast<MediaItem>().ToList();
+            List<OtherVideo> other = await mediaCollectionRepository.GetOtherVideo(mid);
+            if (other.Count > 0) return other.Cast<MediaItem>().ToList();
+            List<MusicVideo> musicVideos = await mediaCollectionRepository.GetMusicVideo(mid);
+            if (musicVideos.Count > 0) return musicVideos.Cast<MediaItem>().ToList();
+            List<Song> songs = await mediaCollectionRepository.GetSong(mid);
+            if (songs.Count > 0) return songs.Cast<MediaItem>().ToList();
+        }
+
+        if (preset.CollectionId.HasValue)
+        {
+            List<MediaItem> collectionItems = await mediaCollectionRepository.GetItems(preset.CollectionId.Value);
+            if (collectionItems.Count > 0)
+            {
+                return preset.PlaybackOrder switch
+                {
+                    PlaybackOrder.Shuffle or PlaybackOrder.Random => collectionItems.OrderBy(_ => Guid.NewGuid()).ToList(),
+                    _ => collectionItems
+                };
+            }
+        }
+
+        return [];
     }
 
     private static TimeSpan GetMediaDuration(MediaItem mediaItem)

@@ -44,15 +44,14 @@ public class UpdatePlaylistHandler(IDbContextFactory<TvContext> dbContextFactory
         }
 
         bool duplicate = await dbContext.Playlists
-            .AnyAsync(r => r.Id != request.PlaylistId && r.PlaylistGroupId == request.PlaylistGroupId && r.Name == request.Name);
+            .AnyAsync(r => r.Id != request.PlaylistId && r.Name == request.Name);
 
         if (duplicate)
         {
-            return BaseError.New($"A playlist named \"{request.Name}\" already exists in that playlist group");
+            return BaseError.New($"A playlist named \"{request.Name}\" already exists");
         }
 
         playlist.Name = request.Name.Trim();
-        playlist.PlaylistGroupId = request.PlaylistGroupId;
 
         return playlist;
     }

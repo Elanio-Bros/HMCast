@@ -40,8 +40,9 @@ public class ScreenLayoutRuleDto
 public record SaveScreenLayout(
     int Id,
     string Name,
-    List<ScreenLayoutElementDto> Elements,
-    List<ScreenLayoutRuleDto> Rules) : IRequest<Either<BaseError, int>>;
+    string AspectRatio = "16:9",
+    List<ScreenLayoutElementDto> Elements = null,
+    List<ScreenLayoutRuleDto> Rules = null) : IRequest<Either<BaseError, int>>;
 
 public class SaveScreenLayoutHandler(IDbContextFactory<TvContext> dbContextFactory)
     : IRequestHandler<SaveScreenLayout, Either<BaseError, int>>
@@ -63,6 +64,7 @@ public class SaveScreenLayoutHandler(IDbContextFactory<TvContext> dbContextFacto
             layout = new ScreenLayout
             {
                 Name = request.Name.Trim(),
+                AspectRatio = request.AspectRatio ?? "16:9",
                 Elements = new List<ScreenLayoutElement>(),
                 Rules = new List<ScreenLayoutRule>()
             };
@@ -81,6 +83,7 @@ public class SaveScreenLayoutHandler(IDbContextFactory<TvContext> dbContextFacto
             }
 
             layout.Name = request.Name.Trim();
+            layout.AspectRatio = request.AspectRatio ?? "16:9";
             layout.Elements.Clear();
             layout.Rules.Clear();
         }

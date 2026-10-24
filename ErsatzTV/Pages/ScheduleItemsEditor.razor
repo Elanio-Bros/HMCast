@@ -468,19 +468,6 @@
     {
         <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
             <div class="d-flex">
-                <MudText>Playlist Group</MudText>
-            </div>
-            <MudSelect T="PlaylistGroupViewModel"
-                       Value="@_selectedPlaylistGroup"
-                       ValueChanged="@OnPlaylistGroupChanged">
-                @foreach (PlaylistGroupViewModel playlistGroup in _playlistGroups)
-                {
-                    <MudSelectItem Value="@playlistGroup">@playlistGroup.Name</MudSelectItem>
-                }
-            </MudSelect>
-        </MudStack>
-        <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-            <div class="d-flex">
                 <MudText>Playlist</MudText>
             </div>
             <MudSelect T="PlaylistViewModel" @bind-value="_selectedItem.Playlist">
@@ -908,10 +895,8 @@
     private List<WatermarkViewModel> _watermarks = [];
     private List<GraphicsElementViewModel> _graphicsElements = [];
     private List<LanguageCodeViewModel> _availableCultures = [];
-    private readonly List<PlaylistGroupViewModel> _playlistGroups = [];
     private readonly List<PlaylistViewModel> _playlists = [];
 
-    private PlaylistGroupViewModel _selectedPlaylistGroup;
     private ProgramScheduleItemEditViewModel _selectedItem;
 
     private MudForm _form;
@@ -941,8 +926,8 @@
                 .Map(list => list.OrderBy(vm => vm.Name, StringComparer.CurrentCultureIgnoreCase).ToList());
             _availableCultures = await Mediator.Send(new GetAllLanguageCodes(), token);
 
-            _playlistGroups.Clear();
-            _playlistGroups.AddRange(await Mediator.Send(new GetAllPlaylistGroups(), token));
+            _playlists.Clear();
+            _playlists.AddRange(await Mediator.Send(new GetAllPlaylists(), token));
 
             string name = string.Empty;
             var shuffleScheduleItems = false;
@@ -958,8 +943,6 @@
             foreach (IEnumerable<ProgramScheduleItemViewModel> items in maybeResults)
             {
                 _selectedItem = null;
-                _selectedPlaylistGroup = null;
-                _playlists.Clear();
 
                 _schedule = new ProgramScheduleItemsEditViewModel
                 {
@@ -1040,14 +1023,6 @@
         }
 
         return await Mediator.Send(new SearchArtists(value), _cts.Token);
-    }
-
-    private async Task UpdatePlaylistGroupItems(PlaylistGroupViewModel playlistGroup)
-    {
-        _selectedPlaylistGroup = playlistGroup;
-
-        _playlists.Clear();
-        _playlists.AddRange(await Mediator.Send(new GetPlaylistsByPlaylistGroupId(playlistGroup.Id), _cts.Token));
     }
 
     private ProgramScheduleItemEditViewModel ProjectToEditViewModel(ProgramScheduleItemViewModel item)
@@ -1269,24 +1244,10 @@
             () => NavigationManager.NavigateTo("schedules"));
     }
 
-    private async Task SelectedItemChanged(ProgramScheduleItemEditViewModel vm)
+    private Task SelectedItemChanged(ProgramScheduleItemEditViewModel vm)
     {
         _selectedItem = vm;
-
-        foreach (int playlistGroupId in Optional(_selectedItem.Playlist?.PlaylistGroupId))
-        {
-            foreach (PlaylistGroupViewModel group in Optional(_playlistGroups.Find(g => g.Id == playlistGroupId)))
-            {
-                _selectedPlaylistGroup = group;
-                await UpdatePlaylistGroupItems(group);
-            }
-        }
-    }
-
-    private Task OnPlaylistGroupChanged(PlaylistGroupViewModel group)
-    {
-        _selectedItem.Playlist = null;
-        return UpdatePlaylistGroupItems(group);
+        return Task.CompletedTask;
     }
 
     private string SelectedRowClassFunc(ProgramScheduleItemEditViewModel element, int rowNumber) => _selectedItem != null && _selectedItem == element ? "selected" : string.Empty;

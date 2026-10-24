@@ -14,18 +14,8 @@
         else
         {
             <MudText Typo="Typo.body2" Class="mb-4 text-muted">
-                @(IsEdit ? "Altere o nome e o grupo organizador desta playlist." : "Crie uma nova playlist sequencial dentro de um grupo.")
+                @(IsEdit ? "Altere o nome desta playlist." : "Crie uma nova playlist sequencial atemporal.")
             </MudText>
-
-            <MudSelect T="int" @bind-Value="_selectedGroupId" Label="Grupo da Playlist" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4">
-                @if (Groups != null)
-                {
-                    @foreach (var group in Groups)
-                    {
-                        <MudSelectItem Value="@group.Id">@group.Name</MudSelectItem>
-                    }
-                }
-            </MudSelect>
 
             <MudTextField @bind-Value="_playlistName" 
                           Label="Nome da Playlist" 
@@ -39,7 +29,7 @@
         <MudButton Color="Color.Default" OnClick="Cancel">Cancelar</MudButton>
         <MudButton Color="Color.Primary" 
                    Variant="Variant.Filled" 
-                   Disabled="@(_selectedGroupId <= 0 || string.IsNullOrWhiteSpace(_playlistName) || _isSaving || _isLoading)" 
+                   Disabled="@(string.IsNullOrWhiteSpace(_playlistName) || _isSaving || _isLoading)" 
                    OnClick="Save">
             @if (_isSaving)
             {
@@ -57,13 +47,6 @@
     [Parameter]
     public int? Id { get; set; }
 
-    [Parameter]
-    public List<PlaylistGroupViewModel> Groups { get; set; } = new();
-
-    [Parameter]
-    public int? InitialGroupId { get; set; }
-
-    private int _selectedGroupId;
     private string _playlistName;
     private bool _isLoading = true;
     private bool _isSaving;
@@ -74,11 +57,6 @@
         _isLoading = true;
         try
         {
-            if (Groups == null || Groups.Count == 0)
-            {
-                Groups = await Mediator.Send(new GetAllPlaylistGroups());
-            }
-
             if (IsEdit)
             {
                 Option<PlaylistViewModel> maybe = await Mediator.Send(new GetPlaylistById(Id.Value));
@@ -86,24 +64,12 @@
                     p =>
                     {
                         _playlistName = p.Name;
-                        _selectedGroupId = p.PlaylistGroupId;
                     },
                     () =>
                     {
                         Snackbar.Add("Playlist não encontrada", Severity.Error);
                         MudDialog.Cancel();
                     });
-            }
-            else
-            {
-                if (InitialGroupId.HasValue && Groups.Any(g => g.Id == InitialGroupId.Value))
-                {
-                    _selectedGroupId = InitialGroupId.Value;
-                }
-                else if (Groups.Any())
-                {
-                    _selectedGroupId = Groups.First().Id;
-                }
             }
         }
         finally
@@ -114,14 +80,14 @@
 
     private async Task Save()
     {
-        if (_selectedGroupId <= 0 || string.IsNullOrWhiteSpace(_playlistName)) return;
+        if (string.IsNullOrWhiteSpace(_playlistName)) return;
 
         _isSaving = true;
         try
         {
             if (IsEdit)
             {
-                var result = await Mediator.Send(new UpdatePlaylist(Id.Value, _selectedGroupId, _playlistName.Trim()));
+                var result = await Mediator.Send(new UpdatePlaylist(Id.Value, _playlistName.Trim()));
                 result.Match(
                     Left: error =>
                     {
@@ -137,7 +103,7 @@
             }
             else
             {
-                var result = await Mediator.Send(new CreatePlaylist(_selectedGroupId, _playlistName.Trim()));
+                var result = await Mediator.Send(new CreatePlaylist(_playlistName.Trim()));
                 result.Match(
                     Left: error =>
                     {

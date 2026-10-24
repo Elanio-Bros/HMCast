@@ -85,6 +85,22 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                 name: "BlockGroup");
 
             migrationBuilder.DropIndex(
+                name: "IX_Playlist_PlaylistGroupId_Name",
+                table: "Playlist");
+
+            migrationBuilder.DropTable(
+                name: "PlaylistGroup");
+
+            migrationBuilder.DropColumn(
+                name: "PlaylistGroupId",
+                table: "Playlist");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Playlist_Name",
+                table: "Playlist",
+                column: "Name");
+
+            migrationBuilder.DropIndex(
                 name: "IX_PlayoutProgramScheduleAnchor_RerunCollectionId",
                 table: "PlayoutProgramScheduleAnchor");
 
@@ -162,6 +178,20 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                 table: "ProgramScheduleItem",
                 type: "TEXT",
                 nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "SpecificDates",
+                table: "ProgramScheduleAlternate",
+                type: "TEXT",
+                nullable: true);
+
+            migrationBuilder.AlterColumn<int>(
+                name: "PlaylistGroupId",
+                table: "Playlist",
+                type: "INTEGER",
+                nullable: true,
+                oldClrType: typeof(int),
+                oldType: "INTEGER");
 
             migrationBuilder.AddColumn<int>(
                 name: "CalendarMode",
@@ -370,7 +400,8 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Name = table.Column<string>(type: "TEXT", nullable: true)
+                    Name = table.Column<string>(type: "TEXT", nullable: true),
+                    AspectRatio = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true, defaultValue: "16:9")
                 },
                 constraints: table =>
                 {
@@ -695,6 +726,10 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
             migrationBuilder.DropColumn(
                 name: "TargetDuration",
                 table: "ProgramScheduleItem");
+
+            migrationBuilder.DropColumn(
+                name: "SpecificDates",
+                table: "ProgramScheduleAlternate");
 
             migrationBuilder.DropColumn(
                 name: "CalendarMode",

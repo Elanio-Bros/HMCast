@@ -35,16 +35,10 @@ public class UpdateTraktListHandler(
                 {
                     if (traktList.PlaylistId is null)
                     {
-                        PlaylistGroup traktListGroup = await dbContext.PlaylistGroups
-                            .Filter(pg => pg.IsSystem)
-                            .FirstOrDefaultAsync(cancellationToken);
-
                         var playlist = new Playlist
                         {
                             IsSystem = true,
-                            Name = $"{traktList.User}/{traktList.List}",
-                            PlaylistGroupId = traktListGroup.Id,
-                            PlaylistGroup = traktListGroup
+                            Name = $"{traktList.User}/{traktList.List}"
                         };
 
                         traktList.Playlist = playlist;

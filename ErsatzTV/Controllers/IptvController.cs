@@ -24,6 +24,7 @@ namespace ErsatzTV.Controllers;
 public class IptvController : StreamingControllerBase
 {
     private readonly IFFmpegSegmenterService _ffmpegSegmenterService;
+    private readonly IChannelPreCacheService _channelPreCacheService;
     private readonly ILogger<IptvController> _logger;
     private readonly IMediator _mediator;
 
@@ -31,12 +32,14 @@ public class IptvController : StreamingControllerBase
         IMediator mediator,
         IGraphicsEngine graphicsEngine,
         ILogger<IptvController> logger,
-        IFFmpegSegmenterService ffmpegSegmenterService)
+        IFFmpegSegmenterService ffmpegSegmenterService,
+        IChannelPreCacheService channelPreCacheService)
         : base(graphicsEngine, logger)
     {
         _mediator = mediator;
         _logger = logger;
         _ffmpegSegmenterService = ffmpegSegmenterService;
+        _channelPreCacheService = channelPreCacheService;
     }
 
     [HttpHead("iptv/channels.m3u")]
@@ -125,6 +128,20 @@ public class IptvController : StreamingControllerBase
             _logger.LogWarning(
                 "Channel {ChannelNumber} uses the legacy streaming engine, which will be removed in ErsatzTV 26.12",
                 channelNumber);
+        }
+
+        // HMCast 3.0: Verifica se o canal possui sessão pré-aquecida em RAM com seek zero-delay (< 200ms)
+        if (_channelPreCacheService != null)
+        {
+            var maybePreCached = _channelPreCacheService.GetPreCachedSession(channelNumber);
+            foreach (var preCached in maybePreCached)
+            {
+                _logger.LogInformation(
+                    "Channel {ChannelNumber} tuned using PreCache RAM zero-delay session (Prepared at {PreparedAt}, Seek {Seek})",
+                    channelNumber,
+                    preCached.PreparedAt,
+                    preCached.CurrentSeek);
+            }
         }
 
         FFmpegProcessRequest request = mode switch

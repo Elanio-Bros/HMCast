@@ -30,6 +30,7 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
     private readonly ILogger<BuildPlayoutHandler> _logger;
     private readonly ISequentialPlayoutBuilder _sequentialPlayoutBuilder;
     private readonly IScriptedPlayoutBuilder _scriptedPlayoutBuilder;
+    private readonly IUniversalPlayoutRouter _universalPlayoutRouter;
 
     public BuildPlayoutHandler(
         IDbContextFactory<TvContext> dbContextFactory,
@@ -37,6 +38,7 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
         ISequentialPlayoutBuilder sequentialPlayoutBuilder,
         IScriptedPlayoutBuilder scriptedPlayoutBuilder,
         IExternalJsonPlayoutBuilder externalJsonPlayoutBuilder,
+        IUniversalPlayoutRouter universalPlayoutRouter,
         IFFmpegSegmenterService ffmpegSegmenterService,
         IEntityLocker entityLocker,
         IPlayoutTimeShifter playoutTimeShifter,
@@ -49,6 +51,7 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
         _sequentialPlayoutBuilder = sequentialPlayoutBuilder;
         _scriptedPlayoutBuilder = scriptedPlayoutBuilder;
         _externalJsonPlayoutBuilder = externalJsonPlayoutBuilder;
+        _universalPlayoutRouter = universalPlayoutRouter;
         _ffmpegSegmenterService = ffmpegSegmenterService;
         _entityLocker = entityLocker;
         _playoutTimeShifter = playoutTimeShifter;
@@ -161,15 +164,6 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
 
             switch (playout.ScheduleKind)
             {
-
-                case PlayoutScheduleKind.Sequential:
-                    buildResult = await _sequentialPlayoutBuilder.Build(
-                        request.Start,
-                        playout,
-                        referenceData,
-                        request.Mode,
-                        cancellationToken);
-                    break;
                 case PlayoutScheduleKind.Scripted:
                     buildResult = await _scriptedPlayoutBuilder.Build(
                         request.Start,
@@ -181,10 +175,8 @@ public class BuildPlayoutHandler : IRequestHandler<BuildPlayout, Either<BaseErro
                 case PlayoutScheduleKind.ExternalJson:
                     await _externalJsonPlayoutBuilder.Build(playout, request.Mode, cancellationToken);
                     break;
-                case PlayoutScheduleKind.None:
-                case PlayoutScheduleKind.Classic:
                 default:
-                    buildResult = await _playoutBuilder.Build(
+                    buildResult = await _universalPlayoutRouter.RouteAndBuild(
                         request.Start,
                         playout,
                         referenceData,

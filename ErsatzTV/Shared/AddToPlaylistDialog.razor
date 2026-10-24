@@ -1,4 +1,4 @@
-﻿@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Application.MediaCollections
 @using Microsoft.Extensions.Caching.Memory
 @implements IDisposable
 @inject IMediator Mediator
@@ -13,16 +13,6 @@
                                 Text="@FormatText()"
                                 HighlightedText="@EntityName"/>
             </MudContainer>
-            <MudSelect Class="mb-3 mx-4"
-                       T="PlaylistGroupViewModel"
-                       Label="Playlist Group"
-                       Value="_selectedPlaylistGroup"
-                       ValueChanged="OnPlaylistGroupChanged">
-                @foreach (PlaylistGroupViewModel playlistGroup in _playlistGroups)
-                {
-                    <MudSelectItem Value="@playlistGroup">@playlistGroup.Name</MudSelectItem>
-                }
-            </MudSelect>
             <MudSelect Class="mb-6 mx-4"
                        T="PlaylistViewModel"
                        Label="Playlist"
@@ -36,7 +26,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" ButtonType="ButtonType.Reset">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!CanSubmit())" OnClick="Submit">
             Add To Playlist
         </MudButton>
     </DialogActions>
@@ -61,10 +51,7 @@
     [Parameter]
     public string DetailHighlight { get; set; }
 
-    private readonly List<PlaylistGroupViewModel> _playlistGroups = [];
     private readonly List<PlaylistViewModel> _playlists = [];
-
-    private PlaylistGroupViewModel _selectedPlaylistGroup;
     private PlaylistViewModel _selectedPlaylist;
 
     private record DummyModel;
@@ -88,20 +75,12 @@
 
         try
         {
-            _playlistGroups.Clear();
-            _playlistGroups.AddRange(await Mediator.Send(new GetAllPlaylistGroups(), token));
+            _playlists.Clear();
+            _playlists.AddRange(await Mediator.Send(new GetAllPlaylists(), token));
 
-            if (MemoryCache.TryGetValue("AddToPlaylistDialog.SelectedPlaylistGroupId", out int groupId))
+            if (MemoryCache.TryGetValue("AddToPlaylistDialog.SelectedPlaylistId", out int id))
             {
-                _selectedPlaylistGroup = _playlistGroups.SingleOrDefault(pg => pg.Id == groupId);
-                if (_selectedPlaylistGroup is not null)
-                {
-                    await UpdatePlaylistGroupItems(_selectedPlaylistGroup);
-                    if (MemoryCache.TryGetValue("AddToPlaylistDialog.SelectedPlaylistId", out int id))
-                    {
-                        _selectedPlaylist = _playlists.SingleOrDefault(c => c.Id == id);
-                    }
-                }
+                _selectedPlaylist = _playlists.SingleOrDefault(c => c.Id == id);
             }
         }
         catch (OperationCanceledException)
@@ -112,20 +91,6 @@
 
     private string FormatText() => $"Select the playlist to add the {EntityType} {EntityName}";
 
-    private async Task UpdatePlaylistGroupItems(PlaylistGroupViewModel playlistGroup)
-    {
-        _selectedPlaylistGroup = playlistGroup;
-
-        _playlists.Clear();
-        _playlists.AddRange(await Mediator.Send(new GetPlaylistsByPlaylistGroupId(playlistGroup.Id), _cts.Token));
-    }
-
-    private Task OnPlaylistGroupChanged(PlaylistGroupViewModel group)
-    {
-        _selectedPlaylist = null;
-        return UpdatePlaylistGroupItems(group);
-    }
-
     private async Task Submit()
     {
         if (!CanSubmit())
@@ -135,7 +100,6 @@
 
         await Task.CompletedTask;
 
-        MemoryCache.Set("AddToPlaylistDialog.SelectedPlaylistGroupId", _selectedPlaylistGroup.Id);
         MemoryCache.Set("AddToPlaylistDialog.SelectedPlaylistId", _selectedPlaylist.Id);
         MudDialog.Close(DialogResult.Ok(_selectedPlaylist));
     }

@@ -105,7 +105,6 @@ public class TvContext : DbContext
     public DbSet<PlayoutGap> PlayoutGaps { get; set; }
     public DbSet<PlayoutProgramScheduleAnchor> PlayoutProgramScheduleItemAnchors { get; set; }
     public DbSet<PlayoutBuildStatus> PlayoutBuildStatus { get; set; }
-    public DbSet<PlaylistGroup> PlaylistGroups { get; set; }
     public DbSet<Playlist> Playlists { get; set; }
     public DbSet<PlaylistItem> PlaylistItems { get; set; }
     public DbSet<FFmpegProfile> FFmpegProfiles { get; set; }

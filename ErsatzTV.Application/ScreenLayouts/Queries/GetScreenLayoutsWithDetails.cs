@@ -14,6 +14,7 @@ public class ScreenLayoutDetailViewModel
 {
     public int Id { get; set; }
     public string Name { get; set; }
+    public string AspectRatio { get; set; } = "16:9";
     public List<ScreenLayoutElementDto> Elements { get; set; } = [];
     public List<ScreenLayoutRuleDto> Rules { get; set; } = [];
 }
@@ -40,6 +41,7 @@ public class GetScreenLayoutsWithDetailsHandler(IDbContextFactory<TvContext> dbC
         {
             Id = l.Id,
             Name = l.Name,
+            AspectRatio = l.AspectRatio ?? "16:9",
             Elements = l.Elements.Select(e => new ScreenLayoutElementDto
             {
                 Id = e.Id,

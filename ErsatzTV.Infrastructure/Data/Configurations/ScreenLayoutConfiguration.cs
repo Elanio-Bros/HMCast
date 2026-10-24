@@ -10,6 +10,10 @@ public class ScreenLayoutConfiguration : IEntityTypeConfiguration<ScreenLayout>
     {
         builder.ToTable("ScreenLayout");
 
+        builder.Property(l => l.AspectRatio)
+            .HasMaxLength(10)
+            .HasDefaultValue("16:9");
+
         builder.HasMany(l => l.Elements)
             .WithOne(e => e.ScreenLayout)
             .HasForeignKey(e => e.ScreenLayoutId)

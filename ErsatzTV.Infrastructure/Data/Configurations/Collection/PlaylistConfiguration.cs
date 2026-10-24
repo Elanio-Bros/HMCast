@@ -14,8 +14,7 @@ public class PlaylistConfiguration : IEntityTypeConfiguration<Playlist>
             .HasMaxLength(50)
             .HasColumnType("varchar(50)");
 
-        builder.HasIndex(p => new { p.PlaylistGroupId, p.Name })
-            .IsUnique();
+        builder.HasIndex(p => p.Name);
 
         builder.HasMany(p => p.Items)
             .WithOne(pi => pi.Playlist)

@@ -1,4 +1,4 @@
-﻿@page "/media/filler/presets/{Id:int}/edit"
+@page "/media/filler/presets/{Id:int}/edit"
 @page "/media/filler/presets/add"
 @using ErsatzTV.Application.Artists
 @using ErsatzTV.Application.Filler
@@ -206,19 +206,6 @@
             {
                 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                     <div class="d-flex">
-                        <MudText>Playlist Group</MudText>
-                    </div>
-                    <MudSelect T="PlaylistGroupViewModel"
-                               Value="@_selectedPlaylistGroup"
-                               ValueChanged="@OnPlaylistGroupChanged">
-                        @foreach (PlaylistGroupViewModel playlistGroup in _playlistGroups)
-                        {
-                            <MudSelectItem Value="@playlistGroup">@playlistGroup.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudStack>
-                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-                    <div class="d-flex">
                         <MudText>Playlist</MudText>
                     </div>
                     <MudSelect T="PlaylistViewModel" @bind-value="_model.Playlist">
@@ -289,10 +276,7 @@
     private readonly List<NamedMediaItemViewModel> _televisionShows = [];
     private readonly List<NamedMediaItemViewModel> _televisionSeasons = [];
     private readonly List<NamedMediaItemViewModel> _artists = [];
-    private readonly List<PlaylistGroupViewModel> _playlistGroups = [];
     private readonly List<PlaylistViewModel> _playlists = [];
-
-    private PlaylistGroupViewModel _selectedPlaylistGroup;
 
     public void Dispose()
     {
@@ -339,8 +323,10 @@
                 await Mediator.Send(new GetAllArtists(), token)
                     .Map(list => list.OrderBy(vm => vm.Name, StringComparer.CurrentCultureIgnoreCase).ToList()));
 
-            _playlistGroups.Clear();
-            _playlistGroups.AddRange(await Mediator.Send(new GetAllPlaylistGroups(), token));
+            _playlists.Clear();
+            _playlists.AddRange(
+                await Mediator.Send(new GetAllPlaylists(), token)
+                    .Map(list => list.OrderBy(vm => vm.Name, StringComparer.CurrentCultureIgnoreCase).ToList()));
 
             if (IsEdit)
             {
@@ -379,15 +365,6 @@
                 _model.FillerKind = FillerKind.PreRoll;
                 _model.FillerMode = FillerMode.Duration;
             }
-
-            foreach (int playlistGroupId in Optional(_model.Playlist?.PlaylistGroupId))
-            {
-                foreach (PlaylistGroupViewModel group in Optional(_playlistGroups.Find(g => g.Id == playlistGroupId)))
-                {
-                    _selectedPlaylistGroup = group;
-                    await UpdatePlaylistGroupItems(group);
-                }
-            }
         }
         catch (OperationCanceledException)
         {
@@ -396,20 +373,6 @@
     }
 
     private bool IsEdit => Id != 0;
-
-    private async Task UpdatePlaylistGroupItems(PlaylistGroupViewModel playlistGroup)
-    {
-        _selectedPlaylistGroup = playlistGroup;
-
-        _playlists.Clear();
-        _playlists.AddRange(await Mediator.Send(new GetPlaylistsByPlaylistGroupId(playlistGroup.Id), _cts.Token));
-    }
-
-    private Task OnPlaylistGroupChanged(PlaylistGroupViewModel group)
-    {
-        _model?.Playlist = null;
-        return UpdatePlaylistGroupItems(group);
-    }
 
     private async Task HandleSubmitAsync()
     {

@@ -5,16 +5,7 @@
 
 <MudDialog>
     <DialogContent>
-        <MudText Typo="Typo.body2" Class="mb-4 text-muted">Create a new sequential playlist within a group.</MudText>
-        <MudSelect T="int" @bind-Value="_selectedGroupId" Label="Playlist Group" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4">
-            @if (Groups != null)
-            {
-                @foreach (var group in Groups)
-                {
-                    <MudSelectItem Value="@group.Id">@group.Name</MudSelectItem>
-                }
-            }
-        </MudSelect>
+        <MudText Typo="Typo.body2" Class="mb-4 text-muted">Create a new sequential playlist.</MudText>
         <MudTextField @bind-Value="_playlistName" 
                       Label="Playlist Name" 
                       Placeholder="e.g. S01 Marathon, Best of Halloween" 
@@ -24,7 +15,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_selectedGroupId <= 0 || string.IsNullOrWhiteSpace(_playlistName) || _isSaving)" OnClick="Save">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(string.IsNullOrWhiteSpace(_playlistName) || _isSaving)" OnClick="Save">
             @if (_isSaving)
             {
                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -38,36 +29,17 @@
     [CascadingParameter]
     IMudDialogInstance MudDialog { get; set; }
 
-    [Parameter]
-    public List<PlaylistGroupViewModel> Groups { get; set; } = new();
-
-    [Parameter]
-    public int? InitialGroupId { get; set; }
-
-    private int _selectedGroupId;
     private string _playlistName;
     private bool _isSaving;
 
-    protected override void OnInitialized()
-    {
-        if (InitialGroupId.HasValue && Groups.Any(g => g.Id == InitialGroupId.Value))
-        {
-            _selectedGroupId = InitialGroupId.Value;
-        }
-        else if (Groups.Any())
-        {
-            _selectedGroupId = Groups.First().Id;
-        }
-    }
-
     private async Task Save()
     {
-        if (_selectedGroupId <= 0 || string.IsNullOrWhiteSpace(_playlistName)) return;
+        if (string.IsNullOrWhiteSpace(_playlistName)) return;
 
         _isSaving = true;
         try
         {
-            var result = await Mediator.Send(new CreatePlaylist(_selectedGroupId, _playlistName.Trim()));
+            var result = await Mediator.Send(new CreatePlaylist(_playlistName.Trim()));
             result.Match(
                 Left: error =>
                 {
