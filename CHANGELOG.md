@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [26.11.5] - 2026-10-24
 ### Fixed
 - Fix startup crash `The system cannot open the device or file specified` when running as a non-root user or with a read-only root filesystem
   - This was caused by a .NET runtime security update that changed where single-instance checks are stored
@@ -3690,7 +3692,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial release to facilitate testing outside of Docker.
 
 
-[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.4...HEAD
+[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.11.5...HEAD
+[26.11.5]: https://github.com/ErsatzTV/legacy/compare/v26.11.4...v26.11.5
 [26.11.4]: https://github.com/ErsatzTV/legacy/compare/v26.11.3...v26.11.4
 [26.11.3]: https://github.com/ErsatzTV/legacy/compare/v26.11.2...v26.11.3
 [26.11.2]: https://github.com/ErsatzTV/legacy/compare/v26.11.1...v26.11.2
