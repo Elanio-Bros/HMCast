@@ -7,5 +7,6 @@ public enum ProgramScheduleSourceKind
     Library = 2,
     Collection = 3,
     MediaItem = 4,
-    ExternalCollection = 5
+    ExternalCollection = 5,
+    ExternalJson = 6
 }

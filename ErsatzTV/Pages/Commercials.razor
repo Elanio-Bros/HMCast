@@ -1,162 +1,201 @@
 @page "/media/commercials"
-@using ErsatzTV.Application.Filler
+@using ErsatzTV.Application.Commercials
 @using ErsatzTV.Core.Domain
-@using ErsatzTV.Core.Domain.Filler
+@using ErsatzTV.Shared
 @implements IDisposable
 @inject IDialogService Dialog
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
-@inject NavigationManager NavigationManager
+@inject IStringLocalizer<ErsatzTV.Locals.Pages.Commercials> Loc
+@inject IStringLocalizer<ErsatzTV.Locals.Shared.Common> CommonLoc
 
 <MudForm Style="max-height: 100%">
     <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <div class="d-flex align-center ml-6 mr-6" style="width: 100%;">
-            <MudText Typo="Typo.h6" Class="mr-4">Comerciais &amp; Vinhetas</MudText>
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Add"
-                       Href="media/filler/presets/add">
-                Novo Preset Comercial
-            </MudButton>
-            <MudSpacer />
-            <MudChip T="string" Color="Color.Info" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.Campaign">
-                HMCast 3.0 Commercial Engine
-            </MudChip>
-        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddCommercialPresetAsync">
+            @Loc["Button_AddCommercial"]
+        </MudButton>
     </MudPaper>
 
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8 pb-12">
             <div class="d-flex align-center justify-space-between mb-4">
                 <div>
-                    <MudText Typo="Typo.h5" Class="mb-1">Gestão Profissional de Comerciais &amp; Vinhetas</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Configure blocos de publicidade, vinhetas institucionais (Preroll/Midroll/Postroll), fillers de preenchimento e pads temporais.
-                    </MudText>
+                    <MudText Typo="Typo.h5" Style="font-weight: 700;">@Loc["Title_Commercials"]</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">@Loc["Subtitle_Commercials"]</MudText>
                 </div>
-                <div class="d-flex gap-2">
-                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">Preroll</MudChip>
-                    <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Filled">Midroll</MudChip>
-                    <MudChip T="string" Color="Color.Tertiary" Size="Size.Small" Variant="Variant.Filled">Postroll</MudChip>
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Filler / Pad</MudChip>
+                <div style="min-width: 300px;">
+                    <MudTextField T="string"
+                                  @bind-Value="_searchQuery"
+                                  Placeholder="Filtrar comerciais..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Immediate="true"
+                                  Clearable="true"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
                 </div>
             </div>
-
             <MudDivider Class="mb-6"/>
 
-            <MudTable Hover="true"
-                      @bind-RowsPerPage="@_rowsPerPage"
-                      ServerData="@(new Func<TableState, CancellationToken, Task<TableData<FillerPresetViewModel>>>(ServerReloadPresets))"
-                      Dense="true"
-                      @ref="_table">
-                <ColGroup>
-                    <MudHidden Breakpoint="Breakpoint.Xs">
-                        <col style="width: 40px;"/>
-                        <col/>
-                        <col style="width: 200px;"/>
-                        <col style="width: 160px;"/>
-                        <col style="width: 140px;"/>
-                    </MudHidden>
-                </ColGroup>
-                <HeaderContent>
-                    <MudTh><MudIcon Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" /></MudTh>
-                    <MudTh>Nome do Preset</MudTh>
-                    <MudTh>Tipo de Comercial</MudTh>
-                    <MudTh>Pad / Duração</MudTh>
-                    <MudTh Style="text-align: right;">Ações</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Ícone">
-                        <MudIcon Icon="@Icons.Material.Filled.Tv" Color="Color.Primary" Size="Size.Small" />
-                    </MudTd>
-                    <MudTd DataLabel="Nome">
-                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.Name</MudText>
-                    </MudTd>
-                    <MudTd DataLabel="Tipo">
-                        @{
-                            var kind = context.FillerKind;
-                            Color chipColor = kind switch
+            @if (_loading)
+            {
+                <div class="d-flex justify-center my-8">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large"/>
+                </div>
+            }
+            else if (_presets.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="my-4">
+                    Nenhum comercial ou vinheta cadastrado. Clique no botão acima para adicionar um novo preset.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTable Items="@FilteredPresets" Hover="true" Dense="true" Elevation="1" Class="mb-6">
+                    <HeaderContent>
+                        <MudTh>@Loc["Header_Name"]</MudTh>
+                        <MudTh>@Loc["Header_Kind"]</MudTh>
+                        <MudTh>@Loc["Header_Collection"]</MudTh>
+                        <MudTh>@Loc["Header_TargetDuration"]</MudTh>
+                        <MudTh>@Loc["Header_PadSeconds"]</MudTh>
+                        <MudTh>@Loc["Header_PlaybackOrder"]</MudTh>
+                        <MudTh Style="text-align: right">@Loc["Header_Actions"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Nome">
+                            <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@context.Name</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Tipo">
+                            @switch (context.Kind)
                             {
-                                FillerKind.PreRoll => Color.Primary,
-                                FillerKind.MidRoll => Color.Secondary,
-                                FillerKind.PostRoll => Color.Tertiary,
-                                FillerKind.Tail => Color.Warning,
-                                FillerKind.Fallback => Color.Error,
-                                _ => Color.Default
-                            };
-                        }
-                        <MudChip T="string" Color="@chipColor" Size="Size.Small" Variant="Variant.Filled">
-                            @kind.ToString()
-                        </MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="Pad">
-                        @if (context.PadToNearestMinute.HasValue)
-                        {
-                            <MudText Typo="Typo.body2">Até @context.PadToNearestMinute min</MudText>
-                        }
-                        else
-                        {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">Tempo Exato</MudText>
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Ações" Style="text-align: right;">
-                        <div class="d-inline-flex align-center gap-1">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                           Size="Size.Small"
-                                           Color="Color.Default"
-                                           Href="@($"media/filler/presets/{context.Id}")" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                           Size="Size.Small"
-                                           Color="Color.Error"
-                                           OnClick="@(() => DeletePreset(context))" />
-                        </div>
-                    </MudTd>
-                </RowTemplate>
-                <PagerContent>
-                    <MudTablePager />
-                </PagerContent>
-            </MudTable>
+                                case CommercialKind.Preroll:
+                                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">Pré-Roll</MudChip>
+                                    break;
+                                case CommercialKind.Midroll:
+                                    <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Filled">Mid-Roll</MudChip>
+                                    break;
+                                case CommercialKind.Postroll:
+                                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled">Pós-Roll</MudChip>
+                                    break;
+                                case CommercialKind.Pad:
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Pad</MudChip>
+                                    break;
+                                default:
+                                    <MudChip T="string" Color="Color.Dark" Size="Size.Small" Variant="Variant.Outlined">Filler</MudChip>
+                                    break;
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Coleção">
+                            @if (!string.IsNullOrWhiteSpace(context.CollectionName))
+                            {
+                                <MudText Typo="Typo.body2">@context.CollectionName</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Item Específico</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Duração Alvo">
+                            @(context.TargetDuration.HasValue ? context.TargetDuration.Value.ToString(@"mm\:ss") : "Livre")
+                        </MudTd>
+                        <MudTd DataLabel="Pad">
+                            @(context.PadSeconds.HasValue ? $"{context.PadSeconds.Value}s" : "-")
+                        </MudTd>
+                        <MudTd DataLabel="Ordem">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@context.PlaybackOrder</MudChip>
+                        </MudTd>
+                        <MudTd Style="text-align: right">
+                            <MudTooltip Text="Editar">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditCommercialPresetAsync(context))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Excluir">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteCommercialPresetAsync(context))" />
+                            </MudTooltip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
         </MudContainer>
     </div>
 </MudForm>
 
 @code {
-    private readonly CancellationTokenSource _cts = new();
-    private int _rowsPerPage = 10;
-    private MudTable<FillerPresetViewModel> _table;
+    private CancellationTokenSource _cts;
+    private List<CommercialPresetViewModel> _presets = [];
+    private string _searchQuery = string.Empty;
+    private bool _loading = true;
+
+    private IEnumerable<CommercialPresetViewModel> FilteredPresets =>
+        string.IsNullOrWhiteSpace(_searchQuery)
+            ? _presets
+            : _presets.Where(p => p.Name.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                                  (p.CollectionName?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        await LoadPresetsAsync();
+    }
 
     public void Dispose()
     {
-        _cts.Cancel();
-        _cts.Dispose();
+        _cts?.Cancel();
+        _cts?.Dispose();
     }
 
-    private async Task<TableData<FillerPresetViewModel>> ServerReloadPresets(TableState state, CancellationToken cancellationToken)
+    private async Task LoadPresetsAsync()
     {
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
-        List<FillerPresetViewModel> presets = await Mediator.Send(new GetAllFillerPresets(), linkedCts.Token);
-        IOrderedEnumerable<FillerPresetViewModel> ordered = presets.OrderBy(p => p.Name);
-        return new TableData<FillerPresetViewModel>
+        _loading = true;
+        try
         {
-            TotalItems = presets.Count,
-            Items = ordered.Skip(state.Page * state.PageSize).Take(state.PageSize)
-        };
+            _presets = await Mediator.Send(new GetAllCommercialPresets(), _cts.Token);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
-    private async Task DeletePreset(FillerPresetViewModel preset)
+    private async Task AddCommercialPresetAsync()
     {
-        var parameters = new DialogParameters { { "EntityType", "Preset Comercial" }, { "EntityName", preset.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        IDialogReference dialog = await Dialog.ShowAsync<CommercialPresetDialog>(Loc["Dialog_AddTitle"], options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add(Loc["Msg_Saved"], Severity.Success);
+            await LoadPresetsAsync();
+        }
+    }
+
+    private async Task EditCommercialPresetAsync(CommercialPresetViewModel preset)
+    {
+        var parameters = new DialogParameters { { "Preset", preset } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        IDialogReference dialog = await Dialog.ShowAsync<CommercialPresetDialog>(Loc["Dialog_EditTitle"], parameters, options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add(Loc["Msg_Saved"], Severity.Success);
+            await LoadPresetsAsync();
+        }
+    }
+
+    private async Task DeleteCommercialPresetAsync(CommercialPresetViewModel preset)
+    {
+        var parameters = new DialogParameters
+        {
+            { "EntityType", "comercial" },
+            { "EntityName", preset.Name }
+        };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
         IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Excluir Comercial", parameters, options);
         DialogResult result = await dialog.Result;
         if (result is { Canceled: false })
         {
-            await Mediator.Send(new DeleteFillerPreset(preset.Id), _cts.Token);
-            if (_table != null)
-            {
-                await _table.ReloadServerData();
-            }
-            Snackbar.Add($"Preset '{preset.Name}' removido com sucesso.", Severity.Success);
+            await Mediator.Send(new DeleteCommercialPreset(preset.Id), _cts.Token);
+            Snackbar.Add(Loc["Msg_Deleted"], Severity.Info);
+            await LoadPresetsAsync();
         }
     }
 }

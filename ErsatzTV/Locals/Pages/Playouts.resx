@@ -1,0 +1,74 @@
+<root>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="Title_Playouts" xml:space="preserve">
+        <value>Playout Hub</value>
+    </data>
+    <data name="Button_AddPlayout" xml:space="preserve">
+        <value>Add Playout</value>
+    </data>
+    <data name="Button_ResetAll" xml:space="preserve">
+        <value>Reset All Playouts</value>
+    </data>
+    <data name="Search_Placeholder" xml:space="preserve">
+        <value>Search channels or playouts...</value>
+    </data>
+    <data name="Status_OnAir" xml:space="preserve">
+        <value>On Air</value>
+    </data>
+    <data name="Status_Scheduled" xml:space="preserve">
+        <value>Scheduled</value>
+    </data>
+    <data name="Status_OutOfPeriod" xml:space="preserve">
+        <value>Out of Period</value>
+    </data>
+    <data name="Status_Disabled" xml:space="preserve">
+        <value>Disabled</value>
+    </data>
+    <data name="Msg_EnabledSuccess" xml:space="preserve">
+        <value>Playout status updated successfully.</value>
+    </data>
+    <data name="Msg_EnabledError" xml:space="preserve">
+        <value>Failed to update playout status: </value>
+    </data>
+    <data name="Label_PlayoutDetail" xml:space="preserve">
+        <value>Playout Detail Timeline</value>
+    </data>
+    <data name="Label_NoPlayoutsChannel" xml:space="preserve">
+        <value>No playouts configured for this channel.</value>
+    </data>
+    <data name="Header_Channel" xml:space="preserve">
+        <value>Channel</value>
+    </data>
+    <data name="Header_Source" xml:space="preserve">
+        <value>Schedule / Source</value>
+    </data>
+    <data name="Header_Type" xml:space="preserve">
+        <value>Type</value>
+    </data>
+    <data name="Header_Delivery" xml:space="preserve">
+        <value>Delivery</value>
+    </data>
+    <data name="Header_Calendar" xml:space="preserve">
+        <value>Calendar</value>
+    </data>
+    <data name="Header_Status" xml:space="preserve">
+        <value>Status</value>
+    </data>
+    <data name="Header_Active" xml:space="preserve">
+        <value>Active</value>
+    </data>
+    <data name="Header_Actions" xml:space="preserve">
+        <value>Actions</value>
+    </data>
+</root>

@@ -37,4 +37,10 @@ public record UpdateChannel(
     bool ShowInEpg,
     ChannelMode Mode,
     int PreCache = 2,
-    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled) : IRequest<Either<BaseError, ChannelViewModel>>;
+    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled,
+    string FallbackCustomTitle = null,
+    string FallbackCustomMessage = null,
+    int? FallbackMediaItemId = null,
+    int? FallbackCollectionId = null,
+    int? FallbackPlaylistId = null,
+    bool FallbackIsLoop = true) : IRequest<Either<BaseError, ChannelViewModel>>;

@@ -1,0 +1,154 @@
+@using ErsatzTV.Application.Commercials
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Core.Domain
+@implements IDisposable
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_name"
+                          Label="Nome do Comercial / Vinheta"
+                          Required="true"
+                          RequiredError="O nome é obrigatório"
+                          Class="mb-4" />
+
+            <MudSelect T="CommercialKind" @bind-Value="_kind" Label="Tipo de Publicidade / Vinheta" Class="mb-4">
+                <MudSelectItem Value="CommercialKind.Filler">Filler (Preenchimento Geral de Lacunas)</MudSelectItem>
+                <MudSelectItem Value="CommercialKind.Preroll">Pré-Roll (Executado Imediatamente Antes do Conteúdo)</MudSelectItem>
+                <MudSelectItem Value="CommercialKind.Midroll">Mid-Roll (Intervalo no Meio do Conteúdo)</MudSelectItem>
+                <MudSelectItem Value="CommercialKind.Postroll">Pós-Roll (Executado Logo Após o Término)</MudSelectItem>
+                <MudSelectItem Value="CommercialKind.Pad">Pad (Preenchimento Rígido até a Próxima Hora Cheia)</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="int?" @bind-Value="_collectionId" Label="Coleção de Mídia Fonte" Clearable="true" Class="mb-4">
+                <MudSelectItem T="int?" Value="@((int?)null)">(Nenhuma - Usar Mídia Específica)</MudSelectItem>
+                @foreach (MediaCollectionViewModel collection in _collections)
+                {
+                    <MudSelectItem T="int?" Value="@collection.Id">@collection.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <div class="d-flex gap-4 mb-4">
+                <MudNumericField T="int?"
+                                 @bind-Value="_targetDurationMinutes"
+                                 Label="Duração Alvo (Minutos)"
+                                 Min="0"
+                                 Max="120"
+                                 HelperText="Deixe em branco para livre" />
+                <MudNumericField T="int?"
+                                 @bind-Value="_padSeconds"
+                                 Label="Pad em Segundos"
+                                 Min="0"
+                                 Max="300"
+                                 HelperText="Margem de segurança para encaixe" />
+            </div>
+
+            <MudSelect T="PlaybackOrder" @bind-Value="_playbackOrder" Label="Ordem de Reprodução" Class="mb-4">
+                <MudSelectItem Value="PlaybackOrder.Random">Aleatório (Random)</MudSelectItem>
+                <MudSelectItem Value="PlaybackOrder.Shuffle">Embaralhado (Shuffle)</MudSelectItem>
+                <MudSelectItem Value="PlaybackOrder.Chronological">Cronológico / Sequencial</MudSelectItem>
+            </MudSelect>
+
+            <MudCheckBox T="bool" @bind-Value="_strictDuration" Color="Color.Primary" Label="Exigir Duração Estrita (Cortar excedente)" Dense="true" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitAsync">Salvar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private CancellationTokenSource _cts;
+    private MudForm _form;
+
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public CommercialPresetViewModel Preset { get; set; }
+
+    private string _name;
+    private CommercialKind _kind = CommercialKind.Filler;
+    private int? _collectionId;
+    private int? _targetDurationMinutes;
+    private int? _padSeconds;
+    private bool _strictDuration;
+    private PlaybackOrder _playbackOrder = PlaybackOrder.Random;
+
+    private List<MediaCollectionViewModel> _collections = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        _collections = await Mediator.Send(new GetAllCollections(), _cts.Token);
+
+        if (Preset != null)
+        {
+            _name = Preset.Name;
+            _kind = Preset.Kind;
+            _collectionId = Preset.CollectionId;
+            _targetDurationMinutes = Preset.TargetDuration.HasValue ? (int)Preset.TargetDuration.Value.TotalMinutes : null;
+            _padSeconds = Preset.PadSeconds;
+            _strictDuration = Preset.StrictDuration;
+            _playbackOrder = Preset.PlaybackOrder;
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        TimeSpan? targetDuration = _targetDurationMinutes.HasValue ? TimeSpan.FromMinutes(_targetDurationMinutes.Value) : null;
+
+        if (Preset != null && Preset.Id > 0)
+        {
+            var updateCommand = new UpdateCommercialPreset(
+                Preset.Id,
+                _name,
+                _kind,
+                _collectionId,
+                null,
+                targetDuration,
+                _padSeconds,
+                _strictDuration,
+                _playbackOrder);
+
+            var result = await Mediator.Send(updateCommand, _cts.Token);
+            result.Match(
+                saved => MudDialog.Close(DialogResult.Ok(saved)),
+                error => Snackbar.Add(error.Value, Severity.Error));
+        }
+        else
+        {
+            var createCommand = new CreateCommercialPreset(
+                _name,
+                _kind,
+                _collectionId,
+                null,
+                targetDuration,
+                _padSeconds,
+                _strictDuration,
+                _playbackOrder);
+
+            var result = await Mediator.Send(createCommand, _cts.Token);
+            result.Match(
+                created => MudDialog.Close(DialogResult.Ok(created)),
+                error => Snackbar.Add(error.Value, Severity.Error));
+        }
+    }
+}

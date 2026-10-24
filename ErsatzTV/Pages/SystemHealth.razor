@@ -1,0 +1,282 @@
+@page "/system/health"
+@using ErsatzTV.Application.Health
+@using ErsatzTV.Core.Health
+@using System.Reflection
+@using System.Text.RegularExpressions
+@using ErsatzTV.Core.Interfaces.GitHub
+@using Microsoft.Extensions.Caching.Memory
+@implements IDisposable
+@inject IGitHubApiClient GitHubApiClient
+@inject IMemoryCache MemoryCache
+@inject IMediator Mediator
+@inject SystemStartup SystemStartup;
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            @if (!SystemStartup.IsDatabaseReady)
+            {
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h4">Database is initializing</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText>Please wait, this may take a few minutes.</MudText>
+                        <MudText>This page will automatically refresh when the database is ready.</MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudProgressCircular Color="Color.Primary" Size="Size.Medium" Indeterminate="true"/>
+                    </MudCardActions>
+                </MudCard>
+            }
+            else if (!SystemStartup.IsSearchIndexReady)
+            {
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h4">Search Index is initializing</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText>Please wait, this may take a few minutes.</MudText>
+                        <MudText>This page will automatically refresh when the search index is ready.</MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudProgressCircular Color="Color.Primary" Size="Size.Medium" Indeterminate="true"/>
+                    </MudCardActions>
+                </MudCard>
+            }
+            else
+            {
+                <div class="d-flex flex-row align-center mb-2">
+                    <MudText Typo="Typo.h5">Health Checks</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                   Size="Size.Small"
+                                   Class="ml-2"
+                                   title="Re-run health checks"
+                                   OnClick="@RefreshHealthChecks"/>
+                </div>
+                <MudDivider Class="mb-6"/>
+                <MudTable Hover="true"
+                          Dense="true"
+                          Breakpoint="Breakpoint.None"
+                          ServerData="@(ServerReload)"
+                          @ref="_healthCheckTable">
+                    <HeaderContent>
+                        <MudTh>Check</MudTh>
+                        <MudTh>Message</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <div style="align-items: center; display: flex; flex-direction: row;">
+                                @if (context.Status == HealthCheckStatus.Fail)
+                                {
+                                    <MudIcon Color="@Color.Error" Icon="@Icons.Material.Filled.Error"/>
+                                }
+                                else if (context.Status == HealthCheckStatus.Warning)
+                                {
+                                    <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning"/>
+                                }
+                                else if (context.Status == HealthCheckStatus.Info)
+                                {
+                                    <MudIcon Color="@Color.Info" Icon="@Icons.Material.Filled.Info"/>
+                                }
+                                else
+                                {
+                                    <MudIcon Color="@Color.Success" Icon="@Icons.Material.Filled.Check"/>
+                                }
+                                <div class="ml-2">@context.Title</div>
+                            </div>
+                        </MudTd>
+                        <MudTd>
+                            <MudHidden Breakpoint="Breakpoint.Xs">
+                                @if (context.Link.IsSome)
+                                {
+                                    foreach (HealthCheckLink link in context.Link)
+                                    {
+                                        if (link.Link.StartsWith("http"))
+                                        {
+                                            <MudLink Href="@link.Link" Target="_blank">
+                                                @context.Message
+                                            </MudLink>
+                                        }
+                                        else
+                                        {
+                                            <MudLink Href="@link.Link">
+                                                @context.Message
+                                            </MudLink>
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    <MudText>
+                                        @context.Message
+                                    </MudText>
+                                }
+                            </MudHidden>
+                            <MudHidden Breakpoint="Breakpoint.Xs" Invert="true">
+                                @if (context.Link.IsSome)
+                                {
+                                    foreach (HealthCheckLink link in context.Link)
+                                    {
+                                        <MudLink Href="@link.Link">
+                                            @context.BriefMessage
+                                        </MudLink>
+                                    }
+                                }
+                                else
+                                {
+                                    <MudText>
+                                        @context.BriefMessage
+                                    </MudText>
+                                }
+                            </MudHidden>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+                <MudCard Class="mt-6">
+                    <MudCardHeader>
+                        <MudText Class="mt-6">HMCast Engine 3.0 System Information</MudText>
+                    </MudCardHeader>
+                    <MudCardContent Class="release-notes mud-typography mud-typography-body1">
+                        <MarkdownView Content="@_releaseNotes"/>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+
+    private MudTable<HealthCheckResult> _healthCheckTable;
+
+    private bool _refreshHealthChecks;
+
+    private string _releaseNotes;
+
+    protected override void OnInitialized()
+    {
+        SystemStartup.OnDatabaseReady += OnStartupProgress;
+        SystemStartup.OnSearchIndexReady += OnStartupProgress;
+    }
+
+    public void Dispose()
+    {
+        SystemStartup.OnDatabaseReady -= OnStartupProgress;
+        SystemStartup.OnSearchIndexReady -= OnStartupProgress;
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private async void OnStartupProgress(object sender, EventArgs e)
+    {
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            // do nothing
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            if (MemoryCache.TryGetValue("Index.ReleaseNotesHtml", out string releaseNotesHtml))
+            {
+                _releaseNotes = releaseNotesHtml;
+            }
+            else
+            {
+                var assembly = Assembly.GetEntryAssembly();
+                if (assembly != null)
+                {
+                    string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                    if (version != null)
+                    {
+                        Either<BaseError, string> maybeNotes;
+
+                        Match developBuild = Regex.Match(version, @"^v?(\d+\.\d+\.\d+)-([0-9a-f]{8})-");
+                        if (developBuild.Success)
+                        {
+                            string developTag = $"v{developBuild.Groups[1].Value}-{developBuild.Groups[2].Value}-develop";
+                            maybeNotes = await GitHubApiClient.GetDevelopReleaseNotes(developTag, token);
+                            foreach (string notes in maybeNotes.RightToSeq())
+                            {
+                                _releaseNotes = notes;
+                            }
+                        }
+                        else if (version != "develop")
+                        {
+                            string gitHubVersion = version.Split("-").Head();
+                            if (!gitHubVersion.StartsWith("v"))
+                            {
+                                gitHubVersion = $"v{gitHubVersion}";
+                            }
+
+                            maybeNotes = await GitHubApiClient.GetReleaseNotes(gitHubVersion, token);
+                            foreach (string notes in maybeNotes.RightToSeq())
+                            {
+                                _releaseNotes = notes;
+                            }
+                        }
+                        else
+                        {
+                            maybeNotes = await GitHubApiClient.GetLatestReleaseNotes(token);
+                            foreach (string notes in maybeNotes.RightToSeq())
+                            {
+                                _releaseNotes = notes;
+                            }
+                        }
+                    }
+                }
+
+                if (_releaseNotes != null)
+                {
+                    MemoryCache.Set("Index.ReleaseNotesHtml", _releaseNotes);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // ignore
+        }
+    }
+
+    private async Task RefreshHealthChecks()
+    {
+        _refreshHealthChecks = true;
+
+        if (_healthCheckTable != null)
+        {
+            await _healthCheckTable.ReloadServerData();
+        }
+    }
+
+    private async Task<TableData<HealthCheckResult>> ServerReload(TableState state, CancellationToken cancellationToken)
+    {
+        bool refresh = _refreshHealthChecks;
+        _refreshHealthChecks = false;
+
+        List<HealthCheckResult> healthCheckResults = await Mediator.Send(new GetAllHealthCheckResults(refresh), cancellationToken);
+
+        return new TableData<HealthCheckResult>
+        {
+            TotalItems = healthCheckResults.Count,
+            Items = healthCheckResults
+        };
+    }
+}

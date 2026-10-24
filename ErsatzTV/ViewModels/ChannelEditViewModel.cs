@@ -68,6 +68,12 @@ public class ChannelEditViewModel
     public ChannelMode Mode { get; set; }
     public int PreCache { get; set; } = 2;
     public FallbackSlateMode FallbackSlateMode { get; set; } = FallbackSlateMode.Disabled;
+    public string FallbackCustomTitle { get; set; }
+    public string FallbackCustomMessage { get; set; }
+    public int? FallbackMediaItemId { get; set; }
+    public int? FallbackCollectionId { get; set; }
+    public int? FallbackPlaylistId { get; set; }
+    public bool FallbackIsLoop { get; set; } = true;
 
     public UpdateChannel ToUpdate() =>
         new(
@@ -105,7 +111,13 @@ public class ChannelEditViewModel
             ShowInEpg,
             Mode,
             PreCache,
-            FallbackSlateMode);
+            FallbackSlateMode,
+            FallbackCustomTitle,
+            FallbackCustomMessage,
+            FallbackMediaItemId,
+            FallbackCollectionId,
+            FallbackPlaylistId,
+            FallbackIsLoop);
 
     public CreateChannel ToCreate() =>
         new(
@@ -142,5 +154,11 @@ public class ChannelEditViewModel
             ShowInEpg,
             Mode,
             PreCache,
-            FallbackSlateMode);
+            FallbackSlateMode,
+            FallbackCustomTitle,
+            FallbackCustomMessage,
+            FallbackMediaItemId,
+            FallbackCollectionId,
+            FallbackPlaylistId,
+            FallbackIsLoop);
 }

@@ -1,11 +1,11 @@
-@page "/channels/{Id:int?}"
-@page "/channels/add"
+@* Replaced by shared ChannelDialog modal *@
 @using System.Globalization
 @using ErsatzTV.Application.Artworks
 @using ErsatzTV.Application.Channels
 @using ErsatzTV.Application.FFmpegProfiles
 @using ErsatzTV.Application.Filler
 @using ErsatzTV.Application.Images
+@using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
 @using ErsatzTV.Application.Templates
 @using ErsatzTV.Application.Watermarks
@@ -41,6 +41,28 @@
 </MudStack>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
+        <MudText>Mode</MudText>
+        <MudTooltip Text="Select Television for standard video broadcast, or Radio for pure audio stream with 1fps slate to conserve bandwidth.">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
+        </MudTooltip>
+    </div>
+    <MudRadioGroup T="ChannelMode" @bind-Value="_model.Mode">
+        <MudRadio Value="ChannelMode.Television" Color="Color.Primary">
+            <div class="d-flex align-center gap-1">
+                <MudIcon Icon="@Icons.Material.Filled.Tv" Size="Size.Small"/>
+                <span>Television</span>
+            </div>
+        </MudRadio>
+        <MudRadio Value="ChannelMode.Radio" Color="Color.Secondary">
+            <div class="d-flex align-center gap-1">
+                <MudIcon Icon="@Icons.Material.Filled.Radio" Size="Size.Small"/>
+                <span>Web Radio</span>
+            </div>
+        </MudRadio>
+    </MudRadioGroup>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
         <MudText>Group</MudText>
     </div>
     <MudTextField @bind-Value="_model.Group" For="@(() => _model.Group)"/>
@@ -65,7 +87,8 @@
     </div>
     <MudSelect @bind-Value="_model.IdleBehavior" For="@(() => _model.IdleBehavior)" HelperText="Controls how the transcoding process behaves after all clients have disconnected">
         <MudSelectItem Value="@(ChannelIdleBehavior.StopOnDisconnect)">Stop On Disconnect</MudSelectItem>
-        <MudSelectItem Value="@(ChannelIdleBehavior.KeepRunning)">Keep Running</MudSelectItem>
+        <MudSelectItem Value="@(ChannelIdleBehavior.KeepRunning)">Keep Running (24/7)</MudSelectItem>
+        <MudSelectItem Value="@(ChannelIdleBehavior.PreCache)">PreCache Zero-Delay (&lt; 200ms TTFB)</MudSelectItem>
     </MudSelect>
 </MudStack>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
@@ -134,18 +157,6 @@ else
 </MudStack>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
-        <MudText>Mode</MudText>
-        <MudTooltip Text="Select Television for standard video playback, or Radio to serve audio only with a static black frame at 1fps to save bandwidth.">
-            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
-        </MudTooltip>
-    </div>
-    <MudSelect T="ChannelMode" @bind-Value="_model.Mode" For="@(() => _model.Mode)">
-        <MudSelectItem Value="ChannelMode.Television">Television</MudSelectItem>
-        <MudSelectItem Value="ChannelMode.Radio">Radio</MudSelectItem>
-    </MudSelect>
-</MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
         <MudText>Pre-Cache (Zero-Delay)</MudText>
         <MudTooltip Text="Quantidade de blocos e segmentos em memória RAM preparados preventivamente para sintonização instantânea com 0 delay. Padrão: 2">
             <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="ml-1" />
@@ -161,12 +172,43 @@ else
         </MudTooltip>
     </div>
     <MudSelect T="FallbackSlateMode" @bind-Value="_model.FallbackSlateMode" For="@(() => _model.FallbackSlateMode)">
-        <MudSelectItem Value="FallbackSlateMode.Disabled">Disabled</MudSelectItem>
-        <MudSelectItem Value="FallbackSlateMode.SingleMedia">Single Media (Cartão / Vídeo)</MudSelectItem>
-        <MudSelectItem Value="FallbackSlateMode.Collection">Collection</MudSelectItem>
+        <MudSelectItem Value="FallbackSlateMode.Disabled">Desativado</MudSelectItem>
+        <MudSelectItem Value="FallbackSlateMode.SingleMedia">Cartão / Mídia Única</MudSelectItem>
+        <MudSelectItem Value="FallbackSlateMode.Collection">Coleção de Mídias</MudSelectItem>
         <MudSelectItem Value="FallbackSlateMode.Playlist">Playlist</MudSelectItem>
     </MudSelect>
 </MudStack>
+@if (_model.FallbackSlateMode != FallbackSlateMode.Disabled)
+{
+    <MudPaper Class="pa-4 mb-5 ml-md-16" Elevation="1" Style="border-left: 3px solid var(--mud-palette-primary);">
+        <MudText Typo="Typo.subtitle2" Class="mb-3" Color="Color.Primary">Configurações de Contingência do Sinal</MudText>
+        <MudTextField @bind-Value="_model.FallbackCustomTitle" Label="Título Informativo da Contingência" Class="mb-3" HelperText="Ex: Transmissão Temporariamente Indisponível" />
+        <MudTextField @bind-Value="_model.FallbackCustomMessage" Label="Mensagem / Comunicado ao Telespectador" Class="mb-3" HelperText="Ex: Retornaremos em instantes com nossa programação." />
+
+        @if (_model.FallbackSlateMode == FallbackSlateMode.Collection)
+        {
+            <MudSelect T="int?" @bind-Value="_model.FallbackCollectionId" Label="Coleção de Contingência" Clearable="true" Class="mb-3">
+                <MudSelectItem T="int?" Value="@((int?)null)">(Selecione uma coleção)</MudSelectItem>
+                @foreach (var col in _mediaCollections)
+                {
+                    <MudSelectItem T="int?" Value="@col.Id">@col.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        else if (_model.FallbackSlateMode == FallbackSlateMode.Playlist)
+        {
+            <MudSelect T="int?" @bind-Value="_model.FallbackPlaylistId" Label="Playlist de Contingência" Clearable="true" Class="mb-3">
+                <MudSelectItem T="int?" Value="@((int?)null)">(Selecione uma playlist)</MudSelectItem>
+                @foreach (var pl in _playlists)
+                {
+                    <MudSelectItem T="int?" Value="@pl.Id">@pl.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <MudCheckBox @bind-Value="_model.FallbackIsLoop" Color="Color.Primary" Label="Execução em Loop Contínuo" Dense="true" />
+    </MudPaper>
+}
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Streaming Engine</MudText>
@@ -185,7 +227,7 @@ else
         with the ID from <b>Upload Results</b> in troubleshooting so it can be fixed before then.
     </MudAlert>
 }
-@if (_model.StreamingEngine is StreamingEngine.Next)
+@if (_model.StreamingEngine is StreamingEngine.Next && _model.Mode != ChannelMode.Radio)
 {
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
@@ -222,7 +264,7 @@ else
     </div>
     <MudSelect @bind-Value="_model.FFmpegProfileId" For="@(() => _model.FFmpegProfileId)"
                Disabled="@(_model.StreamingMode == StreamingMode.HttpLiveStreamingDirect)">
-        @foreach (FFmpegProfileViewModel profile in _ffmpegProfiles)
+        @foreach (FFmpegProfileViewModel profile in GetFilteredFFmpegProfiles())
         {
             <MudSelectItem Value="@profile.Id">@profile.Name</MudSelectItem>
         }
@@ -275,6 +317,8 @@ else
         </div>
         <MudTextField @bind-Value="_model.PreferredAudioTitle" For="@(() => _model.PreferredAudioTitle)"/>
     </MudStack>
+@if (_model.Mode != ChannelMode.Radio)
+{
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Preferred Subtitle Language</MudText>
@@ -301,6 +345,7 @@ else
         </MudSelect>
     </MudStack>
 }
+}
 else
 {
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
@@ -317,38 +362,41 @@ else
         </MudSelect>
     </MudStack>
 }
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Music Video Credits Mode</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.MusicVideoCreditsMode" For="@(() => _model.MusicVideoCreditsMode)">
-        <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.None)">None</MudSelectItem>
-        <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.GenerateSubtitles)">Generate Subtitles</MudSelectItem>
-    </MudSelect>
-</MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Music Video Credits Template</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.MusicVideoCreditsTemplate"
-               For="@(() => _model.MusicVideoCreditsTemplate)"
-               Disabled="@(_model.MusicVideoCreditsMode != ChannelMusicVideoCreditsMode.GenerateSubtitles)">
-        <MudSelectItem T="string" Value="@((string)null)">(none)</MudSelectItem>
-        @foreach (string template in _musicVideoCreditsTemplates)
-        {
-            <MudSelectItem T="string" Value="@template">@template</MudSelectItem>
-        }
-    </MudSelect>
-</MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Song Video Mode</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.SongVideoMode" For="@(() => _model.SongVideoMode)">
-        <MudSelectItem Value="@(ChannelSongVideoMode.Default)">Default</MudSelectItem>
-        <MudSelectItem Value="@(ChannelSongVideoMode.WithProgress)">With Progress</MudSelectItem>
-    </MudSelect>
-</MudStack>
+@if (_model.Mode != ChannelMode.Radio)
+{
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Music Video Credits Mode</MudText>
+        </div>
+        <MudSelect @bind-Value="_model.MusicVideoCreditsMode" For="@(() => _model.MusicVideoCreditsMode)">
+            <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.None)">None</MudSelectItem>
+            <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.GenerateSubtitles)">Generate Subtitles</MudSelectItem>
+        </MudSelect>
+    </MudStack>
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Music Video Credits Template</MudText>
+        </div>
+        <MudSelect @bind-Value="_model.MusicVideoCreditsTemplate"
+                   For="@(() => _model.MusicVideoCreditsTemplate)"
+                   Disabled="@(_model.MusicVideoCreditsMode != ChannelMusicVideoCreditsMode.GenerateSubtitles)">
+            <MudSelectItem T="string" Value="@((string)null)">(none)</MudSelectItem>
+            @foreach (string template in _musicVideoCreditsTemplates)
+            {
+                <MudSelectItem T="string" Value="@template">@template</MudSelectItem>
+            }
+        </MudSelect>
+    </MudStack>
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Song Video Mode</MudText>
+        </div>
+        <MudSelect @bind-Value="_model.SongVideoMode" For="@(() => _model.SongVideoMode)">
+            <MudSelectItem Value="@(ChannelSongVideoMode.Default)">Default</MudSelectItem>
+            <MudSelectItem Value="@(ChannelSongVideoMode.WithProgress)">With Progress</MudSelectItem>
+        </MudSelect>
+    </MudStack>
+}
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Logo</MudText>
@@ -377,20 +425,23 @@ else
         <MudElement HtmlTag="img" src="@(string.IsNullOrWhiteSpace(_model.ExternalLogoUrl) ? _model.Logo.UrlWithContentType : _model.ExternalLogoUrl)" Style="max-height: 50px"/>
     }
 </MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Watermark</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.WatermarkId" For="@(() => _model.WatermarkId)"
-               Disabled="@(_model.StreamingMode == StreamingMode.HttpLiveStreamingDirect)"
-               Clearable="true">
-        <MudSelectItem T="int?" Value="@((int?)null)">(none)</MudSelectItem>
-        @foreach (WatermarkViewModel watermark in _watermarks)
-        {
-            <MudSelectItem T="int?" Value="@watermark.Id">@watermark.Name</MudSelectItem>
-        }
-    </MudSelect>
-</MudStack>
+@if (_model.Mode != ChannelMode.Radio)
+{
+    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+        <div class="d-flex">
+            <MudText>Watermark</MudText>
+        </div>
+        <MudSelect @bind-Value="_model.WatermarkId" For="@(() => _model.WatermarkId)"
+                   Disabled="@(_model.StreamingMode == StreamingMode.HttpLiveStreamingDirect)"
+                   Clearable="true">
+            <MudSelectItem T="int?" Value="@((int?)null)">(none)</MudSelectItem>
+            @foreach (WatermarkViewModel watermark in _watermarks)
+            {
+                <MudSelectItem T="int?" Value="@watermark.Id">@watermark.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudStack>
+}
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Fallback Filler</MudText>
@@ -424,6 +475,21 @@ else
     private List<FillerPresetViewModel> _fillerPresets = [];
     private List<string> _musicVideoCreditsTemplates = [];
     private List<string> _streamSelectors = [];
+    private List<MediaCollectionViewModel> _mediaCollections = [];
+    private List<PlaylistViewModel> _playlists = [];
+
+    private IEnumerable<FFmpegProfileViewModel> GetFilteredFFmpegProfiles()
+    {
+        if (_model.Mode == ChannelMode.Radio)
+        {
+            var audioProfiles = _ffmpegProfiles.Where(p => !p.NormalizeVideo || p.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Radio", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (audioProfiles.Count > 0)
+            {
+                return audioProfiles;
+            }
+        }
+        return _ffmpegProfiles;
+    }
 
     public void Dispose()
     {
@@ -450,6 +516,8 @@ else
                     .Map(list => list.Filter(vm => vm.FillerKind == FillerKind.Fallback).ToList()), r => _fillerPresets = r),
                 LoadDataAsync(() => Mediator.Send(new GetMusicVideoCreditTemplates(), token), r => _musicVideoCreditsTemplates = r),
                 LoadDataAsync(() => Mediator.Send(new GetChannelStreamSelectors(), token), r => _streamSelectors = r),
+                LoadDataAsync(() => Mediator.Send(new GetAllCollections(), token), r => _mediaCollections = r),
+                LoadDataAsync(() => Mediator.Send(new GetAllPlaylists(), token), r => _playlists = r),
             };
 
             await Task.WhenAll(loadingTasks);
@@ -502,6 +570,12 @@ else
                         _model.Mode = channelViewModel.Mode;
                         _model.PreCache = channelViewModel.PreCache;
                         _model.FallbackSlateMode = channelViewModel.FallbackSlateMode;
+                        _model.FallbackCustomTitle = channelViewModel.FallbackCustomTitle;
+                        _model.FallbackCustomMessage = channelViewModel.FallbackCustomMessage;
+                        _model.FallbackMediaItemId = channelViewModel.FallbackMediaItemId;
+                        _model.FallbackCollectionId = channelViewModel.FallbackCollectionId;
+                        _model.FallbackPlaylistId = channelViewModel.FallbackPlaylistId;
+                        _model.FallbackIsLoop = channelViewModel.FallbackIsLoop;
                     },
                     () => NavigationManager.NavigateTo("404"));
             }

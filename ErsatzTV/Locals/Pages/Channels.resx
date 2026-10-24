@@ -90,4 +90,10 @@
     <data name="LabelLegacyEngineReport" xml:space="preserve">
         <value>Report a problem with the next engine</value>
     </data>
+    <data name="Badge_Mode_Radio" xml:space="preserve">
+        <value>Radio</value>
+    </data>
+    <data name="Badge_Mode_TV" xml:space="preserve">
+        <value>TV</value>
+    </data>
 </root>

@@ -1,9 +1,12 @@
 @page "/channels"
+@page "/channels/add"
+@page "/channels/{Id:int}"
 @using System.Globalization
 @using ErsatzTV.Application.Channels
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.FFmpegProfiles
 @using ErsatzTV.Core.Interfaces.FFmpeg
+@using ErsatzTV.Shared
 @implements IDisposable
 @inject IDialogService Dialog
 @inject IJSRuntime JsRuntime
@@ -16,7 +19,7 @@
 
 <MudForm Style="max-height: 100%">
     <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="channels/add">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenChannelDialog(null))">
             @Loc["ButtonAddChannel"]
         </MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="ml-3" StartIcon="@Icons.Material.Filled.Edit" Href="channels/numbers">
@@ -96,7 +99,29 @@
                             <MudElement HtmlTag="img" src="@($"iptv/logos/gen?text={context.WebEncodedName}")" Style="max-height: 50px"/>
                         }
                     </MudTd>
-                    <MudTd DataLabel="@Loc["LabelName"]">@context.Name</MudTd>
+                    <MudTd DataLabel="@Loc["LabelName"]">
+                        <div class="d-flex align-center gap-2">
+                            <span>@context.Name</span>
+                            @if (context.Mode == ChannelMode.Radio)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary" Style="font-size: 0.7rem; height: 18px;">
+                                    @Loc["Badge_Mode_Radio"]
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Default" Style="font-size: 0.7rem; height: 18px;">
+                                    @Loc["Badge_Mode_TV"]
+                                </MudChip>
+                            }
+                            @if (context.PreCache > 0 && context.IsEnabled)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Info" Style="font-size: 0.65rem; height: 18px;">
+                                    PreCache
+                                </MudChip>
+                            }
+                        </div>
+                    </MudTd>
                     <MudTd DataLabel="@Loc["LabelLanguage"]">@context.PreferredAudioLanguageCode</MudTd>
                     <MudTd DataLabel="@Loc["LabelStreamingMode"]">@GetStreamingMode(context.StreamingMode)</MudTd>
                     <MudTd DataLabel="@Loc["LabelFFmpegProfile"]">
@@ -160,7 +185,7 @@
                             }
                             <MudTooltip Text="@Loc["ButtonEditChannelHelp"]">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                               Href="@($"channels/{context.Id}")">
+                                               OnClick="@(() => OpenChannelDialog(context.Id))">
                                 </MudIconButton>
                             </MudTooltip>
                             @if (context.PlayoutCount > 0 && context.IsEnabled)
@@ -249,10 +274,56 @@
                     .OrderBy(c => decimal.Parse(c.Number, CultureInfo.InvariantCulture))
                     .Map(c => c.Number)
                     .ToList());
+
+            if (!_dialogOpened && (NavigationManager.Uri.EndsWith("/add", StringComparison.OrdinalIgnoreCase) || (Id.HasValue && Id.Value > 0)))
+            {
+                _dialogOpened = true;
+                _ = InvokeAsync(async () =>
+                {
+                    await OpenChannelDialog(Id);
+                    _dialogOpened = false;
+                });
+            }
         }
         catch (OperationCanceledException)
         {
             // do nothing
+        }
+    }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool _dialogOpened;
+
+    private async Task OpenChannelDialog(int? channelId)
+    {
+        var parameters = new DialogParameters();
+        if (channelId.HasValue && channelId.Value > 0)
+        {
+            parameters.Add("Id", channelId.Value);
+        }
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
+
+        string title = (channelId.HasValue && channelId.Value > 0) ? "Editar Canal" : "Novo Canal";
+        IDialogReference dialog = await Dialog.ShowAsync<ChannelDialog>(title, parameters, options);
+        DialogResult result = await dialog.Result;
+
+        if (NavigationManager.Uri.EndsWith("/add", StringComparison.OrdinalIgnoreCase) || (Id.HasValue && Id.Value > 0))
+        {
+            NavigationManager.NavigateTo("channels", replace: true);
+            Id = null;
+        }
+
+        if (result is { Canceled: false })
+        {
+            _table?.ReloadServerData();
         }
     }
 

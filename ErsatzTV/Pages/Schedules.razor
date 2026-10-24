@@ -1,6 +1,9 @@
-﻿@page "/schedules"
+@page "/schedules"
+@page "/schedules/add"
+@page "/schedules/{Id:int}"
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.ProgramSchedules
+@using ErsatzTV.Shared
 @implements IDisposable
 @inject IDialogService Dialog
 @inject IMediator Mediator
@@ -8,7 +11,7 @@
 
 <MudForm Style="max-height: 100%">
     <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="schedules/add">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenScheduleDialog(null))">
             Add Schedule
         </MudButton>
     </MudPaper>
@@ -45,7 +48,7 @@
                         <div style="align-items: center; display: flex;">
                             <MudTooltip Text="Edit Properties">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                               Href="@($"schedules/{context.Id}")">
+                                               OnClick="@(() => OpenScheduleDialog(context.Id))">
                                 </MudIconButton>
                             </MudTooltip>
                             <MudTooltip Text="Edit Schedule Items">
@@ -137,10 +140,59 @@
                 .Map(maybeRows => maybeRows.Match(ce => int.TryParse(ce.Value, out int rows) ? rows : 10, () => 10));
             _detailRowsPerPage = await Mediator.Send(new GetConfigElementByKey(ConfigElementKey.SchedulesDetailPageSize), token)
                 .Map(maybeRows => maybeRows.Match(ce => int.TryParse(ce.Value, out int rows) ? rows : 10, () => 10));
+
+            if (!_dialogOpened && (NavigationManager.Uri.EndsWith("/add", StringComparison.OrdinalIgnoreCase) || (Id.HasValue && Id.Value > 0)))
+            {
+                _dialogOpened = true;
+                _ = InvokeAsync(async () =>
+                {
+                    await OpenScheduleDialog(Id);
+                    _dialogOpened = false;
+                });
+            }
         }
         catch (OperationCanceledException)
         {
             // do nothing
+        }
+    }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool _dialogOpened;
+
+    private async Task OpenScheduleDialog(int? scheduleId)
+    {
+        var parameters = new DialogParameters();
+        if (scheduleId.HasValue && scheduleId.Value > 0)
+        {
+            parameters.Add("Id", scheduleId.Value);
+        }
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        string title = (scheduleId.HasValue && scheduleId.Value > 0) ? "Editar Grade de Programação" : "Nova Grade de Programação";
+        IDialogReference dialog = await Dialog.ShowAsync<ScheduleDialog>(title, parameters, options);
+        DialogResult result = await dialog.Result;
+
+        if (NavigationManager.Uri.EndsWith("/add", StringComparison.OrdinalIgnoreCase) || (Id.HasValue && Id.Value > 0))
+        {
+            NavigationManager.NavigateTo("schedules", replace: true);
+            Id = null;
+        }
+
+        if (result is { Canceled: false })
+        {
+            if (_table != null)
+            {
+                await _table.ReloadServerData();
+            }
         }
     }
 

@@ -41,7 +41,13 @@ internal static class Mapper
             channel.ShowInEpg,
             channel.Mode,
             channel.PreCache,
-            channel.FallbackSlate?.Mode ?? FallbackSlateMode.Disabled);
+            channel.FallbackSlate?.Mode ?? FallbackSlateMode.Disabled,
+            channel.FallbackSlate?.CustomTitle,
+            channel.FallbackSlate?.CustomMessage,
+            channel.FallbackSlate?.MediaItemId,
+            channel.FallbackSlate?.CollectionId,
+            channel.FallbackSlate?.PlaylistId,
+            channel.FallbackSlate?.IsLoop ?? true);
 
     internal static ChannelResponseModel ProjectToResponseModel(Channel channel) =>
         new(

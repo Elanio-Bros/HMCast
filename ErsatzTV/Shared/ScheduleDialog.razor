@@ -1,0 +1,205 @@
+@using ErsatzTV.Application.ProgramSchedules
+@using ErsatzTV.Core
+@using ErsatzTV.Core.Scheduling
+@implements IDisposable
+@inject ILogger<ScheduleDialog> Logger
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <MudForm @ref="_form">
+                <MudText Typo="Typo.body2" Class="mb-4 text-muted">
+                    @(IsEdit 
+                        ? "Configure as propriedades fundamentais desta grade de programação 24h." 
+                        : "Crie uma nova grade de programação 24h para organizar programas, filmes e séries.")
+                </MudText>
+
+                <MudTextField @bind-Value="_model.Name" 
+                              For="@(() => _model.Name)" 
+                              Label="Nome da Grade" 
+                              Placeholder="ex: Anos 90, Maratona Ficção Científica, Madrugada Adult Swim" 
+                              Variant="Variant.Outlined" 
+                              Margin="Margin.Dense" 
+                              Required="true" 
+                              RequiredError="O nome da grade é obrigatório" 
+                              AutoFocus="true" 
+                              Class="mb-4" />
+
+                <MudCard Elevation="0" Outlined="true" Class="pa-4 mb-4">
+                    <MudText Typo="Typo.subtitle2" Class="fw-bold mb-2">Comportamento de Reprodução e Embaralhamento</MudText>
+
+                    <div class="d-flex flex-column gap-3">
+                        <div>
+                            <MudCheckBox @bind-Value="@_model.KeepMultiPartEpisodesTogether" Color="Color.Primary" Dense="true" Label="Manter Episódios de Múltiplas Partes Juntos" />
+                            <MudText Typo="Typo.caption" Class="text-muted d-block ml-8">Agrupa partes (Parte 1, Parte 2) quando a grade estiver no modo aleatório/shuffle.</MudText>
+                        </div>
+
+                        <div>
+                            <MudCheckBox @bind-Value="@_model.TreatCollectionsAsShows" Disabled="@(!_model.KeepMultiPartEpisodesTogether)" Color="Color.Primary" Dense="true" Label="Tratar Coleções como Séries" />
+                            <MudText Typo="Typo.caption" Class="text-muted d-block ml-8">Útil para crossovers e sagas completas dentro de coleções.</MudText>
+                        </div>
+
+                        <div>
+                            <MudCheckBox @bind-Value="@_model.ShuffleScheduleItems" Color="Color.Primary" Dense="true" Label="Embaralhar Itens da Grade (Shuffle)" />
+                            <MudText Typo="Typo.caption" Class="text-muted d-block ml-8">Desativa horários fixos estritos para priorizar rotação randômica.</MudText>
+                        </div>
+
+                        <div>
+                            <MudCheckBox @bind-Value="@_model.RandomStartPoint" Color="Color.Primary" Dense="true" Label="Ponto de Partida Aleatório" />
+                            <MudText Typo="Typo.caption" Class="text-muted d-block ml-8">Começa a grade a partir de um episódio aleatório a cada ciclo.</MudText>
+                        </div>
+                    </div>
+                </MudCard>
+
+                <MudSelect @bind-Value="@_model.FixedStartTimeBehavior" Label="Comportamento de Início em Horário Fixo" Margin="Margin.Dense" Variant="Variant.Outlined">
+                    <MudSelectItem Value="FixedStartTimeBehavior.Strict">Estrito (Strict) - Aguardar horário exato com filler/slate</MudSelectItem>
+                    <MudSelectItem Value="FixedStartTimeBehavior.Flexible">Flexível (Flexible) - Iniciar assim que possível</MudSelectItem>
+                </MudSelect>
+            </MudForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(string.IsNullOrWhiteSpace(_model.Name) || _isSaving || _isLoading)" 
+                   OnClick="HandleSubmitAsync">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Salvar Propriedades" : "Criar Grade")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CancellationTokenSource _cts;
+    private readonly ProgramScheduleEditViewModel _model = new();
+    private MudForm _form;
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool IsEdit => Id.HasValue && Id.Value > 0;
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        _isLoading = true;
+
+        try
+        {
+            if (IsEdit)
+            {
+                Option<ProgramScheduleViewModel> maybeProgramSchedule = await Mediator.Send(new GetProgramScheduleById(Id.Value), token);
+                maybeProgramSchedule.Match(
+                    viewModel =>
+                    {
+                        _model.Id = viewModel.Id;
+                        _model.Name = viewModel.Name;
+                        _model.ShuffleScheduleItems = viewModel.ShuffleScheduleItems;
+                        _model.KeepMultiPartEpisodesTogether = viewModel.KeepMultiPartEpisodesTogether;
+                        _model.TreatCollectionsAsShows = viewModel.TreatCollectionsAsShows;
+                        _model.RandomStartPoint = viewModel.RandomStartPoint;
+                        _model.FixedStartTimeBehavior = viewModel.FixedStartTimeBehavior;
+                    },
+                    () =>
+                    {
+                        Snackbar.Add("Grade de programação não encontrada", Severity.Error);
+                        MudDialog.Cancel();
+                    });
+            }
+            else
+            {
+                _model.Name = "Nova Grade";
+                _model.FixedStartTimeBehavior = FixedStartTimeBehavior.Flexible;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (_form != null)
+        {
+            await _form.ValidateAsync();
+            if (!_form.IsValid) return;
+        }
+
+        _isSaving = true;
+
+        try
+        {
+            var token = _cts?.Token ?? CancellationToken.None;
+
+            if (IsEdit)
+            {
+                var result = await Mediator.Send(_model.ToUpdate(), token);
+                result.Match(
+                    _ =>
+                    {
+                        Snackbar.Add("Grade atualizada com sucesso!", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(true));
+                    },
+                    error =>
+                    {
+                        Snackbar.Add(error.Value, Severity.Error);
+                        Logger.LogError("Erro ao atualizar grade: {Error}", error.Value);
+                    });
+            }
+            else
+            {
+                var result = await Mediator.Send(_model.ToCreate(), token);
+                result.Match(
+                    _ =>
+                    {
+                        Snackbar.Add("Grade criada com sucesso!", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(true));
+                    },
+                    error =>
+                    {
+                        Snackbar.Add(error.Value, Severity.Error);
+                        Logger.LogError("Erro ao criar grade: {Error}", error.Value);
+                    });
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

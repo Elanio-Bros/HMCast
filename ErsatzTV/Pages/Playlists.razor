@@ -114,8 +114,15 @@
                                                 </div>
                                             </MudTd>
                                             <MudTd Style="text-align: right;">
-                                                <MudTooltip Text="Edit Playlist">
+                                                <MudTooltip Text="Edit Playlist Properties">
                                                     <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                                   Size="Size.Small" 
+                                                                   Color="Color.Default" 
+                                                                   Disabled="@context.IsSystem"
+                                                                   OnClick="() => OpenEditPlaylistDialog(context)" />
+                                                </MudTooltip>
+                                                <MudTooltip Text="Edit Playlist Items">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.FormatListNumbered" 
                                                                    Size="Size.Small" 
                                                                    Color="Color.Default" 
                                                                    Href="@($"media/playlists/{context.Id}")" />
@@ -211,7 +218,23 @@
             { "InitialGroupId", groupId }
         };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await Dialog.ShowAsync<AddPlaylistDialog>("New Playlist", parameters, options);
+        var dialog = await Dialog.ShowAsync<PlaylistDialog>("New Playlist", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task OpenEditPlaylistDialog(TreeItemViewModel playlist)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Id", playlist.Id },
+            { "Groups", _playlistGroups.Where(g => !g.IsSystem).ToList() }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await Dialog.ShowAsync<PlaylistDialog>("Edit Playlist", parameters, options);
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {

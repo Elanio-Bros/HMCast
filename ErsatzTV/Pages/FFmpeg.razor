@@ -1,5 +1,8 @@
-﻿@page "/ffmpeg"
+@page "/ffmpeg"
+@page "/ffmpeg/add"
+@page "/ffmpeg/{Id:int}"
 @using ErsatzTV.Application.FFmpegProfiles
+@using ErsatzTV.Shared
 @implements IDisposable
 @inject IDialogService Dialog
 @inject ISnackbar Snackbar
@@ -8,7 +11,7 @@
 
 <MudForm Style="max-height: 100%">
     <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="ffmpeg/add">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenProfileDialog(null))">
             Add Profile
         </MudButton>
     </MudPaper>
@@ -51,7 +54,7 @@
                         <div style="align-items: center; display: flex;">
                             <MudTooltip Text="Edit Profile">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                               Href="@($"ffmpeg/{context.Id}")">
+                                               OnClick="@(() => OpenProfileDialog(context.Id))">
                                 </MudIconButton>
                             </MudTooltip>
                             <MudTooltip Text="Copy Profile">
@@ -74,8 +77,11 @@
 
 @code {
     private CancellationTokenSource _cts;
-
     private List<FFmpegProfileViewModel> _ffmpegProfiles = [];
+    private bool _dialogOpened;
+
+    [Parameter]
+    public int? Id { get; set; }
 
     public void Dispose()
     {
@@ -93,10 +99,53 @@
         try
         {
             await LoadFFmpegProfilesAsync(token);
+
+            // Deep link: se a rota contiver /add ou /{Id}, abre o modal unificado por cima da página
+            if (!_dialogOpened && (NavigationManager.Uri.EndsWith("/add", StringComparison.OrdinalIgnoreCase) || (Id.HasValue && Id.Value > 0)))
+            {
+                _dialogOpened = true;
+                _ = InvokeAsync(async () =>
+                {
+                    await OpenProfileDialog(Id);
+                    _dialogOpened = false;
+                });
+            }
         }
         catch (OperationCanceledException)
         {
             // do nothing
+        }
+    }
+
+    private async Task OpenProfileDialog(int? profileId)
+    {
+        var parameters = new DialogParameters();
+        if (profileId.HasValue && profileId.Value > 0)
+        {
+            parameters.Add("Id", profileId.Value);
+        }
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
+
+        string title = (profileId.HasValue && profileId.Value > 0) ? "Editar Perfil FFmpeg" : "Novo Perfil FFmpeg";
+        IDialogReference dialog = await Dialog.ShowAsync<FFmpegProfileDialog>(title, parameters, options);
+        DialogResult result = await dialog.Result;
+
+        // Limpa a URL se veio de rota direta
+        if (NavigationManager.Uri.EndsWith("/add", StringComparison.OrdinalIgnoreCase) || (Id.HasValue && Id.Value > 0))
+        {
+            NavigationManager.NavigateTo("ffmpeg", replace: true);
+            Id = null;
+        }
+
+        if (result is { Canceled: false })
+        {
+            await LoadFFmpegProfilesAsync(_cts?.Token ?? CancellationToken.None);
         }
     }
 
@@ -134,8 +183,7 @@
         DialogResult dialogResult = await dialog.Result;
         if (dialogResult is { Canceled: false, Data: FFmpegProfileViewModel data })
         {
-            NavigationManager.NavigateTo($"ffmpeg/{data.Id}");
+            await OpenProfileDialog(data.Id);
         }
     }
-
 }

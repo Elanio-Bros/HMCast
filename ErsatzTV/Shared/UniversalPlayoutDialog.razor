@@ -1,0 +1,425 @@
+@using System.Globalization
+@using ErsatzTV.Application.Channels
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Application.Playouts
+@using ErsatzTV.Application.ProgramSchedules
+@using ErsatzTV.Application.ScreenLayouts.Queries
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Core.Domain.Scheduling
+@implements IDisposable
+@inject ILogger<UniversalPlayoutDialog> Logger
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <MudForm @ref="_form">
+                <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mud-tabs-rounded">
+                    <!-- ABA 1: CANAL & FONTE -->
+                    <MudTabPanel Text="Canal &amp; Fonte" Icon="@Icons.Material.Filled.Tv">
+                        <div class="pt-4">
+                            @if (!IsEdit)
+                            {
+                                <MudSelect T="ChannelViewModel" @bind-Value="_selectedChannel" Label="Canal de Transmissão" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" RequiredError="O canal é obrigatório" Class="mb-4">
+                                    @foreach (ChannelViewModel channel in _channels)
+                                    {
+                                        <MudSelectItem Value="@channel">
+                                            @($"{channel.Number} - {channel.Name} ({(channel.Mode == ChannelMode.Radio ? "Rádio" : "TV")})")
+                                        </MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Normal" Dense="true" Class="mb-4">
+                                    Canal Vinculado: <b>@_channelName (@_channelNumber)</b>
+                                </MudAlert>
+                            }
+
+                            <MudSelect T="ProgramScheduleSourceKind" @bind-Value="_sourceKind" Label="Fonte de Programação" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-4">
+                                <MudSelectItem Value="ProgramScheduleSourceKind.Schedule">Grade de Programação (Program Schedule 24h)</MudSelectItem>
+                                <MudSelectItem Value="ProgramScheduleSourceKind.Playlist">Playlist Linear / Rotativa</MudSelectItem>
+                                <MudSelectItem Value="ProgramScheduleSourceKind.Collection">Coleção de Mídia (Automática / Manual)</MudSelectItem>
+                                <MudSelectItem Value="ProgramScheduleSourceKind.ExternalJson">Arquivo JSON Externo (dizqueTV)</MudSelectItem>
+                            </MudSelect>
+
+                            @if (_sourceKind == ProgramScheduleSourceKind.Schedule)
+                            {
+                                <MudSelect T="ProgramScheduleViewModel" @bind-Value="_selectedSchedule" Label="Grade de Programação 24h" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" Class="mb-4">
+                                    @foreach (ProgramScheduleViewModel schedule in _programSchedules)
+                                    {
+                                        <MudSelectItem Value="@schedule">@schedule.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else if (_sourceKind == ProgramScheduleSourceKind.Playlist)
+                            {
+                                <MudSelect T="PlaylistViewModel" @bind-Value="_selectedPlaylist" Label="Playlist de Mídia" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" Class="mb-4">
+                                    @foreach (PlaylistViewModel playlist in _playlists)
+                                    {
+                                        <MudSelectItem Value="@playlist">@playlist.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else if (_sourceKind == ProgramScheduleSourceKind.Collection)
+                            {
+                                <MudSelect T="MediaCollectionViewModel" @bind-Value="_selectedCollection" Label="Coleção de Mídia" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" Class="mb-4">
+                                    @foreach (MediaCollectionViewModel collection in _mediaCollections)
+                                    {
+                                        <MudSelectItem Value="@collection">@collection.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else if (_sourceKind == ProgramScheduleSourceKind.ExternalJson)
+                            {
+                                <MudTextField @bind-Value="_scheduleFile" Label="Caminho Completo do Arquivo JSON" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" Class="mb-4" />
+                            }
+
+                            <MudCheckBox @bind-Value="_isEnabled" Color="Color.Primary" Label="Playout Ativo na Emissora" Dense="true" />
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 2: ENTREGA & HORIZONTE -->
+                    <MudTabPanel Text="Configurações de Entrega" Icon="@Icons.Material.Filled.Tune">
+                        <div class="pt-4">
+                            <MudGrid Spacing="2">
+                                @if (_sourceKind != ProgramScheduleSourceKind.Schedule)
+                                {
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="PlayoutDeliveryMode" @bind-Value="_deliveryMode" Label="Modo de Entrega" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="PlayoutDeliveryMode.Loop">Repetição Sequencial (Loop)</MudSelectItem>
+                                            <MudSelectItem Value="PlayoutDeliveryMode.Shuffle">Aleatório Dinâmico (Shuffle)</MudSelectItem>
+                                            <MudSelectItem Value="PlayoutDeliveryMode.PlayOnce">Tocar Uma Vez (PlayOnce)</MudSelectItem>
+                                            <MudSelectItem Value="PlayoutDeliveryMode.Conseguinte">Em Sequência (Conseguinte)</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                }
+                                <MudItem xs="12" sm="6">
+                                    <MudNumericField T="int" @bind-Value="_daysToBuild" Label="Dias para Gerar Antecipadamente" Margin="Margin.Dense" Variant="Variant.Outlined" Min="1" Max="7" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect T="int?" @bind-Value="_selectedScreenLayoutId" Label="Layout de Tela (ScreenLayout)" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                                        <MudSelectItem T="int?" Value="@((int?)null)">(Padrão do Canal / Sem Overlay)</MudSelectItem>
+                                        @foreach (var itemLayout in _screenLayouts)
+                                        {
+                                            <MudSelectItem T="int?" Value="@itemLayout.Id">@itemLayout.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                            </MudGrid>
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 3: CALENDÁRIO & HORÁRIOS -->
+                    <MudTabPanel Text="Calendário &amp; Vigência" Icon="@Icons.Material.Filled.CalendarMonth">
+                        <div class="pt-4">
+                            <MudSelect T="PlayoutCalendarMode" @bind-Value="_calendarMode" Label="Modo de Vigência" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-3">
+                                <MudSelectItem Value="PlayoutCalendarMode.AlwaysActive">Sempre Ativo (24/7)</MudSelectItem>
+                                <MudSelectItem Value="PlayoutCalendarMode.SpecificDaysOfWeek">Dias da Semana Específicos</MudSelectItem>
+                                <MudSelectItem Value="PlayoutCalendarMode.DateRange">Período de Datas (Início e Término)</MudSelectItem>
+                                <MudSelectItem Value="PlayoutCalendarMode.RecurringAnnual">Evento Recorrente Anual (ex: Especial de Natal)</MudSelectItem>
+                            </MudSelect>
+
+                            @if (_calendarMode != PlayoutCalendarMode.AlwaysActive)
+                            {
+                                <div class="d-flex justify-space-between align-center mb-3">
+                                    <MudText Typo="Typo.subtitle2" Class="fw-bold">Regras de Horário e Vigência</MudText>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="AddCalendarRule">
+                                        Adicionar Regra
+                                    </MudButton>
+                                </div>
+
+                                @if (_calendarRules.Count == 0)
+                                {
+                                    <MudAlert Severity="Severity.Info" Dense="true">Nenhuma regra definida. Clique em "Adicionar Regra" acima.</MudAlert>
+                                }
+                                else
+                                {
+                                    @for (int i = 0; i < _calendarRules.Count; i++)
+                                    {
+                                        int index = i;
+                                        var rule = _calendarRules[index];
+                                        <MudCard Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                                            <div class="d-flex justify-space-between align-center mb-2">
+                                                <MudText Typo="Typo.caption" Class="fw-bold">Regra #@(index + 1)</MudText>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => _calendarRules.RemoveAt(index))" />
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Sunday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Sunday, v))" Label="Dom" Dense="true" Color="Color.Primary" />
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Monday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Monday, v))" Label="Seg" Dense="true" Color="Color.Primary" />
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Tuesday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Tuesday, v))" Label="Ter" Dense="true" Color="Color.Primary" />
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Wednesday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Wednesday, v))" Label="Qua" Dense="true" Color="Color.Primary" />
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Thursday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Thursday, v))" Label="Qui" Dense="true" Color="Color.Primary" />
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Friday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Friday, v))" Label="Sex" Dense="true" Color="Color.Primary" />
+                                                <MudCheckBox T="bool" Value="@((rule.DaysOfWeek & CalendarDayOfWeek.Saturday) != 0)" ValueChanged="@(v => SetDay(rule, CalendarDayOfWeek.Saturday, v))" Label="Sáb" Dense="true" Color="Color.Primary" />
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-4 mt-2">
+                                                <MudTimePicker Label="Horário Inicial" @bind-Time="_calendarRules[index].DailyStartTime" Clearable="true" Margin="Margin.Dense" />
+                                                <MudTimePicker Label="Horário Final" @bind-Time="_calendarRules[index].DailyEndTime" Clearable="true" Margin="Margin.Dense" />
+                                            </div>
+                                        </MudCard>
+                                    }
+                                }
+                            }
+                        </div>
+                    </MudTabPanel>
+                </MudTabs>
+            </MudForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(_isSaving || _isLoading)" 
+                   OnClick="HandleSubmitAsync">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Salvar Alterações" : "Criar Playout")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CancellationTokenSource _cts;
+    private MudForm _form;
+
+    private ChannelViewModel _selectedChannel;
+    private string _channelName;
+    private string _channelNumber;
+    private ProgramScheduleSourceKind _sourceKind = ProgramScheduleSourceKind.Schedule;
+    private ProgramScheduleViewModel _selectedSchedule;
+    private PlaylistViewModel _selectedPlaylist;
+    private MediaCollectionViewModel _selectedCollection;
+    private string _scheduleFile;
+    private PlayoutDeliveryMode _deliveryMode = PlayoutDeliveryMode.Loop;
+    private int _daysToBuild = 2;
+    private int? _selectedScreenLayoutId;
+    private PlayoutCalendarMode _calendarMode = PlayoutCalendarMode.AlwaysActive;
+    private bool _isEnabled = true;
+    private List<PlayoutCalendarRuleDto> _calendarRules = [];
+
+    private List<ChannelViewModel> _channels = [];
+    private List<ProgramScheduleViewModel> _programSchedules = [];
+    private List<PlaylistViewModel> _playlists = [];
+    private List<MediaCollectionViewModel> _mediaCollections = [];
+    private List<ScreenLayoutViewModel> _screenLayouts = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool IsEdit => Id.HasValue && Id.Value > 0;
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        _isLoading = true;
+
+        try
+        {
+            _channels = await Mediator.Send(new GetAllChannels(), token)
+                .Map(list => list.OrderBy(vm => decimal.Parse(vm.Number, CultureInfo.InvariantCulture)).ToList());
+
+            _programSchedules = await Mediator.Send(new GetAllProgramSchedules(), token)
+                .Map(list => list.OrderBy(vm => vm.Name).ToList());
+
+            _playlists = await Mediator.Send(new GetAllPlaylists(), token)
+                .Map(list => list.OrderBy(p => p.Name).ToList());
+
+            _mediaCollections = await Mediator.Send(new GetAllCollections(), token)
+                .Map(list => list.OrderBy(vm => vm.Name).ToList());
+
+            _screenLayouts = await Mediator.Send(new GetAllScreenLayouts(), token);
+
+            if (IsEdit)
+            {
+                Option<UniversalPlayoutViewModel> maybe = await Mediator.Send(new GetUniversalPlayoutById(Id.Value), token);
+                maybe.Match(
+                    vm =>
+                    {
+                        _channelName = vm.ChannelName;
+                        _channelNumber = vm.ChannelNumber;
+                        _selectedChannel = _channels.FirstOrDefault(c => c.Id == vm.ChannelId);
+                        _sourceKind = vm.SourceKind;
+                        _scheduleFile = vm.ScheduleFile;
+                        _deliveryMode = vm.DeliveryMode;
+                        _daysToBuild = vm.DaysToBuild;
+                        _selectedScreenLayoutId = vm.ScreenLayoutId;
+                        _calendarMode = vm.CalendarMode;
+                        _isEnabled = vm.IsEnabled;
+                        _calendarRules = vm.CalendarRules ?? new();
+
+                        if (vm.SourceId.HasValue)
+                        {
+                            _selectedSchedule = _programSchedules.FirstOrDefault(s => s.Id == vm.SourceId.Value);
+                            _selectedPlaylist = _playlists.FirstOrDefault(p => p.Id == vm.SourceId.Value);
+                            _selectedCollection = _mediaCollections.FirstOrDefault(c => c.Id == vm.SourceId.Value);
+                        }
+                    },
+                    () =>
+                    {
+                        Snackbar.Add("Playout não encontrado", Severity.Error);
+                        MudDialog.Cancel();
+                    });
+            }
+            else
+            {
+                _selectedChannel = _channels.FirstOrDefault();
+                _selectedSchedule = _programSchedules.FirstOrDefault();
+                _selectedPlaylist = _playlists.FirstOrDefault();
+                _selectedCollection = _mediaCollections.FirstOrDefault();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void AddCalendarRule()
+    {
+        _calendarRules.Add(new PlayoutCalendarRuleDto
+        {
+            Index = _calendarRules.Count,
+            DaysOfWeek = CalendarDayOfWeek.All
+        });
+    }
+
+    private void SetDay(PlayoutCalendarRuleDto rule, CalendarDayOfWeek day, bool selected)
+    {
+        if (selected)
+        {
+            rule.DaysOfWeek |= day;
+        }
+        else
+        {
+            rule.DaysOfWeek &= ~day;
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (_form != null)
+        {
+            await _form.ValidateAsync();
+            if (!_form.IsValid) return;
+        }
+
+        if (!IsEdit && _selectedChannel == null)
+        {
+            Snackbar.Add("Selecione um canal para o playout.", Severity.Error);
+            return;
+        }
+
+        int? sourceId = _sourceKind switch
+        {
+            ProgramScheduleSourceKind.Schedule => _selectedSchedule?.Id,
+            ProgramScheduleSourceKind.Playlist => _selectedPlaylist?.Id,
+            ProgramScheduleSourceKind.Collection => _selectedCollection?.Id,
+            _ => null
+        };
+
+        if (_sourceKind != ProgramScheduleSourceKind.ExternalJson && !sourceId.HasValue)
+        {
+            Snackbar.Add("Selecione a fonte de programação correspondente.", Severity.Error);
+            return;
+        }
+
+        _isSaving = true;
+
+        try
+        {
+            if (IsEdit)
+            {
+                var command = new UpdateUniversalPlayout(
+                    Id.Value,
+                    _sourceKind,
+                    sourceId,
+                    _scheduleFile,
+                    _deliveryMode,
+                    _daysToBuild,
+                    _selectedScreenLayoutId,
+                    _calendarMode,
+                    _calendarRules,
+                    _isEnabled
+                );
+
+                var result = await Mediator.Send(command, _cts.Token);
+                result.Match(
+                    _ =>
+                    {
+                        Snackbar.Add("Playout atualizado com sucesso!", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(true));
+                    },
+                    error =>
+                    {
+                        Snackbar.Add(error.Value, Severity.Error);
+                        Logger.LogError("Erro ao atualizar playout: {Error}", error.Value);
+                    });
+            }
+            else
+            {
+                var command = new CreateUniversalPlayout(
+                    _selectedChannel.Id,
+                    _sourceKind,
+                    sourceId,
+                    _scheduleFile,
+                    _deliveryMode,
+                    _daysToBuild,
+                    _selectedScreenLayoutId,
+                    _calendarMode,
+                    _calendarRules,
+                    _isEnabled
+                );
+
+                var result = await Mediator.Send(command, _cts.Token);
+                result.Match(
+                    _ =>
+                    {
+                        Snackbar.Add("Playout criado com sucesso!", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(true));
+                    },
+                    error =>
+                    {
+                        Snackbar.Add(error.Value, Severity.Error);
+                        Logger.LogError("Erro ao criar playout: {Error}", error.Value);
+                    });
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

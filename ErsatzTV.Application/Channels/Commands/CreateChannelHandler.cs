@@ -110,7 +110,13 @@ public class CreateChannelHandler(
             {
                 channel.FallbackSlate = new ChannelFallbackSlate
                 {
-                    Mode = request.FallbackSlateMode
+                    Mode = request.FallbackSlateMode,
+                    CustomTitle = request.FallbackCustomTitle,
+                    CustomMessage = request.FallbackCustomMessage,
+                    MediaItemId = request.FallbackMediaItemId,
+                    CollectionId = request.FallbackCollectionId,
+                    PlaylistId = request.FallbackPlaylistId,
+                    IsLoop = request.FallbackIsLoop
                 };
             }
 

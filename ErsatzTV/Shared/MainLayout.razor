@@ -94,7 +94,6 @@
                 <MudLink Color="Color.Info" Href="iptv/xmltv.xml" Target="_blank" Class="mx-4" Underline="Underline.None">@StringLocalizer["ButtonXmltv"]</MudLink>
                 <MudLink Color="Color.Primary" Href="docs" Target="_blank" Underline="Underline.None" Style="font-weight: bold">@StringLocalizer["ButtonApi"]</MudLink>
             }
-            @* <MudLink Color="Color.Info" Href="/swagger" Target="_blank" Class="mr-4" Underline="Underline.None">API</MudLink> *@
             <MudTooltip Text="@StringLocalizer["ButtonDocumentation"]">
                 <MudIconButton Icon="@Icons.Material.Filled.Help" Color="Color.Primary" Href="https://ersatztv.org" Target="_blank"/>
             </MudTooltip>
@@ -117,76 +116,86 @@
     {
         <MudDrawer @bind-Open="@_drawerIsOpen" Elevation="2" ClipMode="DrawerClipMode.Always">
             <MudNavMenu>
-                <!-- 1. CANAIS & TRANSMISSÃO -->
-                <MudNavGroup Title="Canais &amp; Transmissão" Icon="@Icons.Material.Filled.Tv" Expanded="true">
-                    <MudNavLink Href="channels" Icon="@Icons.Material.Filled.LiveTv">@StringLocalizer["ButtonChannels"]</MudNavLink>
-                    <MudNavLink Href="playouts" Icon="@Icons.Material.Filled.PlayCircleFilled">
+                <MudNavLink Href="channels">@StringLocalizer["ButtonChannels"]</MudNavLink>
+                <MudNavLink Href="ffmpeg">@StringLocalizer["ButtonFFmpegProfiles"]</MudNavLink>
+                <MudNavLink Href="screen-layouts">@StringLocalizer["ButtonWatermarks"]</MudNavLink>
+                <MudNavLink Href="media/libraries">@StringLocalizer["ButtonLibraries"]</MudNavLink>
+                <MudNavLink Href="media/collections">@StringLocalizer["ButtonMediaCollections"]</MudNavLink>
+                <MudNavLink Href="schedules">@StringLocalizer["ButtonSchedules"]</MudNavLink>
+                <MudNavLink Href="media/playlists">@StringLocalizer["ButtonPlaylists"]</MudNavLink>
+                <MudNavLink Href="media/commercials">@StringLocalizer["ButtonFillerPresets"]</MudNavLink>
+                <MudNavLink Href="playouts">
+                    <div class="d-flex justify-space-between align-center">
+                        @StringLocalizer["ButtonPlayouts"]
                         @if (_playoutWarnings > 0)
                         {
                             <MudBadge Content="_playoutWarnings"
                                       Color="Color.Warning"
                                       Origin="Origin.CenterRight"
                                       BadgeClass="mx-3">
-                                @StringLocalizer["ButtonSchedulingPlayouts"]
                             </MudBadge>
                         }
-                        else
-                        {
-                            @StringLocalizer["ButtonSchedulingPlayouts"]
-                        }
-                    </MudNavLink>
-                    <MudNavLink Href="iptv" Icon="@Icons.Material.Filled.Dvr">Guia EPG &amp; IPTV</MudNavLink>
+                    </div>
+                </MudNavLink>
+                <MudNavLink Href="iptv">@StringLocalizer["ButtonIptvHdhr"]</MudNavLink>
+                <MudNavGroup Title="@StringLocalizer["ButtonSettings"]">
+                    <MudNavLink Href="settings/ffmpeg">@StringLocalizer["ButtonSettingsFFmpeg"]</MudNavLink>
+                    <MudNavLink Href="settings/logging">@StringLocalizer["ButtonSettingsLogging"]</MudNavLink>
+                    <MudNavLink Href="settings/hdhr">@StringLocalizer["ButtonSettingsHdHomeRun"]</MudNavLink>
+                    <MudNavLink Href="settings/scanner">@StringLocalizer["ButtonSettingsScanner"]</MudNavLink>
+                    <MudNavLink Href="settings/playout">@StringLocalizer["ButtonSettingsPlayout"]</MudNavLink>
+                    <MudNavLink Href="settings/ui">@StringLocalizer["ButtonSettingsUi"]</MudNavLink>
+                    <MudNavLink Href="settings/xmltv">@StringLocalizer["ButtonSettingsXmltv"]</MudNavLink>
                 </MudNavGroup>
-
-                <!-- 2. CONTEÚDO & GRADE -->
-                <MudNavGroup Title="Conteúdo &amp; Grade" Icon="@Icons.Material.Filled.CalendarMonth" Expanded="true">
-                    <MudNavLink Href="schedules" Icon="@Icons.Material.Filled.Schedule">Grade 24 Horas</MudNavLink>
-                    <MudNavLink Href="media/playlists" Icon="@Icons.Material.Filled.PlaylistPlay">Playlists Maestro</MudNavLink>
-                    <MudNavLink Href="media/collections" Icon="@Icons.Material.Filled.VideoLibrary">Coleções &amp; Smart</MudNavLink>
-                    <MudNavLink Href="media/commercials" Icon="@Icons.Material.Filled.Campaign">Comerciais &amp; Vinhetas</MudNavLink>
-                    <MudNavLink Href="media/trakt/lists" Icon="@Icons.Material.Filled.ListAlt">Listas Trakt</MudNavLink>
-                </MudNavGroup>
-
-                <!-- 3. ESTÚDIO GRÁFICO -->
-                <MudNavGroup Title="Estúdio Gráfico" Icon="@Icons.Material.Filled.Layers" Expanded="true">
-                    <MudNavLink Href="screen-layouts" Icon="@Icons.Material.Filled.ViewQuilt">Screen Layout Studio</MudNavLink>
-                    <MudNavLink Href="watermarks" Icon="@Icons.Material.Filled.BrandingWatermark">@StringLocalizer["ButtonWatermarks"]</MudNavLink>
-                </MudNavGroup>
-
-                <!-- 4. SISTEMA & INFRA -->
-                <MudNavGroup Title="Sistema &amp; Infra" Icon="@Icons.Material.Filled.Settings" Expanded="false">
-                    <MudNavLink Href="media/libraries" Icon="@Icons.Material.Filled.FolderShared">Libraries &amp; Media</MudNavLink>
-                    <MudNavLink Href="ffmpeg" Icon="@Icons.Material.Filled.VideoSettings">@StringLocalizer["ButtonFFmpegProfiles"]</MudNavLink>
-                    <MudNavLink Href="distribution" Icon="@Icons.Material.Filled.CellTower">Distribuição Externa</MudNavLink>
-                    <MudNavLink Href="media/sources/local" Icon="@Icons.Material.Filled.Source">Fontes de Mídia</MudNavLink>
-                    <MudNavLink Href="media/trash" Icon="@Icons.Material.Filled.Delete">@StringLocalizer["ButtonMediaTrash"]</MudNavLink>
-                    <MudNavLink Href="settings/ffmpeg" Icon="@Icons.Material.Filled.Tune">@StringLocalizer["ButtonSettings"]</MudNavLink>
-                    <MudNavLink Href="system/health" Icon="@Icons.Material.Filled.HealthAndSafety">
+                <MudNavGroup Expanded="true">
+                    <TitleContent>
                         @if (_errors > 0)
                         {
-                            <MudBadge Content="_errors"
-                                      Color="Color.Error"
-                                      Origin="Origin.CenterRight"
-                                      BadgeClass="mx-3">
-                                @StringLocalizer["ButtonSupportHealthChecks"]
-                            </MudBadge>
+                            <div style="align-items: center; display: flex">
+                                @StringLocalizer["ButtonSupport"]
+                                <MudIcon Color="@Color.Error" Icon="@Icons.Material.Filled.Error" Class="mx-2"/>
+                            </div>
                         }
                         else if (_warnings > 0)
                         {
-                            <MudBadge Content="_warnings"
-                                      Color="Color.Warning"
-                                      Origin="Origin.CenterRight"
-                                      BadgeClass="mx-3">
-                                @StringLocalizer["ButtonSupportHealthChecks"]
-                            </MudBadge>
+                            <div style="align-items: center; display: flex">
+                                @StringLocalizer["ButtonSupport"]
+                                <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning" Class="mx-2"/>
+                            </div>
                         }
                         else
                         {
-                            @StringLocalizer["ButtonSupportHealthChecks"]
+                            @StringLocalizer["ButtonSupport"]
                         }
-                    </MudNavLink>
-                    <MudNavLink Href="system/logs" Icon="@Icons.Material.Filled.Terminal">@StringLocalizer["ButtonSupportLogs"]</MudNavLink>
-                    <MudNavLink Href="system/troubleshooting" Icon="@Icons.Material.Filled.BugReport">@StringLocalizer["ButtonSupportTroubleshooting"]</MudNavLink>
+                    </TitleContent>
+                    <ChildContent>
+                        <MudNavLink Href="system/health">
+                            @if (_errors > 0)
+                            {
+                                <MudBadge Content="_errors"
+                                          Color="Color.Error"
+                                          Origin="Origin.CenterRight"
+                                          BadgeClass="mx-3">
+                                    @StringLocalizer["ButtonSupportHealthChecks"]
+                                </MudBadge>
+                            }
+                            else if (_warnings > 0)
+                            {
+                                <MudBadge Content="_warnings"
+                                          Color="Color.Warning"
+                                          Origin="Origin.CenterRight"
+                                          BadgeClass="mx-3">
+                                    @StringLocalizer["ButtonSupportHealthChecks"]
+                                </MudBadge>
+                            }
+                            else
+                            {
+                                @StringLocalizer["ButtonSupportHealthChecks"]
+                            }
+                        </MudNavLink>
+                        <MudNavLink Href="system/logs">@StringLocalizer["ButtonSupportLogs"]</MudNavLink>
+                        <MudNavLink Href="system/troubleshooting">@StringLocalizer["ButtonSupportTroubleshooting"]</MudNavLink>
+                    </ChildContent>
                 </MudNavGroup>
                 <MudDivider Class="my-6" DividerType="DividerType.Middle"/>
                 <MudContainer Style="text-align: right" Class="mr-6">

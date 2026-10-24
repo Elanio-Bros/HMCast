@@ -1,286 +1,344 @@
 @page "/"
-@page "/system/health"
-@using ErsatzTV.Application.Health
-@using ErsatzTV.Core.Health
-@using System.Reflection
-@using System.Text.RegularExpressions
-@using ErsatzTV.Core.Interfaces.GitHub
-@using Microsoft.Extensions.Caching.Memory
+@using ErsatzTV.Application.Channels.Queries
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Locals.Pages
+@using ErsatzTV.Shared
 @implements IDisposable
-@inject IGitHubApiClient GitHubApiClient
-@inject IMemoryCache MemoryCache
 @inject IMediator Mediator
-@inject SystemStartup SystemStartup;
+@inject IDialogService Dialog
+@inject IStringLocalizer<Dashboard> Loc
+@inject NavigationManager NavigationManager
 
-<MudForm Style="max-height: 100%">
-    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            @if (!SystemStartup.IsDatabaseReady)
-            {
-                <MudCard>
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.h4">Database is initializing</MudText>
-                        </CardHeaderContent>
-                    </MudCardHeader>
-                    <MudCardContent>
-                        <MudText>Please wait, this may take a few minutes.</MudText>
-                        <MudText>This page will automatically refresh when the database is ready.</MudText>
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudProgressCircular Color="Color.Primary" Size="Size.Medium" Indeterminate="true"/>
-                    </MudCardActions>
-                </MudCard>
-            }
-            else if (!SystemStartup.IsSearchIndexReady)
-            {
-                <MudCard>
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.h4">Search Index is initializing</MudText>
-                        </CardHeaderContent>
-                    </MudCardHeader>
-                    <MudCardContent>
-                        <MudText>Please wait, this may take a few minutes.</MudText>
-                        <MudText>This page will automatically refresh when the search index is ready.</MudText>
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudProgressCircular Color="Color.Primary" Size="Size.Medium" Indeterminate="true"/>
-                    </MudCardActions>
-                </MudCard>
-            }
-            else
-            {
-                <div class="d-flex flex-row align-center mb-2">
-                    <MudText Typo="Typo.h5">Health Checks</MudText>
-                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                   Size="Size.Small"
-                                   Class="ml-2"
-                                   title="Re-run health checks"
-                                   OnClick="@RefreshHealthChecks"/>
-                </div>
-                <MudDivider Class="mb-6"/>
-                <MudTable Hover="true"
-                          Dense="true"
-                          Breakpoint="Breakpoint.None"
-                          ServerData="@(ServerReload)"
-                          @ref="_healthCheckTable">
-                    <HeaderContent>
-                        <MudTh>Check</MudTh>
-                        <MudTh>Message</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>
-                            <div style="align-items: center; display: flex; flex-direction: row;">
-                                @if (context.Status == HealthCheckStatus.Fail)
-                                {
-                                    <MudIcon Color="@Color.Error" Icon="@Icons.Material.Filled.Error"/>
-                                }
-                                else if (context.Status == HealthCheckStatus.Warning)
-                                {
-                                    <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning"/>
-                                }
-                                else if (context.Status == HealthCheckStatus.Info)
-                                {
-                                    <MudIcon Color="@Color.Info" Icon="@Icons.Material.Filled.Info"/>
-                                }
-                                else
-                                {
-                                    <MudIcon Color="@Color.Success" Icon="@Icons.Material.Filled.Check"/>
-                                }
-                                <div class="ml-2">@context.Title</div>
-                            </div>
-                        </MudTd>
-                        <MudTd>
-                            <MudHidden Breakpoint="Breakpoint.Xs">
-                                @if (context.Link.IsSome)
-                                {
-                                    foreach (HealthCheckLink link in context.Link)
-                                    {
-                                        if (link.Link.StartsWith("http"))
-                                        {
-                                            <MudLink Href="@link.Link" Target="_blank">
-                                                @context.Message
-                                            </MudLink>
-                                        }
-                                        else
-                                        {
-                                            <MudLink Href="@link.Link">
-                                                @context.Message
-                                            </MudLink>
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    <MudText>
-                                        @context.Message
-                                    </MudText>
-                                }
-                            </MudHidden>
-                            <MudHidden Breakpoint="Breakpoint.Xs" Invert="true">
-                                @if (context.Link.IsSome)
-                                {
-                                    foreach (HealthCheckLink link in context.Link)
-                                    {
-                                        <MudLink Href="@link.Link">
-                                            @context.BriefMessage
-                                        </MudLink>
-                                    }
-                                }
-                                else
-                                {
-                                    <MudText>
-                                        @context.BriefMessage
-                                    </MudText>
-                                }
-                            </MudHidden>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-                <MudCard Class="mt-6">
-                    <MudCardHeader>
-                        <MudText Class="mt-6">Full changelog is available on <MudLink Href="https://github.com/ErsatzTV/legacy/blob/main/CHANGELOG.md" Target="_blank">GitHub</MudLink></MudText>
-                    </MudCardHeader>
-                    <MudCardContent Class="release-notes mud-typography mud-typography-body1">
-                        <MarkdownView Content="@_releaseNotes"/>
-                    </MudCardContent>
-                </MudCard>
-            }
-        </MudContainer>
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-12">
+    <!-- Header com Telemetria de Transmissão -->
+    <div class="d-flex flex-wrap justify-space-between align-center mb-6">
+        <div>
+            <div class="d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.LiveTv" Color="Color.Primary" Size="Size.Large" />
+                <MudText Typo="Typo.h4" Style="font-weight: 700; letter-spacing: -0.5px;">@Loc["Title_Dashboard"]</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@Loc["Subtitle_Dashboard"]</MudText>
+        </div>
+        <div class="d-flex align-center gap-2 mt-4 mt-sm-0">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       Disabled="@_isLoading"
+                       OnClick="@ManualRefreshAsync">
+                @Loc["Btn_Refresh"]
+            </MudButton>
+        </div>
     </div>
-</MudForm>
+
+    <!-- Hero Cards de Telemetria Operacional -->
+    <MudGrid Class="mb-8" Spacing="3">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column justify-space-between" Elevation="2" Style="border-left: 4px solid var(--mud-palette-success); height: 100%;">
+                <div class="d-flex justify-space-between align-start">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">@Loc["Card_ActiveChannels"]</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 700; color: var(--mud-palette-success);">
+                            @(_dashboardData?.ActiveChannelsCount ?? 0) <span style="font-size: 1.1rem; color: var(--mud-palette-text-secondary); font-weight: normal;">/ @(_dashboardData?.TotalChannelsCount ?? 0)</span>
+                        </MudText>
+                    </div>
+                    <MudAvatar Color="Color.Success" Variant="Variant.Filled" Rounded="true">
+                        <MudIcon Icon="@Icons.Material.Filled.CellTower" />
+                    </MudAvatar>
+                </div>
+                <div class="d-flex align-center gap-1 mt-3">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--mud-palette-success);"></div>
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-success); font-weight: 600;">@Loc["Badge_OnAir"]</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column justify-space-between" Elevation="2" Style="border-left: 4px solid var(--mud-palette-info); height: 100%;">
+                <div class="d-flex justify-space-between align-start">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">@Loc["Card_ActivePlayouts"]</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 700; color: var(--mud-palette-info);">
+                            @(_dashboardData?.ActivePlayoutsCount ?? 0)
+                        </MudText>
+                    </div>
+                    <MudAvatar Color="Color.Info" Variant="Variant.Filled" Rounded="true">
+                        <MudIcon Icon="@Icons.Material.Filled.ViewTimeline" />
+                    </MudAvatar>
+                </div>
+                <div class="d-flex align-center gap-1 mt-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" Color="Color.Info" />
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-info); font-weight: 600;">Automated Schedules</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column justify-space-between" Elevation="2" Style="border-left: 4px solid var(--mud-palette-primary); height: 100%;">
+                <div class="d-flex justify-space-between align-start">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">@Loc["Card_ZeroDelay"]</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 700; color: var(--mud-palette-primary);">
+                            @(_dashboardData?.PreCacheChannelsCount ?? 0)
+                        </MudText>
+                    </div>
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Rounded="true">
+                        <MudIcon Icon="@Icons.Material.Filled.Bolt" />
+                    </MudAvatar>
+                </div>
+                <div class="d-flex align-center gap-1 mt-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Speed" Size="Size.Small" Color="Color.Primary" />
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-primary); font-weight: 600;">@Loc["Label_TelemetriaZeroGPU"]</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column justify-space-between" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary); height: 100%;">
+                <div class="d-flex justify-space-between align-start">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">@Loc["Card_TotalMedia"]</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 700; color: var(--mud-palette-secondary);">
+                            @(_dashboardData?.TotalLibraryHours ?? 0) <span style="font-size: 1.1rem; color: var(--mud-palette-text-secondary); font-weight: normal;">h</span>
+                        </MudText>
+                    </div>
+                    <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Rounded="true">
+                        <MudIcon Icon="@Icons.Material.Filled.VideoLibrary" />
+                    </MudAvatar>
+                </div>
+                <div class="d-flex align-center gap-1 mt-3">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" Size="Size.Small" Color="Color.Secondary" />
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-secondary); font-weight: 600;">Library Indexed</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Grid de Canais em Transmissão -->
+    @if (_dashboardData == null && _isLoading)
+    {
+        <div class="d-flex justify-center align-center pa-12">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        </div>
+    }
+    else if (_dashboardData?.Channels == null || _dashboardData.Channels.Count == 0)
+    {
+        <MudCard Class="pa-8 text-center" Elevation="1">
+            <MudCardContent>
+                <MudIcon Icon="@Icons.Material.Filled.LiveTv" Size="Size.Large" Color="Color.Default" Class="mb-4" />
+                <MudText Typo="Typo.h6">@Loc["Label_NoChannels"]</MudText>
+            </MudCardContent>
+            <MudCardActions Class="justify-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="channels/add">
+                    @Loc["Btn_CreateFirstChannel"]
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            @foreach (BroadcastDashboardChannelItem channel in _dashboardData.Channels)
+            {
+                <MudItem xs="12" sm="6" md="4" lg="3">
+                    <MudCard Elevation="3" Style="height: 100%; display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; background: rgba(30, 34, 45, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <MudCardHeader Class="pb-2">
+                            <CardHeaderAvatar>
+                                @if (!string.IsNullOrWhiteSpace(channel.Logo?.Path))
+                                {
+                                    <img src="@channel.Logo.Path" alt="@channel.Name" style="width: 44px; height: 44px; object-fit: contain; border-radius: 4px; background: rgba(0,0,0,0.2); padding: 2px;" />
+                                }
+                                else
+                                {
+                                    <MudAvatar Color="Color.Dark" Variant="Variant.Filled" Rounded="true" Style="width: 44px; height: 44px;">
+                                        <MudIcon Icon="@(channel.Mode == ChannelMode.Radio ? Icons.Material.Filled.Radio : Icons.Material.Filled.Tv)" />
+                                    </MudAvatar>
+                                }
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <div class="d-flex align-center gap-1">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Style="font-weight: 700; height: 20px; font-size: 0.75rem;">
+                                        @channel.Number
+                                    </MudChip>
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;" title="@channel.Name">
+                                        @channel.Name
+                                    </MudText>
+                                </div>
+                                <div class="d-flex align-center gap-1 mt-1">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary" Style="height: 18px; font-size: 0.7rem;">
+                                        @(channel.Mode == ChannelMode.Radio ? Loc["Label_Mode_Radio"] : Loc["Label_Mode_TV"])
+                                    </MudChip>
+                                </div>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                @if (channel.IsOnAir)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Style="font-weight: 700; font-size: 0.7rem;">
+                                        <div class="mr-1" style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></div>
+                                        @Loc["Badge_OnAir"]
+                                    </MudChip>
+                                }
+                                else if (channel.PreCache > 0 && channel.IsEnabled)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined" Style="font-weight: 600; font-size: 0.65rem;">
+                                        @Loc["Badge_PreCache"]
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Filled" Style="font-size: 0.7rem;">
+                                        @Loc["Badge_Offline"]
+                                    </MudChip>
+                                }
+                            </CardHeaderActions>
+                        </MudCardHeader>
+
+                        <MudCardContent Class="py-2 flex-grow-1">
+                            @if (channel.IsOnAir && !string.IsNullOrWhiteSpace(channel.CurrentItemTitle))
+                            {
+                                <div class="mb-2">
+                                    <div class="d-flex justify-space-between align-center mb-1">
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase" Style="font-size: 0.7rem; font-weight: 600;">
+                                            @Loc["Label_PlayingNow"]
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size: 0.7rem;">
+                                            @channel.ProgressPercentage%
+                                        </MudText>
+                                    </div>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; line-height: 1.25; min-height: 2.5em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="@channel.CurrentItemTitle">
+                                        @channel.CurrentItemTitle
+                                    </MudText>
+                                </div>
+                                <MudProgressLinear Color="Color.Success" Value="@channel.ProgressPercentage" Rounded="true" Size="Size.Small" Class="mb-3" />
+
+                                @if (!string.IsNullOrWhiteSpace(channel.NextItemTitle))
+                                {
+                                    <div class="d-flex align-start gap-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.SkipNext" Size="Size.Small" Color="Color.Default" Style="font-size: 1rem; margin-top: 1px;" />
+                                        <div style="min-width: 0;">
+                                            <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size: 0.7rem; display: block;">
+                                                @Loc["Label_UpNext"]
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" title="@channel.NextItemTitle">
+                                                @channel.NextItemTitle
+                                            </MudText>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-column justify-center align-center pa-4 text-center" style="min-height: 90px;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Color="Color.Default" Size="Size.Medium" Class="mb-1" />
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@Loc["Label_NoSchedule"]</MudText>
+                                </div>
+                            }
+                        </MudCardContent>
+
+                        <MudCardActions Class="pa-3 pt-0 d-flex justify-space-between align-center" Style="border-top: 1px solid rgba(255,255,255,0.05);">
+                            <MudButton Variant="Variant.Text"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.PlayCircleOutline"
+                                       OnClick="@(() => WatchPreview(channel))">
+                                @Loc["Btn_Preview"]
+                            </MudButton>
+                            <MudIconButton Icon="@Icons.Material.Filled.Tune"
+                                           Color="Color.Default"
+                                           Size="Size.Small"
+                                           Href="@($"channels/{channel.ChannelId}/edit")"
+                                           title="@Loc["Btn_Manage"]" />
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
 
 @code {
+    private BroadcastDashboardModel _dashboardData;
+    private bool _isLoading = true;
     private CancellationTokenSource _cts;
 
-    private MudTable<HealthCheckResult> _healthCheckTable;
-
-    private bool _refreshHealthChecks;
-
-    private string _releaseNotes;
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        SystemStartup.OnDatabaseReady += OnStartupProgress;
-        SystemStartup.OnSearchIndexReady += OnStartupProgress;
+        _cts = new CancellationTokenSource();
+        await LoadDashboardAsync(_cts.Token);
+        _ = StartPeriodicUpdateLoopAsync(_cts.Token);
+    }
+
+    private async Task LoadDashboardAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _isLoading = true;
+            _dashboardData = await Mediator.Send(new GetBroadcastDashboard(), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Esperado no cancelamento
+        }
+        catch (Exception)
+        {
+            // Manter estado anterior em caso de erro transitório de rede
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task StartPeriodicUpdateLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (await timer.WaitForNextTickAsync(cancellationToken))
+                {
+                    _dashboardData = await Mediator.Send(new GetBroadcastDashboard(), cancellationToken);
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception)
+            {
+                // Ignorar erro transitório e prosseguir no próximo ciclo
+            }
+        }
+    }
+
+    private async Task ManualRefreshAsync()
+    {
+        if (_cts != null && !_cts.IsCancellationRequested)
+        {
+            await LoadDashboardAsync(_cts.Token);
+        }
+    }
+
+    private async Task WatchPreview(BroadcastDashboardChannelItem channel)
+    {
+        var parameters = new DialogParameters
+        {
+            { "StreamUri", $"iptv/channel/{channel.Number}.m3u8" }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        await Dialog.ShowAsync<ChannelPreviewDialog>($"{channel.Number} - {channel.Name}", parameters, options);
     }
 
     public void Dispose()
     {
-        SystemStartup.OnDatabaseReady -= OnStartupProgress;
-        SystemStartup.OnSearchIndexReady -= OnStartupProgress;
-
         _cts?.Cancel();
         _cts?.Dispose();
     }
-
-    private async void OnStartupProgress(object sender, EventArgs e)
-    {
-        try
-        {
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception)
-        {
-            // do nothing
-        }
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
-        var token = _cts.Token;
-
-        try
-        {
-            if (MemoryCache.TryGetValue("Index.ReleaseNotesHtml", out string releaseNotesHtml))
-            {
-                _releaseNotes = releaseNotesHtml;
-            }
-            else
-            {
-                var assembly = Assembly.GetEntryAssembly();
-                if (assembly != null)
-                {
-                    string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-                    if (version != null)
-                    {
-                        Either<BaseError, string> maybeNotes;
-
-                        // develop builds report v<next release>-<sha8>-<target>; their release is
-                        // v<next release>-<sha8>-develop in the develop builds repository
-                        Match developBuild = Regex.Match(version, @"^v?(\d+\.\d+\.\d+)-([0-9a-f]{8})-");
-                        if (developBuild.Success)
-                        {
-                            string developTag = $"v{developBuild.Groups[1].Value}-{developBuild.Groups[2].Value}-develop";
-                            maybeNotes = await GitHubApiClient.GetDevelopReleaseNotes(developTag, token);
-                            foreach (string notes in maybeNotes.RightToSeq())
-                            {
-                                _releaseNotes = notes;
-                            }
-                        }
-                        else if (version != "develop")
-                        {
-                            string gitHubVersion = version.Split("-").Head();
-                            if (!gitHubVersion.StartsWith("v"))
-                            {
-                                gitHubVersion = $"v{gitHubVersion}";
-                            }
-
-                            maybeNotes = await GitHubApiClient.GetReleaseNotes(gitHubVersion, token);
-                            foreach (string notes in maybeNotes.RightToSeq())
-                            {
-                                _releaseNotes = notes;
-                            }
-                        }
-                        else
-                        {
-                            maybeNotes = await GitHubApiClient.GetLatestReleaseNotes(token);
-                            foreach (string notes in maybeNotes.RightToSeq())
-                            {
-                                _releaseNotes = notes;
-                            }
-                        }
-                    }
-                }
-
-                if (_releaseNotes != null)
-                {
-                    MemoryCache.Set("Index.ReleaseNotesHtml", _releaseNotes);
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // ignore
-        }
-    }
-
-    private async Task RefreshHealthChecks()
-    {
-        _refreshHealthChecks = true;
-
-        if (_healthCheckTable != null)
-        {
-            await _healthCheckTable.ReloadServerData();
-        }
-    }
-
-    private async Task<TableData<HealthCheckResult>> ServerReload(TableState state, CancellationToken cancellationToken)
-    {
-        bool refresh = _refreshHealthChecks;
-        _refreshHealthChecks = false;
-
-        List<HealthCheckResult> healthCheckResults = await Mediator.Send(new GetAllHealthCheckResults(refresh), cancellationToken);
-
-        return new TableData<HealthCheckResult>
-        {
-            TotalItems = healthCheckResults.Count,
-            Items = healthCheckResults
-        };
-    }
-
 }

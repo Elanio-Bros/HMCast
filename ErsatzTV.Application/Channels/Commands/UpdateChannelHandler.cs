@@ -80,12 +80,28 @@ public class UpdateChannelHandler(
         {
             if (update.FallbackSlateMode != FallbackSlateMode.Disabled)
             {
-                c.FallbackSlate = new ChannelFallbackSlate { ChannelId = c.Id, Mode = update.FallbackSlateMode };
+                c.FallbackSlate = new ChannelFallbackSlate
+                {
+                    ChannelId = c.Id,
+                    Mode = update.FallbackSlateMode,
+                    CustomTitle = update.FallbackCustomTitle,
+                    CustomMessage = update.FallbackCustomMessage,
+                    MediaItemId = update.FallbackMediaItemId,
+                    CollectionId = update.FallbackCollectionId,
+                    PlaylistId = update.FallbackPlaylistId,
+                    IsLoop = update.FallbackIsLoop
+                };
             }
         }
         else
         {
             c.FallbackSlate.Mode = update.FallbackSlateMode;
+            c.FallbackSlate.CustomTitle = update.FallbackCustomTitle;
+            c.FallbackSlate.CustomMessage = update.FallbackCustomMessage;
+            c.FallbackSlate.MediaItemId = update.FallbackMediaItemId;
+            c.FallbackSlate.CollectionId = update.FallbackCollectionId;
+            c.FallbackSlate.PlaylistId = update.FallbackPlaylistId;
+            c.FallbackSlate.IsLoop = update.FallbackIsLoop;
         }
         c.Artwork ??= [];
 

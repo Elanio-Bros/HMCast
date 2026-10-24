@@ -1,9 +1,11 @@
-﻿@page "/watermarks"
+@page "/watermarks"
 @using ErsatzTV.Application.Watermarks
 @implements IDisposable
 @inject IDialogService Dialog
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
+
+
 
 <MudForm Style="max-height: 100%">
     <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
@@ -79,6 +81,11 @@
     private CancellationTokenSource _cts;
 
     private List<WatermarkViewModel> _watermarks = [];
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/screen-layouts", replace: true);
+    }
 
     public void Dispose()
     {

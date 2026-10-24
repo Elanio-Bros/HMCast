@@ -1,0 +1,440 @@
+@using System.Runtime.InteropServices
+@using ErsatzTV.Application.FFmpegProfiles
+@using ErsatzTV.Application.Resolutions
+@using ErsatzTV.Core.Domain
+@using ErsatzTV.Core.FFmpeg
+@using ErsatzTV.FFmpeg.Format
+@using ErsatzTV.Validators
+@using FluentValidation.Results
+@using Microsoft.Extensions.Caching.Memory
+@implements IDisposable
+@inject ILogger<FFmpegProfileDialog> Logger
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+@inject IMemoryCache MemoryCache
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <MudForm Model="@_model" @ref="@_form" Validation="@(_validator.ValidateValue)" ValidationDelay="0">
+                <!-- Barra de Predefinições Rápidas -->
+                <div class="d-flex flex-wrap align-center justify-space-between gap-2 pa-2 mb-4" style="background: var(--mud-palette-background-grey); border-radius: 8px;">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Tune" Size="Size.Small" Color="Color.Primary" />
+                        <MudText Typo="Typo.caption" Class="fw-bold">Predefinições de Fábrica:</MudText>
+                    </div>
+                    <div class="d-flex flex-wrap gap-1">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@ApplyPreset1080p">1080p FHD</MudChip>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" OnClick="@ApplyPreset720p">720p HD</MudChip>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" OnClick="@ApplyPreset480p">480p SD</MudChip>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@ApplyPresetAudioOnly">Áudio Puro (Rádio)</MudChip>
+                    </div>
+                </div>
+
+                <!-- Informações Básicas do Perfil -->
+                <div class="d-flex flex-wrap gap-4 align-center mb-4">
+                    <MudTextField @bind-Value="_model.Name" For="@(() => _model.Name)" Label="Nome do Perfil FFmpeg" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex: 2; min-width: 240px;" Required="true" />
+                    <MudNumericField T="int" @bind-Value="_model.ThreadCount" Label="Threads (0 = Auto)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex: 1; min-width: 140px;" Min="0" Max="64" />
+                </div>
+
+                <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mud-tabs-rounded">
+                    <!-- ABA 1: VÍDEO -->
+                    <MudTabPanel Text="Vídeo" Icon="@Icons.Material.Filled.Videocam">
+                        <div class="pt-4">
+                            <div class="d-flex flex-wrap gap-4 mb-3">
+                                <MudCheckBox T="bool" @bind-Value="_model.NormalizeVideo" Color="Color.Primary" Label="Normalizar Vídeo" Dense="true" />
+                                <MudCheckBox T="bool" @bind-Value="_model.NormalizeFramerate" Color="Color.Info" Label="Normalizar FPS" Dense="true" />
+                                <MudCheckBox T="bool" @bind-Value="_model.NormalizeColors" Color="Color.Warning" Label="Normalizar Cores" Dense="true" />
+                                <MudCheckBox T="bool" @bind-Value="_model.DeinterlaceVideo" Color="Color.Error" Label="Auto-Desentrelaçamento" Dense="true" />
+                                <MudCheckBox T="bool" @bind-Value="_model.AllowBFrames" Color="Color.Success" Label="Permitir B-Frames" Dense="true" />
+                            </div>
+
+                            @if (_model.NormalizeVideo)
+                            {
+                                <MudGrid Spacing="2">
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="ResolutionViewModel" @bind-Value="_model.Resolution" For="@(() => _model.Resolution)" Label="Resolução Broadcast" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            @foreach (ResolutionViewModel resolution in _resolutions)
+                                            {
+                                                <MudSelectItem Value="@resolution">@resolution.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="FFmpegProfileVideoFormat" @bind-Value="_model.VideoFormat" For="@(() => _model.VideoFormat)" Label="Codec de Vídeo" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="@FFmpegProfileVideoFormat.H264">H.264 / AVC (Máxima Compatibilidade)</MudSelectItem>
+                                            <MudSelectItem Value="@FFmpegProfileVideoFormat.Hevc">H.265 / HEVC (Alta Eficiência)</MudSelectItem>
+                                            <MudSelectItem Value="@FFmpegProfileVideoFormat.Mpeg2Video">MPEG-2 (Legado Broadcast)</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int" @bind-Value="_model.VideoBitrate" For="@(() => _model.VideoBitrate)" Label="Bitrate de Vídeo (kBit/s)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="100" Max="50000" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int" @bind-Value="_model.VideoBufferSize" For="@(() => _model.VideoBufferSize)" Label="Buffer de Vídeo (kBit)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="100" Max="100000" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="FFmpegProfileBitDepth" @bind-Value="_model.BitDepth" For="@(() => _model.BitDepth)" Label="Profundidade de Cor" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="@FFmpegProfileBitDepth.EightBit">8-bit SDR</MudSelectItem>
+                                            <MudSelectItem Value="@FFmpegProfileBitDepth.TenBit">10-bit HDR</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="ScalingBehavior" @bind-Value="_model.ScalingBehavior" For="@(() => _model.ScalingBehavior)" Label="Comportamento de Escala" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="@ScalingBehavior.ScaleAndPad">Escalar com Barras Pretas (Scale &amp; Pad)</MudSelectItem>
+                                            <MudSelectItem Value="@ScalingBehavior.Stretch">Esticar para Preencher (Stretch)</MudSelectItem>
+                                            <MudSelectItem Value="@ScalingBehavior.Crop">Cortar Bordas Excedentes (Crop)</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                </MudGrid>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                                    Normalização de Vídeo desativada. O fluxo de vídeo original será repassado diretamente (Stream Passthrough). Ideal para canais de Rádio Web com áudio puro.
+                                </MudAlert>
+                            }
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 2: ÁUDIO -->
+                    <MudTabPanel Text="Áudio" Icon="@Icons.Material.Filled.VolumeUp">
+                        <div class="pt-4">
+                            <MudCheckBox T="bool" @bind-Value="_model.NormalizeAudio" Color="Color.Secondary" Label="Normalizar Áudio" Dense="true" Class="mb-3" />
+
+                            @if (_model.NormalizeAudio)
+                            {
+                                <MudGrid Spacing="2">
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="FFmpegProfileAudioFormat" @bind-Value="_model.AudioFormat" For="@(() => _model.AudioFormat)" Label="Codec de Áudio" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="@FFmpegProfileAudioFormat.Aac">AAC (Padrão Streaming)</MudSelectItem>
+                                            <MudSelectItem Value="@FFmpegProfileAudioFormat.Ac3">AC3 / Dolby Digital</MudSelectItem>
+                                            <MudSelectItem Value="@FFmpegProfileAudioFormat.AacLatm">AAC LATM (DVB-C)</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="NormalizeLoudnessMode" @bind-Value="_model.NormalizeLoudnessMode" For="@(() => _model.NormalizeLoudnessMode)" Label="Nivelamento de Volume" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="@NormalizeLoudnessMode.Off">Desativado (Off)</MudSelectItem>
+                                            <MudSelectItem Value="@NormalizeLoudnessMode.LoudNorm">EBU R128 (loudnorm)</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int" @bind-Value="_model.AudioBitrate" For="@(() => _model.AudioBitrate)" Label="Bitrate de Áudio (kBit/s)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="32" Max="640" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int" @bind-Value="_model.AudioBufferSize" For="@(() => _model.AudioBufferSize)" Label="Buffer de Áudio (kBit)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="32" Max="1280" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int" @bind-Value="_model.AudioChannels" For="@(() => _model.AudioChannels)" Label="Canais (2 = Estéreo, 6 = 5.1)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="1" Max="8" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int" @bind-Value="_model.AudioSampleRate" For="@(() => _model.AudioSampleRate)" Label="Taxa de Amostragem (kHz)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="32" Max="96" />
+                                    </MudItem>
+                                    @if (_model.NormalizeLoudnessMode is NormalizeLoudnessMode.LoudNorm)
+                                    {
+                                        <MudItem xs="12" sm="6">
+                                            <MudTextField T="double?" @bind-Value="_model.TargetLoudness" For="@(() => _model.TargetLoudness)" Label="Alvo LUFS (ex: -24)" Margin="Margin.Dense" Variant="Variant.Outlined" Adornment="Adornment.End" AdornmentText="LUFS" />
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                                    Normalização de Áudio desativada. O áudio original será copiado sem transcodificação.
+                                </MudAlert>
+                            }
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 3: GPU & HARDWARE -->
+                    <MudTabPanel Text="Aceleração GPU" Icon="@Icons.Material.Filled.Speed">
+                        <div class="pt-4">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect T="HardwareAccelerationKind" @bind-Value="_model.HardwareAcceleration" For="@(() => _model.HardwareAcceleration)" Label="Método de Aceleração" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                        @foreach (HardwareAccelerationKind hwAccel in _hardwareAccelerationKinds)
+                                        {
+                                            <MudSelectItem Value="@hwAccel">@hwAccel</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect T="FFmpegProfileTonemapAlgorithm" @bind-Value="_model.TonemapAlgorithm" For="@(() => _model.TonemapAlgorithm)" Label="Tonemapping HDR" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                        @foreach (FFmpegProfileTonemapAlgorithm algorithm in Enum.GetValues<FFmpegProfileTonemapAlgorithm>())
+                                        {
+                                            <MudSelectItem Value="@algorithm">@algorithm</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+
+                                @if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && _model.HardwareAcceleration is HardwareAccelerationKind.Vaapi)
+                                {
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="VaapiDriver" @bind-Value="_model.VaapiDriver" For="@(() => _model.VaapiDriver)" Label="Driver VAAPI" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            @foreach (VaapiDriver driver in Enum.GetValues<VaapiDriver>())
+                                            {
+                                                <MudSelectItem Value="@driver">@driver</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="string" @bind-Value="_model.VaapiDevice" For="@(() => _model.VaapiDevice)" Label="Dispositivo VAAPI" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            @foreach (string device in _vaapiDevices)
+                                            {
+                                                <MudSelectItem Value="@device">@device</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                }
+
+                                @if (_model.HardwareAcceleration == HardwareAccelerationKind.Qsv)
+                                {
+                                    <MudItem xs="12" sm="6">
+                                        <MudNumericField T="int?" @bind-Value="_model.QsvExtraHardwareFrames" Label="QSV Extra Hardware Frames" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        </div>
+                    </MudTabPanel>
+                </MudTabs>
+            </MudForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(_isSaving || _isLoading)" 
+                   OnClick="HandleSubmitAsync">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Salvar Alterações" : "Criar Perfil")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CancellationTokenSource _cts;
+    private FFmpegProfileEditViewModel _model = new();
+    private readonly FFmpegProfileEditViewModelValidator _validator = new();
+    private MudForm _form;
+    private List<ResolutionViewModel> _resolutions = [];
+    private List<HardwareAccelerationKind> _hardwareAccelerationKinds = [];
+    private List<string> _vaapiDisplays = [];
+    private List<string> _vaapiDevices = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool IsEdit => Id.HasValue && Id.Value > 0;
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        _isLoading = true;
+
+        try
+        {
+            _resolutions = await Mediator.Send(new GetAllResolutions(), token);
+            _hardwareAccelerationKinds = await Mediator.Send(new GetSupportedHardwareAccelerationKinds(), token);
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (!MemoryCache.TryGetValue("ffmpeg.vaapi_devices", out List<string> vaapiDevices))
+                {
+                    vaapiDevices = ["/dev/dri/renderD128"];
+                }
+                _vaapiDevices = vaapiDevices.OrderBy(s => s).ToList();
+
+                if (!MemoryCache.TryGetValue("ffmpeg.vaapi_displays", out List<string> vaapiDisplays))
+                {
+                    vaapiDisplays = ["drm"];
+                }
+                _vaapiDisplays = vaapiDisplays.OrderBy(s => s).ToList();
+            }
+
+            if (IsEdit)
+            {
+                Option<FFmpegProfileViewModel> profile = await Mediator.Send(new GetFFmpegProfileById(Id.Value), token);
+                profile.Match(
+                    vm => _model = new FFmpegProfileEditViewModel(vm),
+                    () =>
+                    {
+                        Snackbar.Add("Perfil FFmpeg não encontrado", Severity.Error);
+                        MudDialog.Cancel();
+                    });
+            }
+            else
+            {
+                _model = new FFmpegProfileEditViewModel
+                {
+                    Name = "Novo Perfil",
+                    NormalizeVideo = true,
+                    NormalizeAudio = true,
+                    VideoFormat = FFmpegProfileVideoFormat.H264,
+                    AudioFormat = FFmpegProfileAudioFormat.Aac,
+                    Resolution = _resolutions.FirstOrDefault(r => r.Height == 1080) ?? _resolutions.FirstOrDefault(),
+                    VideoBitrate = 4500,
+                    VideoBufferSize = 9000,
+                    AudioBitrate = 192,
+                    AudioBufferSize = 384,
+                    AudioChannels = 2,
+                    AudioSampleRate = 48
+                };
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyPreset1080p()
+    {
+        _model.Name = "1080p Full HD (Broadcast)";
+        _model.NormalizeVideo = true;
+        _model.NormalizeAudio = true;
+        _model.VideoFormat = FFmpegProfileVideoFormat.H264;
+        _model.VideoBitrate = 4500;
+        _model.VideoBufferSize = 9000;
+        _model.AudioFormat = FFmpegProfileAudioFormat.Aac;
+        _model.AudioBitrate = 192;
+        _model.AudioBufferSize = 384;
+        _model.AudioChannels = 2;
+        _model.AudioSampleRate = 48;
+        var res = _resolutions.FirstOrDefault(r => r.Width == 1920 && r.Height == 1080) ?? _resolutions.FirstOrDefault(r => r.Height == 1080);
+        if (res != null) _model.Resolution = res;
+        Snackbar.Add("Predefinição 1080p Full HD aplicada.", Severity.Info);
+    }
+
+    private void ApplyPreset720p()
+    {
+        _model.Name = "720p HD (Padrão Web)";
+        _model.NormalizeVideo = true;
+        _model.NormalizeAudio = true;
+        _model.VideoFormat = FFmpegProfileVideoFormat.H264;
+        _model.VideoBitrate = 2500;
+        _model.VideoBufferSize = 5000;
+        _model.AudioFormat = FFmpegProfileAudioFormat.Aac;
+        _model.AudioBitrate = 160;
+        _model.AudioBufferSize = 320;
+        _model.AudioChannels = 2;
+        _model.AudioSampleRate = 48;
+        var res = _resolutions.FirstOrDefault(r => r.Width == 1280 && r.Height == 720) ?? _resolutions.FirstOrDefault(r => r.Height == 720);
+        if (res != null) _model.Resolution = res;
+        Snackbar.Add("Predefinição 720p HD aplicada.", Severity.Info);
+    }
+
+    private void ApplyPreset480p()
+    {
+        _model.Name = "480p SD (Econômico)";
+        _model.NormalizeVideo = true;
+        _model.NormalizeAudio = true;
+        _model.VideoFormat = FFmpegProfileVideoFormat.H264;
+        _model.VideoBitrate = 1200;
+        _model.VideoBufferSize = 2400;
+        _model.AudioFormat = FFmpegProfileAudioFormat.Aac;
+        _model.AudioBitrate = 128;
+        _model.AudioBufferSize = 256;
+        _model.AudioChannels = 2;
+        _model.AudioSampleRate = 48;
+        var res = _resolutions.FirstOrDefault(r => r.Height == 480);
+        if (res != null) _model.Resolution = res;
+        Snackbar.Add("Predefinição 480p SD aplicada.", Severity.Info);
+    }
+
+    private void ApplyPresetAudioOnly()
+    {
+        _model.Name = "Áudio Puro (Web Rádio)";
+        _model.NormalizeVideo = false;
+        _model.NormalizeAudio = true;
+        _model.AudioFormat = FFmpegProfileAudioFormat.Aac;
+        _model.AudioBitrate = 128;
+        _model.AudioBufferSize = 256;
+        _model.AudioChannels = 2;
+        _model.AudioSampleRate = 44;
+        Snackbar.Add("Predefinição Áudio Puro (Web Rádio) aplicada.", Severity.Info);
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (_form != null)
+        {
+            await _form.ValidateAsync();
+            if (!_form.IsValid) return;
+        }
+
+        _isSaving = true;
+
+        try
+        {
+            if (IsEdit)
+            {
+                var updateCommand = _model.ToUpdate();
+                var result = await Mediator.Send(updateCommand, _cts.Token);
+                result.Match(
+                    _ =>
+                    {
+                        Snackbar.Add("Perfil FFmpeg salvo com sucesso!", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(true));
+                    },
+                    error =>
+                    {
+                        Snackbar.Add(error.Value, Severity.Error);
+                        Logger.LogError("Erro ao atualizar perfil FFmpeg: {Error}", error.Value);
+                    });
+            }
+            else
+            {
+                var createCommand = _model.ToCreate();
+                var result = await Mediator.Send(createCommand, _cts.Token);
+                result.Match(
+                    _ =>
+                    {
+                        Snackbar.Add("Perfil FFmpeg criado com sucesso!", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(true));
+                    },
+                    error =>
+                    {
+                        Snackbar.Add(error.Value, Severity.Error);
+                        Logger.LogError("Erro ao criar perfil FFmpeg: {Error}", error.Value);
+                    });
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

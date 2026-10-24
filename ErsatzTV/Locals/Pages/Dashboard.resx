@@ -1,0 +1,83 @@
+<root>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="Title_Dashboard" xml:space="preserve">
+        <value>Broadcast Control Center</value>
+    </data>
+    <data name="Subtitle_Dashboard" xml:space="preserve">
+        <value>Real-time linear broadcast telemetry, active channels and instant preview.</value>
+    </data>
+    <data name="Card_ActiveChannels" xml:space="preserve">
+        <value>On-Air Channels</value>
+    </data>
+    <data name="Card_ActivePlayouts" xml:space="preserve">
+        <value>Active Playouts</value>
+    </data>
+    <data name="Card_ZeroDelay" xml:space="preserve">
+        <value>Zero-Delay Ready</value>
+    </data>
+    <data name="Card_TotalMedia" xml:space="preserve">
+        <value>Library Hours</value>
+    </data>
+    <data name="Badge_OnAir" xml:space="preserve">
+        <value>LIVE ON-AIR</value>
+    </data>
+    <data name="Badge_PreCache" xml:space="preserve">
+        <value>PRECACHE (0% GPU)</value>
+    </data>
+    <data name="Badge_Offline" xml:space="preserve">
+        <value>OFFLINE</value>
+    </data>
+    <data name="Btn_Preview" xml:space="preserve">
+        <value>Watch Preview</value>
+    </data>
+    <data name="Btn_EditChannel" xml:space="preserve">
+        <value>Edit Channel</value>
+    </data>
+    <data name="Btn_Playout" xml:space="preserve">
+        <value>Playouts</value>
+    </data>
+    <data name="Modal_Preview_Title" xml:space="preserve">
+        <value>Live Broadcast Stream Preview</value>
+    </data>
+    <data name="Label_NoChannels" xml:space="preserve">
+        <value>No channels configured yet. Create your first channel to start broadcasting.</value>
+    </data>
+    <data name="Btn_CreateFirstChannel" xml:space="preserve">
+        <value>Create Channel</value>
+    </data>
+    <data name="Label_PlayingNow" xml:space="preserve">
+        <value>Playing Now</value>
+    </data>
+    <data name="Label_UpNext" xml:space="preserve">
+        <value>Up Next</value>
+    </data>
+    <data name="Label_NoSchedule" xml:space="preserve">
+        <value>No scheduled content currently</value>
+    </data>
+    <data name="Label_Mode_TV" xml:space="preserve">
+        <value>TV</value>
+    </data>
+    <data name="Label_Mode_Radio" xml:space="preserve">
+        <value>Radio</value>
+    </data>
+    <data name="Btn_Manage" xml:space="preserve">
+        <value>Manage</value>
+    </data>
+    <data name="Label_TelemetriaZeroGPU" xml:space="preserve">
+        <value>0% GPU - Standby</value>
+    </data>
+    <data name="Btn_Refresh" xml:space="preserve">
+        <value>Refresh</value>
+    </data>
+</root>

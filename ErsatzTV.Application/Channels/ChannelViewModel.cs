@@ -38,7 +38,13 @@ public record ChannelViewModel(
     bool ShowInEpg,
     ChannelMode Mode,
     int PreCache = 2,
-    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled)
+    FallbackSlateMode FallbackSlateMode = FallbackSlateMode.Disabled,
+    string FallbackCustomTitle = null,
+    string FallbackCustomMessage = null,
+    int? FallbackMediaItemId = null,
+    int? FallbackCollectionId = null,
+    int? FallbackPlaylistId = null,
+    bool FallbackIsLoop = true)
 {
     public string WebEncodedName => WebUtility.UrlEncode(Name);
 }

@@ -1,0 +1,166 @@
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Core
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-6">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mb-4 text-muted">
+                @(IsEdit ? "Altere o nome e o grupo organizador desta playlist." : "Crie uma nova playlist sequencial dentro de um grupo.")
+            </MudText>
+
+            <MudSelect T="int" @bind-Value="_selectedGroupId" Label="Grupo da Playlist" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4">
+                @if (Groups != null)
+                {
+                    @foreach (var group in Groups)
+                    {
+                        <MudSelectItem Value="@group.Id">@group.Name</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+
+            <MudTextField @bind-Value="_playlistName" 
+                          Label="Nome da Playlist" 
+                          Placeholder="ex: Animes dos Anos 90, Maratona Terror" 
+                          Variant="Variant.Outlined" 
+                          Margin="Margin.Dense" 
+                          AutoFocus="true" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(_selectedGroupId <= 0 || string.IsNullOrWhiteSpace(_playlistName) || _isSaving || _isLoading)" 
+                   OnClick="Save">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Salvar Alterações" : "Criar Playlist")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    [Parameter]
+    public List<PlaylistGroupViewModel> Groups { get; set; } = new();
+
+    [Parameter]
+    public int? InitialGroupId { get; set; }
+
+    private int _selectedGroupId;
+    private string _playlistName;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool IsEdit => Id.HasValue && Id.Value > 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            if (Groups == null || Groups.Count == 0)
+            {
+                Groups = await Mediator.Send(new GetAllPlaylistGroups());
+            }
+
+            if (IsEdit)
+            {
+                Option<PlaylistViewModel> maybe = await Mediator.Send(new GetPlaylistById(Id.Value));
+                maybe.Match(
+                    p =>
+                    {
+                        _playlistName = p.Name;
+                        _selectedGroupId = p.PlaylistGroupId;
+                    },
+                    () =>
+                    {
+                        Snackbar.Add("Playlist não encontrada", Severity.Error);
+                        MudDialog.Cancel();
+                    });
+            }
+            else
+            {
+                if (InitialGroupId.HasValue && Groups.Any(g => g.Id == InitialGroupId.Value))
+                {
+                    _selectedGroupId = InitialGroupId.Value;
+                }
+                else if (Groups.Any())
+                {
+                    _selectedGroupId = Groups.First().Id;
+                }
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_selectedGroupId <= 0 || string.IsNullOrWhiteSpace(_playlistName)) return;
+
+        _isSaving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                var result = await Mediator.Send(new UpdatePlaylist(Id.Value, _selectedGroupId, _playlistName.Trim()));
+                result.Match(
+                    Left: error =>
+                    {
+                        Snackbar.Add($"Erro ao atualizar playlist: {error.Value}", Severity.Error);
+                        return LanguageExt.Unit.Default;
+                    },
+                    Right: playlist =>
+                    {
+                        Snackbar.Add($"Playlist '{playlist.Name}' atualizada com sucesso.", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(playlist));
+                        return LanguageExt.Unit.Default;
+                    });
+            }
+            else
+            {
+                var result = await Mediator.Send(new CreatePlaylist(_selectedGroupId, _playlistName.Trim()));
+                result.Match(
+                    Left: error =>
+                    {
+                        Snackbar.Add($"Erro ao criar playlist: {error.Value}", Severity.Error);
+                        return LanguageExt.Unit.Default;
+                    },
+                    Right: playlist =>
+                    {
+                        Snackbar.Add($"Playlist '{playlist.Name}' criada com sucesso.", Severity.Success);
+                        MudDialog.Close(DialogResult.Ok(playlist));
+                        return LanguageExt.Unit.Default;
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro inesperado: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,41 @@
+<root>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="Title_Studio" xml:space="preserve">
+        <value>Estúdio de Screen Layouts</value>
+    </data>
+    <data name="Subtitle_Studio" xml:space="preserve">
+        <value>Compositor de sobreposições visuais, marcas d'água dinâmicas, vinhetas e réguas gráficas.</value>
+    </data>
+    <data name="Button_NewLayout" xml:space="preserve">
+        <value>Novo Layout</value>
+    </data>
+    <data name="Button_SaveLayout" xml:space="preserve">
+        <value>Salvar Alterações</value>
+    </data>
+    <data name="Button_DeleteLayout" xml:space="preserve">
+        <value>Excluir Layout</value>
+    </data>
+    <data name="Button_AddElement" xml:space="preserve">
+        <value>Adicionar Elemento</value>
+    </data>
+    <data name="Button_AddRule" xml:space="preserve">
+        <value>Adicionar Regra</value>
+    </data>
+    <data name="Msg_Saved" xml:space="preserve">
+        <value>Screen Layout salvo com sucesso!</value>
+    </data>
+    <data name="Msg_Deleted" xml:space="preserve">
+        <value>Screen Layout excluído com sucesso.</value>
+    </data>
+</root>

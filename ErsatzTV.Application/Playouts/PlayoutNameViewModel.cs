@@ -16,7 +16,8 @@ public record PlayoutNameViewModel(
     bool IsEnabled = true,
     PlayoutCalendarMode CalendarMode = PlayoutCalendarMode.AlwaysActive,
     PlayoutDeliveryMode DeliveryMode = PlayoutDeliveryMode.Loop,
-    PlayoutRuntimeStatus RuntimeStatus = PlayoutRuntimeStatus.ActiveInTransmission)
+    PlayoutRuntimeStatus RuntimeStatus = PlayoutRuntimeStatus.ActiveInTransmission,
+    ChannelMode ChannelMode = ChannelMode.Television)
 {
     public Option<TimeSpan> DailyRebuildTime => Optional(DbDailyRebuildTime);
 

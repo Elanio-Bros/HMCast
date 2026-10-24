@@ -1,0 +1,462 @@
+@using System.Globalization
+@using ErsatzTV.Application.Artworks
+@using ErsatzTV.Application.Channels
+@using ErsatzTV.Application.Configuration
+@using ErsatzTV.Application.FFmpegProfiles
+@using ErsatzTV.Application.Filler
+@using ErsatzTV.Application.Images
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Application.MediaItems
+@using ErsatzTV.Application.Templates
+@using ErsatzTV.Application.Watermarks
+@using ErsatzTV.Core.Domain.Filler
+@using ErsatzTV.Validators
+@using FluentValidation.Results
+@using static Prelude
+@implements IDisposable
+@inject ILogger<ChannelDialog> Logger
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <MudForm Model="@_model" @ref="@_form" Validation="@(_validator.ValidateValue)" ValidationDelay="0">
+                <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mud-tabs-rounded">
+                    <!-- ABA 1: GERAL -->
+                    <MudTabPanel Text="Geral" Icon="@Icons.Material.Filled.Tv">
+                        <div class="pt-4">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="4">
+                                    <MudTextField @bind-Value="_model.Number" For="@(() => _model.Number)" Label="Número do Canal" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="8">
+                                    <MudTextField @bind-Value="_model.Name" For="@(() => _model.Name)" Label="Nome do Canal" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudRadioGroup T="ChannelMode" @bind-Value="_model.Mode">
+                                        <MudRadio Value="ChannelMode.Television" Color="Color.Primary">
+                                            <div class="d-flex align-center gap-1">
+                                                <MudIcon Icon="@Icons.Material.Filled.Tv" Size="Size.Small"/>
+                                                <span>Televisão (Vídeo + Áudio)</span>
+                                            </div>
+                                        </MudRadio>
+                                        <MudRadio Value="ChannelMode.Radio" Color="Color.Secondary">
+                                            <div class="d-flex align-center gap-1">
+                                                <MudIcon Icon="@Icons.Material.Filled.Radio" Size="Size.Small"/>
+                                                <span>Web Rádio (Áudio Puro + Slate 1fps)</span>
+                                            </div>
+                                        </MudRadio>
+                                    </MudRadioGroup>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="_model.Group" For="@(() => _model.Group)" Label="Grupo / Pacote" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="_model.Categories" For="@(() => _model.Categories)" Label="Categorias (separadas por vírgula)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudCheckBox @bind-Value="_model.IsEnabled" Color="Color.Primary" Label="Canal Habilitado / No Ar" Dense="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudCheckBox @bind-Value="_model.ShowInEpg" Color="Color.Primary" Label="Exibir no Guia Eletrônico (EPG)" Dense="true" />
+                                </MudItem>
+                            </MudGrid>
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 2: TRANSMISSÃO & FFMPEG -->
+                    <MudTabPanel Text="Transmissão &amp; FFmpeg" Icon="@Icons.Material.Filled.Settings">
+                        <div class="pt-4">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect @bind-Value="_model.StreamingEngine" For="@(() => _model.StreamingEngine)" Label="Streaming Engine" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                        <MudSelectItem Value="@(StreamingEngine.Legacy)">Legacy</MudSelectItem>
+                                        <MudSelectItem Value="@(StreamingEngine.Next)">Next</MudSelectItem>
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect @bind-Value="_model.StreamingMode" For="@(() => _model.StreamingMode)" Label="Modo de Streaming" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                        <MudSelectItem Value="@(StreamingMode.TransportStreamHybrid)">MPEG-TS Híbrido</MudSelectItem>
+                                        <MudSelectItem Value="@(StreamingMode.HttpLiveStreamingSegmenter)">HLS Segmenter</MudSelectItem>
+                                        <MudSelectItem Value="@(StreamingMode.HttpLiveStreamingDirect)">HLS Direct</MudSelectItem>
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect @bind-Value="_model.FFmpegProfileId" For="@(() => _model.FFmpegProfileId)" Label="Perfil FFmpeg" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                        @foreach (FFmpegProfileViewModel profile in GetFilteredFFmpegProfiles())
+                                        {
+                                            <MudSelectItem Value="@profile.Id">@profile.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudNumericField T="int" @bind-Value="_model.PreCache" For="@(() => _model.PreCache)" Label="PreCache Zero-Delay (Segmentos RAM)" Margin="Margin.Dense" Variant="Variant.Outlined" Min="0" Max="5" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect @bind-Value="_model.PreferredAudioLanguageCode" For="@(() => _model.PreferredAudioLanguageCode)" Label="Idioma de Áudio Preferido" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                                        <MudSelectItem Value="@((string)null)">(Padrão)</MudSelectItem>
+                                        @foreach (LanguageCodeViewModel culture in _availableCultures)
+                                        {
+                                            <MudSelectItem Value="@culture.ThreeLetterISOLanguageName">@culture.EnglishName</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                @if (_model.Mode != ChannelMode.Radio)
+                                {
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect @bind-Value="_model.SubtitleMode" For="@(() => _model.SubtitleMode)" Label="Modo de Legendas" Margin="Margin.Dense" Variant="Variant.Outlined">
+                                            <MudSelectItem Value="@(ChannelSubtitleMode.None)">Desativado (None)</MudSelectItem>
+                                            <MudSelectItem Value="@(ChannelSubtitleMode.Forced)">Apenas Forçadas</MudSelectItem>
+                                            <MudSelectItem Value="@(ChannelSubtitleMode.Default)">Padrão da Mídia</MudSelectItem>
+                                            <MudSelectItem Value="@(ChannelSubtitleMode.Any)">Qualquer Disponível</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 3: CONTINGÊNCIA / FALLBACK SLATE -->
+                    <MudTabPanel Text="Contingência" Icon="@Icons.Material.Filled.Shield">
+                        <div class="pt-4">
+                            <MudSelect T="FallbackSlateMode" @bind-Value="_model.FallbackSlateMode" For="@(() => _model.FallbackSlateMode)" Label="Modo de Contingência (Fallback Slate)" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-3">
+                                <MudSelectItem Value="FallbackSlateMode.Disabled">Desativado</MudSelectItem>
+                                <MudSelectItem Value="FallbackSlateMode.SingleMedia">Cartão / Mídia Única</MudSelectItem>
+                                <MudSelectItem Value="FallbackSlateMode.Collection">Coleção de Mídias</MudSelectItem>
+                                <MudSelectItem Value="FallbackSlateMode.Playlist">Playlist</MudSelectItem>
+                            </MudSelect>
+
+                            @if (_model.FallbackSlateMode != FallbackSlateMode.Disabled)
+                            {
+                                <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="border-left: 3px solid var(--mud-palette-primary);">
+                                    <MudTextField @bind-Value="_model.FallbackCustomTitle" Label="Título Informativo da Contingência" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-3" />
+                                    <MudTextField @bind-Value="_model.FallbackCustomMessage" Label="Mensagem / Comunicado ao Telespectador" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-3" />
+
+                                    @if (_model.FallbackSlateMode == FallbackSlateMode.Collection)
+                                    {
+                                        <MudSelect T="int?" @bind-Value="_model.FallbackCollectionId" Label="Coleção de Contingência" Clearable="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-3">
+                                            <MudSelectItem T="int?" Value="@((int?)null)">(Selecione uma coleção)</MudSelectItem>
+                                            @foreach (var col in _mediaCollections)
+                                            {
+                                                <MudSelectItem T="int?" Value="@col.Id">@col.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    }
+                                    else if (_model.FallbackSlateMode == FallbackSlateMode.Playlist)
+                                    {
+                                        <MudSelect T="int?" @bind-Value="_model.FallbackPlaylistId" Label="Playlist de Contingência" Clearable="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="mb-3">
+                                            <MudSelectItem T="int?" Value="@((int?)null)">(Selecione uma playlist)</MudSelectItem>
+                                            @foreach (var pl in _playlists)
+                                            {
+                                                <MudSelectItem T="int?" Value="@pl.Id">@pl.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    }
+
+                                    <MudCheckBox @bind-Value="_model.FallbackIsLoop" Color="Color.Primary" Label="Executar Mídias de Contingência em Loop Contínuo" Dense="true" />
+                                </MudPaper>
+                            }
+                        </div>
+                    </MudTabPanel>
+
+                    <!-- ABA 4: LOGO & VISUAL -->
+                    <MudTabPanel Text="Visual &amp; Logo" Icon="@Icons.Material.Filled.Image">
+                        <div class="pt-4">
+                            <div class="d-flex align-center gap-4 mb-4">
+                                <InputFile id="channelLogoInput" OnChange="@UploadLogo" style="display: none;"/>
+                                <MudButton HtmlTag="label"
+                                           Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                                           for="channelLogoInput">
+                                    Upload de Logo
+                                </MudButton>
+                                @if (!string.IsNullOrWhiteSpace(_model.Logo?.Path) || !string.IsNullOrWhiteSpace(_model.ExternalLogoUrl))
+                                {
+                                    <MudElement HtmlTag="img" src="@(string.IsNullOrWhiteSpace(_model.ExternalLogoUrl) ? _model.Logo.UrlWithContentType : _model.ExternalLogoUrl)" Style="max-height: 48px; border-radius: 4px;" />
+                                }
+                            </div>
+
+                            <MudTextField @bind-Value="_model.ExternalLogoUrl" For="@(() => _model.ExternalLogoUrl)" Label="Ou URL Externa do Logotipo" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+
+                            @if (_model.Mode != ChannelMode.Radio)
+                            {
+                                <MudSelect @bind-Value="_model.WatermarkId" For="@(() => _model.WatermarkId)" Label="Marca d'Água (Watermark)" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" Class="mb-4">
+                                    <MudSelectItem T="int?" Value="@((int?)null)">(Nenhuma)</MudSelectItem>
+                                    @foreach (WatermarkViewModel watermark in _watermarks)
+                                    {
+                                        <MudSelectItem T="int?" Value="@watermark.Id">@watermark.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+
+                            <MudSelect @bind-Value="_model.FallbackFillerId" For="@(() => _model.FallbackFillerId)" Label="Filler de Preenchimento Padrão" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                                <MudSelectItem T="int?" Value="@((int?)null)">(Nenhum)</MudSelectItem>
+                                @foreach (FillerPresetViewModel fillerPreset in _fillerPresets)
+                                {
+                                    <MudSelectItem T="int?" Value="@fillerPreset.Id">@fillerPreset.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </div>
+                    </MudTabPanel>
+                </MudTabs>
+            </MudForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(_isSaving || _isLoading)" 
+                   OnClick="HandleSubmitAsync">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(IsEdit ? "Salvar Alterações" : "Criar Canal")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CancellationTokenSource _cts;
+    private readonly ChannelEditViewModel _model = new();
+    private readonly ChannelEditViewModelValidator _validator = new();
+    private MudForm _form;
+
+    private List<ChannelViewModel> _channels = [];
+    private List<FFmpegProfileViewModel> _ffmpegProfiles = [];
+    private List<LanguageCodeViewModel> _availableCultures = [];
+    private List<WatermarkViewModel> _watermarks = [];
+    private List<FillerPresetViewModel> _fillerPresets = [];
+    private List<MediaCollectionViewModel> _mediaCollections = [];
+    private List<PlaylistViewModel> _playlists = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool IsEdit => Id.HasValue && Id.Value > 0;
+
+    private IEnumerable<FFmpegProfileViewModel> GetFilteredFFmpegProfiles()
+    {
+        if (_model.Mode == ChannelMode.Radio)
+        {
+            var audioProfiles = _ffmpegProfiles.Where(p => !p.NormalizeVideo || p.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Radio", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (audioProfiles.Count > 0)
+            {
+                return audioProfiles;
+            }
+        }
+        return _ffmpegProfiles;
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        _isLoading = true;
+
+        try
+        {
+            _channels = await Mediator.Send(new GetAllChannels(), token);
+            _ffmpegProfiles = await Mediator.Send(new GetAllFFmpegProfiles(), token);
+            _availableCultures = await Mediator.Send(new GetAllLanguageCodes(), token);
+            _watermarks = await Mediator.Send(new GetAllWatermarks(), token);
+            _fillerPresets = await Mediator.Send(new GetAllFillerPresets(), token)
+                .Map(list => list.Filter(vm => vm.FillerKind == FillerKind.Fallback).ToList());
+            _mediaCollections = await Mediator.Send(new GetAllCollections(), token);
+            _playlists = await Mediator.Send(new GetAllPlaylists(), token);
+
+            if (IsEdit)
+            {
+                Option<ChannelViewModel> maybeChannel = await Mediator.Send(new GetChannelById(Id.Value), token);
+                maybeChannel.Match(
+                    channelViewModel =>
+                    {
+                        _model.Id = channelViewModel.Id;
+                        _model.Name = channelViewModel.Name;
+                        _model.Group = channelViewModel.Group;
+                        _model.Categories = channelViewModel.Categories;
+                        _model.Number = channelViewModel.Number;
+                        _model.FFmpegProfileId = channelViewModel.FFmpegProfileId;
+                        _model.SlugSeconds = channelViewModel.SlugSeconds;
+
+                        if (channelViewModel.Logo.IsExternalUrl)
+                        {
+                            _model.ExternalLogoUrl = channelViewModel.Logo.Path;
+                        }
+                        else
+                        {
+                            _model.Logo = channelViewModel.Logo;
+                        }
+
+                        _model.PlayoutSource = channelViewModel.PlayoutSource;
+                        _model.PlayoutMode = channelViewModel.PlayoutMode;
+                        _model.MirrorSourceChannelId = channelViewModel.MirrorSourceChannelId;
+                        _model.PlayoutOffset = channelViewModel.PlayoutOffset;
+                        _model.StreamingEngine = channelViewModel.StreamingEngine;
+                        _model.NextEngineTextSubtitleMode = channelViewModel.NextEngineTextSubtitleMode;
+                        _model.StreamingMode = channelViewModel.StreamingMode;
+                        _model.StreamSelectorMode = channelViewModel.StreamSelectorMode;
+                        _model.StreamSelector = channelViewModel.StreamSelector;
+                        _model.PreferredAudioLanguageCode = channelViewModel.PreferredAudioLanguageCode;
+                        _model.PreferredAudioTitle = channelViewModel.PreferredAudioTitle;
+                        _model.WatermarkId = channelViewModel.WatermarkId;
+                        _model.FallbackFillerId = channelViewModel.FallbackFillerId;
+                        _model.PreferredSubtitleLanguageCode = channelViewModel.PreferredSubtitleLanguageCode;
+                        _model.SubtitleMode = channelViewModel.SubtitleMode;
+                        _model.MusicVideoCreditsMode = channelViewModel.MusicVideoCreditsMode;
+                        _model.MusicVideoCreditsTemplate = channelViewModel.MusicVideoCreditsTemplate;
+                        _model.SongVideoMode = channelViewModel.SongVideoMode;
+                        _model.TranscodeMode = channelViewModel.TranscodeMode;
+                        _model.IdleBehavior = channelViewModel.IdleBehavior;
+                        _model.IsEnabled = channelViewModel.IsEnabled;
+                        _model.ShowInEpg = channelViewModel.ShowInEpg;
+                        _model.Mode = channelViewModel.Mode;
+                        _model.PreCache = channelViewModel.PreCache;
+                        _model.FallbackSlateMode = channelViewModel.FallbackSlateMode;
+                        _model.FallbackCustomTitle = channelViewModel.FallbackCustomTitle;
+                        _model.FallbackCustomMessage = channelViewModel.FallbackCustomMessage;
+                        _model.FallbackMediaItemId = channelViewModel.FallbackMediaItemId;
+                        _model.FallbackCollectionId = channelViewModel.FallbackCollectionId;
+                        _model.FallbackPlaylistId = channelViewModel.FallbackPlaylistId;
+                        _model.FallbackIsLoop = channelViewModel.FallbackIsLoop;
+                    },
+                    () =>
+                    {
+                        Snackbar.Add("Canal não encontrado", Severity.Error);
+                        MudDialog.Cancel();
+                    });
+            }
+            else
+            {
+                FFmpegSettingsViewModel ffmpegSettings = await Mediator.Send(new GetFFmpegSettings(), token);
+                IEnumerable<int> channelNumbers = _channels.Map(c => int.TryParse(c.Number.Split(".").Head(), out int result) ? result : 0);
+                int maxNumber = Optional(channelNumbers).Flatten().DefaultIfEmpty(0).Max();
+
+                _model.Number = (maxNumber + 1).ToString();
+                _model.Name = "Novo Canal";
+                _model.Group = "HMCast";
+                _model.FFmpegProfileId = ffmpegSettings.DefaultFFmpegProfileId;
+                _model.StreamingEngine = StreamingEngine.Next;
+                _model.NextEngineTextSubtitleMode = NextEngineTextSubtitleMode.Burn;
+                _model.StreamingMode = StreamingMode.TransportStreamHybrid;
+                _model.IsEnabled = true;
+                _model.ShowInEpg = true;
+                _model.PreCache = 2;
+                _model.FallbackSlateMode = FallbackSlateMode.Disabled;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task UploadLogo(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var token = _cts?.Token ?? CancellationToken.None;
+            Either<BaseError, string> maybeCacheFileName =
+                await Mediator.Send(new SaveArtworkToDisk(e.File.OpenReadStream(10 * 1024 * 1024), ArtworkKind.Logo, e.File.ContentType), token);
+            maybeCacheFileName.Match(
+                relativeFileName =>
+                {
+                    _model.Logo = new ArtworkContentTypeModel($"iptv/logos/{relativeFileName}", e.File.ContentType);
+                    _model.ExternalLogoUrl = null;
+                    StateHasChanged();
+                },
+                error =>
+                {
+                    Snackbar.Add($"Erro ao salvar logo: {error.Value}", Severity.Error);
+                });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao enviar logo: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (_form != null)
+        {
+            await _form.ValidateAsync();
+            if (!_form.IsValid) return;
+        }
+
+        _isSaving = true;
+
+        try
+        {
+            var token = _cts?.Token ?? CancellationToken.None;
+            ValidationResult validationResult = await _validator.ValidateAsync(_model, token);
+            if (validationResult.IsValid)
+            {
+                if (IsEdit)
+                {
+                    var result = await Mediator.Send(_model.ToUpdate(), token);
+                    result.Match(
+                        _ =>
+                        {
+                            Snackbar.Add("Canal atualizado com sucesso!", Severity.Success);
+                            MudDialog.Close(DialogResult.Ok(true));
+                        },
+                        error =>
+                        {
+                            Snackbar.Add(error.Value, Severity.Error);
+                            Logger.LogError("Erro ao atualizar canal: {Error}", error.Value);
+                        });
+                }
+                else
+                {
+                    var result = await Mediator.Send(_model.ToCreate(), token);
+                    result.Match(
+                        _ =>
+                        {
+                            Snackbar.Add("Canal criado com sucesso!", Severity.Success);
+                            MudDialog.Close(DialogResult.Ok(true));
+                        },
+                        error =>
+                        {
+                            Snackbar.Add(error.Value, Severity.Error);
+                            Logger.LogError("Erro ao criar canal: {Error}", error.Value);
+                        });
+                }
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

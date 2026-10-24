@@ -7,6 +7,8 @@
 @inject IEntityLocker Locker
 @inject NavigationManager NavigationManager
 
+
+
 <style>
     .cursor-pointer {
         cursor: pointer;
@@ -73,7 +75,11 @@
 
     private IList<LocalLibraryViewModel> _libraries;
 
-    protected override void OnInitialized() => Locker.OnLibraryChanged += LockChanged;
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/media/libraries", replace: true);
+        Locker.OnLibraryChanged += LockChanged;
+    }
 
     protected override async Task OnParametersSetAsync()
     {

@@ -1,0 +1,56 @@
+<root>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="Title_Commercials" xml:space="preserve">
+        <value>Commercials &amp; Interstitials</value>
+    </data>
+    <data name="Subtitle_Commercials" xml:space="preserve">
+        <value>Manage ads, station IDs, bumpers, pads, and fillers for schedules and playlists.</value>
+    </data>
+    <data name="Button_AddCommercial" xml:space="preserve">
+        <value>Add Commercial / Bumper</value>
+    </data>
+    <data name="Header_Name" xml:space="preserve">
+        <value>Name</value>
+    </data>
+    <data name="Header_Kind" xml:space="preserve">
+        <value>Kind</value>
+    </data>
+    <data name="Header_Collection" xml:space="preserve">
+        <value>Collection</value>
+    </data>
+    <data name="Header_TargetDuration" xml:space="preserve">
+        <value>Target Duration</value>
+    </data>
+    <data name="Header_PadSeconds" xml:space="preserve">
+        <value>Pad Seconds</value>
+    </data>
+    <data name="Header_PlaybackOrder" xml:space="preserve">
+        <value>Playback Order</value>
+    </data>
+    <data name="Header_Actions" xml:space="preserve">
+        <value>Actions</value>
+    </data>
+    <data name="Dialog_AddTitle" xml:space="preserve">
+        <value>Add Commercial / Bumper</value>
+    </data>
+    <data name="Dialog_EditTitle" xml:space="preserve">
+        <value>Edit Commercial / Bumper</value>
+    </data>
+    <data name="Msg_Saved" xml:space="preserve">
+        <value>Commercial preset saved successfully.</value>
+    </data>
+    <data name="Msg_Deleted" xml:space="preserve">
+        <value>Commercial preset deleted successfully.</value>
+    </data>
+</root>

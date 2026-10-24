@@ -56,4 +56,61 @@
     <data name="ButtonListsTraktLists" xml:space="preserve">
         <value>Listas Trakt</value>
     </data>
+    <data name="NavGroupBroadcast" xml:space="preserve">
+        <value>TRANSMISSÃO</value>
+    </data>
+    <data name="NavChannels" xml:space="preserve">
+        <value>Canais</value>
+    </data>
+    <data name="NavPlayouts" xml:space="preserve">
+        <value>Playouts</value>
+    </data>
+    <data name="NavScreenLayouts" xml:space="preserve">
+        <value>Screen Layouts</value>
+    </data>
+    <data name="NavGroupMedia" xml:space="preserve">
+        <value>MÍDIA</value>
+    </data>
+    <data name="NavLibraries" xml:space="preserve">
+        <value>Bibliotecas &amp; Mídia</value>
+    </data>
+    <data name="NavCollections" xml:space="preserve">
+        <value>Coleções</value>
+    </data>
+    <data name="NavGroupProgramming" xml:space="preserve">
+        <value>PROGRAMAÇÃO</value>
+    </data>
+    <data name="NavSchedules" xml:space="preserve">
+        <value>Grades 24 Horas</value>
+    </data>
+    <data name="NavPlaylists" xml:space="preserve">
+        <value>Playlists Maestro</value>
+    </data>
+    <data name="NavCommercials" xml:space="preserve">
+        <value>Comerciais &amp; Vinhetas</value>
+    </data>
+    <data name="NavGroupSystem" xml:space="preserve">
+        <value>SISTEMA</value>
+    </data>
+    <data name="NavFFmpegProfiles" xml:space="preserve">
+        <value>Perfis FFmpeg</value>
+    </data>
+    <data name="NavIptvHdhr" xml:space="preserve">
+        <value>IPTV &amp; HDHomeRun</value>
+    </data>
+    <data name="NavSettings" xml:space="preserve">
+        <value>Configurações</value>
+    </data>
+    <data name="NavHealth" xml:space="preserve">
+        <value>Saúde do Sistema</value>
+    </data>
+    <data name="StatusStationOnline" xml:space="preserve">
+        <value>NO AR</value>
+    </data>
+    <data name="StatusStationPreCache" xml:space="preserve">
+        <value>PRONTIDÃO ZERO-DELAY</value>
+    </data>
+    <data name="StatusStationIdle" xml:space="preserve">
+        <value>EMISSORA EM ESPERA</value>
+    </data>
 </root>

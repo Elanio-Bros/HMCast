@@ -73,50 +73,90 @@
 <MudDivider Class="mb-4"/>
 
 <!-- Timeline Contínua de 24 Horas HMCast 3.0 -->
-<MudPaper Class="pa-4 mb-6" Elevation="2" Style="background: rgba(30, 34, 45, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;">
-    <div class="d-flex align-center justify-space-between mb-2">
+<MudPaper Class="pa-4 mb-6" Elevation="2" Style="background: rgba(18, 24, 36, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;">
+    @{
+        var orderedTimelineItems = (_schedule?.Items ?? Enumerable.Empty<ProgramScheduleItemEditViewModel>()).OrderBy(i => i.Index).ToList();
+        double totalAllocated = orderedTimelineItems.Sum(i => i.DurationMode == ScheduleItemDurationMode.FixedTimeBlock && i.TargetDuration.HasValue ? i.TargetDuration.Value.TotalMinutes : (i.TargetDuration?.TotalMinutes > 0 ? i.TargetDuration.Value.TotalMinutes : 30.0));
+        double maxDayMinutes = Math.Max(1440.0, totalAllocated);
+        double gapMinutes = 1440.0 > totalAllocated ? 1440.0 - totalAllocated : 0.0;
+        double overrunMinutes = totalAllocated > 1440.0 ? totalAllocated - 1440.0 : 0.0;
+    }
+    <div class="d-flex align-center justify-space-between mb-3">
         <div class="d-flex align-center gap-2">
             <MudIcon Icon="@Icons.Material.Filled.ViewTimeline" Color="Color.Primary" Size="Size.Small" />
-            <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Linha do Tempo Contínua de 24 Horas (Daily Grid Timeline)</MudText>
+            <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">Grade Diária de 24 Horas (Daily 24h Timeline)</MudText>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                @(TimeSpan.FromMinutes(totalAllocated).ToString(@"hh\:mm")) / 24:00
+            </MudChip>
+            @if (overrunMinutes > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Warning">
+                    Estouro de Grade: +@(TimeSpan.FromMinutes(overrunMinutes).ToString(@"hh\:mm"))
+                </MudChip>
+            }
+            else if (gapMinutes > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.HourglassEmpty">
+                    Folga Disponível: @(TimeSpan.FromMinutes(gapMinutes).ToString(@"hh\:mm"))
+                </MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">
+                    Grade Completa (24h)
+                </MudChip>
+            }
         </div>
-        <div class="d-flex gap-3">
+        <div class="d-flex gap-3 align-center">
             <div class="d-flex align-center gap-1">
-                <div style="width: 12px; height: 12px; border-radius: 2px; background: #1976d2;"></div>
-                <MudText Typo="Typo.caption">Bloco Fixo 24h</MudText>
+                <div style="width: 12px; height: 12px; border-radius: 2px; background: var(--mud-palette-primary);"></div>
+                <MudText Typo="Typo.caption">Bloco Fixo</MudText>
             </div>
             <div class="d-flex align-center gap-1">
-                <div style="width: 12px; height: 12px; border-radius: 2px; background: #7b1fa2;"></div>
-                <MudText Typo="Typo.caption">Conteúdo Fluido</MudText>
+                <div style="width: 12px; height: 12px; border-radius: 2px; background: var(--mud-palette-secondary);"></div>
+                <MudText Typo="Typo.caption">Fluido</MudText>
+            </div>
+            <div class="d-flex align-center gap-1">
+                <div style="width: 12px; height: 12px; border-radius: 2px; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.1) 4px, rgba(0,0,0,0.3) 4px, rgba(0,0,0,0.3) 8px);"></div>
+                <MudText Typo="Typo.caption">Folga / Gap</MudText>
             </div>
         </div>
     </div>
 
-    <!-- Barra da Régua 24h -->
-    <div style="position: relative; width: 100%; height: 38px; background: rgba(0, 0, 0, 0.3); border-radius: 6px; overflow: hidden; display: flex; align-items: stretch; border: 1px solid rgba(255, 255, 255, 0.05);">
-        @if (_schedule?.Items is not null && _schedule.Items.Any())
+    <!-- Barra da Régua 24h com visualização proporcional e textura de Gap -->
+    <div style="position: relative; width: 100%; height: 42px; background: rgba(0, 0, 0, 0.4); border-radius: 6px; overflow: hidden; display: flex; align-items: stretch; border: 1px solid rgba(255, 255, 255, 0.08);">
+        @if (orderedTimelineItems.Any())
         {
-            var orderedTimelineItems = _schedule.Items.OrderBy(i => i.Index).ToList();
-            double totalWeight = orderedTimelineItems.Sum(i => i.DurationMode == ScheduleItemDurationMode.FixedTimeBlock && i.TargetDuration.HasValue ? i.TargetDuration.Value.TotalMinutes : (i.TargetDuration?.TotalMinutes > 0 ? i.TargetDuration.Value.TotalMinutes : 30.0));
-            if (totalWeight <= 0) { totalWeight = 1; }
-
             @foreach (var item in orderedTimelineItems)
             {
                 double durationMinutes = item.DurationMode == ScheduleItemDurationMode.FixedTimeBlock && item.TargetDuration.HasValue
                     ? item.TargetDuration.Value.TotalMinutes
                     : (item.TargetDuration?.TotalMinutes > 0 ? item.TargetDuration.Value.TotalMinutes : 30.0);
-                double pct = (durationMinutes / totalWeight) * 100.0;
-                string blockColor = item == _selectedItem ? "#ff9800" : (item.DurationMode == ScheduleItemDurationMode.FixedTimeBlock ? "#1976d2" : "#7b1fa2");
+                double pct = (durationMinutes / maxDayMinutes) * 100.0;
+                string blockColor = item == _selectedItem ? "var(--mud-palette-warning)" : (item.DurationMode == ScheduleItemDurationMode.FixedTimeBlock ? "var(--mud-palette-primary)" : "var(--mud-palette-secondary)");
                 string startLabel = item.StartType == StartType.Fixed && item.StartTime.HasValue ? DateTime.Today.Add(item.StartTime.Value).ToString("HH:mm") : "Dinâmico";
                 string durLabel = TimeSpan.FromMinutes(durationMinutes).ToString(@"hh\:mm");
                 string tooltipText = $"{item.CollectionName} ({startLabel} • {durLabel} • {item.PlayoutMode})";
 
                 <MudTooltip Text="@tooltipText">
                     <div @onclick="@(() => SelectedItemChanged(item))"
-                         style="flex: 0 0 @(pct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%; height: 100%; background: @blockColor; border-right: 1px solid rgba(0,0,0,0.4); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter 0.2s;"
+                         style="flex: 0 0 @(pct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%; height: 100%; background: @blockColor; border-right: 1px solid rgba(0,0,0,0.5); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter 0.2s;"
                          onmouseover="this.style.filter='brightness(1.2)'"
                          onmouseout="this.style.filter='none'">
-                        <span style="font-size: 11px; font-weight: bold; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
+                        <span style="font-size: 11px; font-weight: bold; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.9);">
                             @item.CollectionName
+                        </span>
+                    </div>
+                </MudTooltip>
+            }
+
+            @if (gapMinutes > 0)
+            {
+                double gapPct = (gapMinutes / maxDayMinutes) * 100.0;
+                <MudTooltip Text="@($"Folga de tempo não programada: {TimeSpan.FromMinutes(gapMinutes):hh\\:mm} livres até completar 24 horas")">
+                    <div style="flex: 0 0 @(gapPct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%; height: 100%; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.06), rgba(255,255,255,0.06) 6px, rgba(0,0,0,0.3) 6px, rgba(0,0,0,0.3) 12px); border-right: 1px dashed rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-style: italic;">
+                            Folga @(TimeSpan.FromMinutes(gapMinutes).ToString(@"hh\:mm"))
                         </span>
                     </div>
                 </MudTooltip>
@@ -130,17 +170,14 @@
         }
     </div>
 
-    <!-- Marcadores de Hora da Régua 24h -->
-    <div class="d-flex justify-space-between mt-1 px-1" style="color: rgba(255, 255, 255, 0.4); font-size: 11px; font-family: monospace;">
-        <span>00:00</span>
-        <span>03:00</span>
-        <span>06:00</span>
-        <span>09:00</span>
-        <span>12:00</span>
-        <span>15:00</span>
-        <span>18:00</span>
-        <span>21:00</span>
-        <span>24:00</span>
+    <!-- Régua Horária Graduada de 24 Horas -->
+    <div style="display: grid; grid-template-columns: repeat(24, 1fr); width: 100%; margin-top: 4px; color: rgba(255, 255, 255, 0.45); font-size: 10px; font-family: monospace;">
+        @for (int h = 0; h < 24; h++)
+        {
+            <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 2px;">
+                @(h % 2 == 0 ? $"{h:00}h" : "")
+            </div>
+        }
     </div>
 </MudPaper>
 

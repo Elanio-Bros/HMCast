@@ -20,7 +20,8 @@ internal static class Mapper
             playout.IsEnabled,
             playout.CalendarMode,
             playout.DeliveryMode,
-            playout.IsEnabled ? PlayoutRuntimeStatus.ActiveInTransmission : PlayoutRuntimeStatus.Disabled);
+            playout.IsEnabled ? PlayoutRuntimeStatus.ActiveInTransmission : PlayoutRuntimeStatus.Disabled,
+            playout.Channel.Mode);
 
     internal static PlayoutItemViewModel ProjectToViewModel(PlayoutItem playoutItem) =>
         new(

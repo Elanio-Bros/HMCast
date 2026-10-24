@@ -188,4 +188,61 @@
     <data name="ButtonContact" xml:space="preserve">
         <value>Contact</value>
     </data>
+    <data name="NavGroupBroadcast" xml:space="preserve">
+        <value>BROADCAST</value>
+    </data>
+    <data name="NavChannels" xml:space="preserve">
+        <value>Channels</value>
+    </data>
+    <data name="NavPlayouts" xml:space="preserve">
+        <value>Playouts</value>
+    </data>
+    <data name="NavScreenLayouts" xml:space="preserve">
+        <value>Screen Layouts</value>
+    </data>
+    <data name="NavGroupMedia" xml:space="preserve">
+        <value>MEDIA</value>
+    </data>
+    <data name="NavLibraries" xml:space="preserve">
+        <value>Libraries &amp; Media</value>
+    </data>
+    <data name="NavCollections" xml:space="preserve">
+        <value>Collections</value>
+    </data>
+    <data name="NavGroupProgramming" xml:space="preserve">
+        <value>PROGRAMMING</value>
+    </data>
+    <data name="NavSchedules" xml:space="preserve">
+        <value>24h Schedules</value>
+    </data>
+    <data name="NavPlaylists" xml:space="preserve">
+        <value>Playlists Maestro</value>
+    </data>
+    <data name="NavCommercials" xml:space="preserve">
+        <value>Commercials &amp; Fillers</value>
+    </data>
+    <data name="NavGroupSystem" xml:space="preserve">
+        <value>SYSTEM</value>
+    </data>
+    <data name="NavFFmpegProfiles" xml:space="preserve">
+        <value>FFmpeg Profiles</value>
+    </data>
+    <data name="NavIptvHdhr" xml:space="preserve">
+        <value>IPTV &amp; HDHomeRun</value>
+    </data>
+    <data name="NavSettings" xml:space="preserve">
+        <value>Settings</value>
+    </data>
+    <data name="NavHealth" xml:space="preserve">
+        <value>System Health</value>
+    </data>
+    <data name="StatusStationOnline" xml:space="preserve">
+        <value>LIVE ON-AIR</value>
+    </data>
+    <data name="StatusStationPreCache" xml:space="preserve">
+        <value>PRECACHE READY</value>
+    </data>
+    <data name="StatusStationIdle" xml:space="preserve">
+        <value>STATION IDLE</value>
+    </data>
 </root>
